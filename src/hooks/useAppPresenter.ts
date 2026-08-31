@@ -1,6 +1,7 @@
 import { useContext, useCallback } from 'react';
 import { PresenterContext } from '../context/PresenterContext';
 import { usePresenter } from './usePresenter';
+import { Timeframe } from '../types/asset';
 
 export function useAppPresenter() {
   const presenter = useContext(PresenterContext);
@@ -30,6 +31,21 @@ export function useAppPresenter() {
     [presenter]
   );
 
+  const changeTimeframe = useCallback(
+    (tf: Timeframe) => presenter.changeTimeframe(tf),
+    [presenter]
+  );
+
+  const getTimeframeData = useCallback(
+    (assetId: string, tf: Timeframe) => presenter.getTimeframeData(assetId, tf),
+    [presenter]
+  );
+
+  const clearWarnings = useCallback(
+    () => presenter.clearWarnings(),
+    [presenter]
+  );
+
   const loadAssets = useCallback(
     () => presenter.loadAssets(),
     [presenter]
@@ -41,6 +57,9 @@ export function useAppPresenter() {
     selectAsset,
     removeAsset,
     changeChartType,
+    changeTimeframe,
+    getTimeframeData,
+    clearWarnings,
     loadAssets,
   };
 }

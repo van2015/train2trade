@@ -161,8 +161,42 @@ body {
 .chart-type-selector {
   display: flex;
   gap: 0.5rem;
-  padding: 1rem;
+  padding: 0.5rem 1rem;
   border-bottom: 1px solid #e0e0e0;
+}
+
+.timeframe-selector {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.timeframe-btn {
+  padding: 0.375rem 0.625rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.timeframe-btn:hover {
+  background: #f5f5f5;
+}
+
+.timeframe-btn.active {
+  background: #1a1a2e;
+  color: white;
+  border-color: #1a1a2e;
+}
+
+.timeframe-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .chart-type-btn {
@@ -222,4 +256,75 @@ body {
   min-height: 100vh;
   font-size: 1.25rem;
   color: #666;
+}
+
+.toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 1000;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 280px;
+  max-width: 400px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.toast-info {
+  border-left: 4px solid #2962FF;
+}
+
+.toast-warning {
+  border-left: 4px solid #f57c00;
+}
+
+.toast-error {
+  border-left: 4px solid #d32f2f;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 0.875rem;
+  color: #333;
+}
+
+.toast-dismiss {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: #999;
+  font-size: 1.25rem;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast-dismiss:hover {
+  background: #f5f5f5;
+  color: #333;
 }

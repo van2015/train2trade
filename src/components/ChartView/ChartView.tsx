@@ -1,15 +1,24 @@
 import { useEffect, useRef } from 'react';
-import { PriceData, ChartType } from '../../types/asset';
+import { PriceData, ChartType, Timeframe } from '../../types/asset';
 import { useChart } from '../../hooks/useChart';
 import { ChartTypeSelector } from '../ChartTypeSelector/ChartTypeSelector';
+import { TimeframeSelector } from '../TimeframeSelector/TimeframeSelector';
 
 interface ChartViewProps {
   data: PriceData[] | null;
   chartType: ChartType;
   onChartTypeChange: (type: ChartType) => void;
+  timeframe: Timeframe;
+  onTimeframeChange: (timeframe: Timeframe) => void;
 }
 
-export function ChartView({ data, chartType, onChartTypeChange }: ChartViewProps) {
+export function ChartView({
+  data,
+  chartType,
+  onChartTypeChange,
+  timeframe,
+  onTimeframeChange,
+}: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { renderChart, destroyChart } = useChart();
 
@@ -29,6 +38,11 @@ export function ChartView({ data, chartType, onChartTypeChange }: ChartViewProps
 
   return (
     <div className="chart-view">
+      <TimeframeSelector
+        value={timeframe}
+        onChange={onTimeframeChange}
+        disabled={!data}
+      />
       <ChartTypeSelector
         value={chartType}
         onChange={onChartTypeChange}

@@ -1,7 +1,7 @@
-import { Asset, PriceData } from '../types/asset';
+import { Asset, PriceData, Timeframe } from '../types/asset';
 
 const DB_NAME = 'AssetChartDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'assets';
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -15,6 +15,11 @@ function openDatabase(): Promise<IDBDatabase> {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      } else {
+        const store = (event.target as IDBOpenDBRequest).transaction!.objectStore(STORE_NAME);
+        if (!store.indexNames.contains('originalTimeframe')) {
+          store.createIndex('originalTimeframe', 'originalTimeframe', { unique: false });
+        }
       }
     };
   });
@@ -24,13 +29,18 @@ export async function initDatabase(): Promise<IDBDatabase> {
   return openDatabase();
 }
 
-export async function saveAsset(name: string, data: PriceData[]): Promise<Asset> {
+export async function saveAsset(
+  name: string,
+  data: PriceData[],
+  originalTimeframe: Timeframe = '1D'
+): Promise<Asset> {
   const db = await openDatabase();
   const asset: Asset = {
     id: crypto.randomUUID(),
     name,
     data,
     createdAt: new Date(),
+    originalTimeframe,
   };
 
   return new Promise((resolve, reject) => {
@@ -52,7 +62,13 @@ export async function getAssets(): Promise<Asset[]> {
     const request = store.getAll();
 
     request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const assets = request.result.map((asset: Asset) => ({
+        ...asset,
+        originalTimeframe: asset.originalTimeframe || '1D',
+      }));
+      resolve(assets);
+    };
   });
 }
 
