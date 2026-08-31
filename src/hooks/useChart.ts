@@ -33,14 +33,6 @@ export function useChart() {
     [getChartService]
   );
 
-  const switchChartType = useCallback(
-    (type: ChartType, container: HTMLElement, data: PriceData[]) => {
-      const service = getChartService();
-      service.switchChartType(type, container, data);
-    },
-    [getChartService]
-  );
-
   const destroyChart = useCallback(() => {
     if (chartServiceRef.current) {
       chartServiceRef.current.destroy();
@@ -49,7 +41,6 @@ export function useChart() {
 
   return {
     renderChart,
-    switchChartType,
     destroyChart,
   };
 }

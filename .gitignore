@@ -41,3 +41,6 @@ coverage/
 # OpenSpec (keep planning separate)
 openspec/specs/
 openspec/changes/
+
+# opencode
+.opencode/

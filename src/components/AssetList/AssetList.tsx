@@ -3,7 +3,7 @@ import { Asset } from '../../types/asset';
 interface AssetListProps {
   assets: Asset[];
   selectedId: string | null;
-  onSelect: (asset: Asset) => void;
+  onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   disabled?: boolean;
 }
@@ -20,7 +20,7 @@ export function AssetList({ assets, selectedId, onSelect, onDelete, disabled }: 
           key={asset.id}
           className={`asset-item ${selectedId === asset.id ? 'selected' : ''}`}
         >
-          <span className="asset-name" onClick={() => onSelect(asset)}>
+          <span className="asset-name" onClick={() => onSelect(asset.id)}>
             {asset.name}
           </span>
           <span className="asset-data-count">{asset.data.length} points</span>

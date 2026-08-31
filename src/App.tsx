@@ -1,44 +1,12 @@
-import { useState, useCallback } from 'react';
-import { Asset, ChartType } from './types/asset';
-import { useAssets } from './hooks/useAssets';
+import { useAppPresenter } from './hooks/useAppPresenter';
 import { FileImport } from './components/FileImport/FileImport';
 import { AssetList } from './components/AssetList/AssetList';
 import { ChartView } from './components/ChartView/ChartView';
 
 function App() {
-  const { assets, loading, error, addAsset, removeAsset } = useAssets();
-  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
-  const [chartType, setChartType] = useState<ChartType>('line');
+  const { state, importAsset, selectAsset, removeAsset, changeChartType } = useAppPresenter();
 
-  const handleImport = useCallback(
-    async (name: string, file: File) => {
-      const asset = await addAsset(name, file);
-      setSelectedAsset(asset);
-    },
-    [addAsset]
-  );
-
-  const handleSelect = useCallback((asset: Asset) => {
-    setSelectedAsset(asset);
-  }, []);
-
-  const handleDelete = useCallback(
-    async (id: string) => {
-      await removeAsset(id);
-      if (selectedAsset?.id === id) {
-        setSelectedAsset(null);
-      }
-    },
-    [removeAsset, selectedAsset]
-  );
-
-  const handleChartTypeChange = useCallback((type: ChartType) => {
-    setChartType(type);
-  }, []);
-
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
+  const selectedAsset = state.assets.find(a => a.id === state.selectedAssetId) || null;
 
   return (
     <div className="app">
@@ -50,26 +18,26 @@ function App() {
         <aside className="sidebar">
           <section className="import-section">
             <h2>Import</h2>
-            <FileImport onImport={handleImport} />
+            <FileImport onImport={importAsset} />
           </section>
 
           <section className="assets-section">
             <h2>Assets</h2>
             <AssetList
-              assets={assets}
-              selectedId={selectedAsset?.id || null}
-              onSelect={handleSelect}
-              onDelete={handleDelete}
+              assets={state.assets}
+              selectedId={state.selectedAssetId}
+              onSelect={selectAsset}
+              onDelete={removeAsset}
             />
           </section>
         </aside>
 
         <section className="chart-section">
-          {error && <div className="error-message">{error}</div>}
+          {state.error && <div className="error-message">{state.error}</div>}
           <ChartView
             data={selectedAsset?.data || null}
-            chartType={chartType}
-            onChartTypeChange={handleChartTypeChange}
+            chartType={state.chartType}
+            onChartTypeChange={changeChartType}
           />
         </section>
       </main>
