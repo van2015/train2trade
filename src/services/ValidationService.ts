@@ -1,4 +1,5 @@
-import { PriceData, Timeframe, TIMEFRAME_MINUTES } from '../types/asset';
+import { PriceData } from '../types/asset';
+import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
 
 export interface ValidationError {
   type: 'DUPLICATE_TIMESTAMP' | 'INVALID_VALUES' | 'UNORDERED';
@@ -14,68 +15,7 @@ export interface ParseResult {
   data?: PriceData[];
   error?: ValidationError;
   warnings?: string[];
-  detectedTimeframe?: Timeframe;
-}
-
-function detectTimeframe(data: PriceData[]): { tf: Timeframe; confidence: number } {
-  if (data.length < 2) {
-    return { tf: '1D', confidence: 0 };
-  }
-
-  const gaps: number[] = [];
-  for (let i = 1; i < data.length; i++) {
-    const prev = new Date(data[i - 1].date).getTime();
-    const curr = new Date(data[i].date).getTime();
-    gaps.push((curr - prev) / 60000);
-  }
-
-  const histogram: Record<number, number> = {};
-  for (const gap of gaps) {
-    const rounded = Math.round(gap);
-    histogram[rounded] = (histogram[rounded] || 0) + 1;
-  }
-
-  let mostCommonGap = 1;
-  let maxCount = 0;
-  for (const [gap, count] of Object.entries(histogram)) {
-    if (count > maxCount) {
-      maxCount = count;
-      mostCommonGap = parseInt(gap, 10);
-    }
-  }
-
-  let tf: Timeframe;
-  if (mostCommonGap <= 2) tf = '1m';
-  else if (mostCommonGap <= 7) tf = '5m';
-  else if (mostCommonGap <= 20) tf = '15m';
-  else if (mostCommonGap <= 75) tf = '1h';
-  else if (mostCommonGap <= 300) tf = '4h';
-  else if (mostCommonGap <= 1500) tf = '1D';
-  else tf = '1W';
-
-  const confidence = maxCount / gaps.length;
-
-  return { tf, confidence };
-}
-
-function detectGaps(data: PriceData[]): { startRow: number; endRow: number }[] {
-  if (data.length < 2) return [];
-
-  const gaps: { startRow: number; endRow: number }[] = [];
-  const { tf } = detectTimeframe(data);
-  const expectedGap = TIMEFRAME_MINUTES[tf];
-
-  for (let i = 1; i < data.length; i++) {
-    const prev = new Date(data[i - 1].date).getTime();
-    const curr = new Date(data[i].date).getTime();
-    const actualGap = (curr - prev) / 60000;
-
-    if (actualGap > expectedGap * 1.5) {
-      gaps.push({ startRow: i - 1, endRow: i });
-    }
-  }
-
-  return gaps;
+  detectedTimeframe?: TimeframeType;
 }
 
 function checkDuplicates(data: PriceData[]): string[] {
@@ -205,7 +145,7 @@ export function validateAndParse(
     }
   }
 
-  const gaps = detectGaps(data);
+  const gaps = Timeframe.detectGaps(data);
   const warnings: string[] = [];
   if (gaps.length > 0) {
     warnings.push(
@@ -213,7 +153,7 @@ export function validateAndParse(
     );
   }
 
-  const { tf, confidence } = detectTimeframe(data);
+  const { tf, confidence } = Timeframe.detect(data);
   if (confidence < 0.7) {
     warnings.push(
       `Could not detect timeframe with high confidence. Assuming 1D.`

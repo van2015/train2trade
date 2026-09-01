@@ -1,7 +1,7 @@
 import { useContext, useCallback } from 'react';
 import { PresenterContext } from '../context/PresenterContext';
 import { usePresenter } from './usePresenter';
-import { Timeframe } from '../types/asset';
+import { Timeframe as TimeframeType } from '../timeframe/Timeframe';
 
 export function useAppPresenter() {
   const presenter = useContext(PresenterContext);
@@ -32,12 +32,12 @@ export function useAppPresenter() {
   );
 
   const changeTimeframe = useCallback(
-    (tf: Timeframe) => presenter.changeTimeframe(tf),
+    (tf: TimeframeType) => presenter.changeTimeframe(tf),
     [presenter]
   );
 
   const getTimeframeData = useCallback(
-    (assetId: string, tf: Timeframe) => presenter.getTimeframeData(assetId, tf),
+    (assetId: string, tf: TimeframeType) => presenter.getTimeframeData(assetId, tf),
     [presenter]
   );
 

@@ -1,20 +1,21 @@
-import { PriceData, Timeframe, TIMEFRAME_MINUTES } from '../types/asset';
+import { PriceData } from '../types/asset';
+import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
 
-const cache = new Map<string, Map<Timeframe, PriceData[]>>();
+const cache = new Map<string, Map<TimeframeType, PriceData[]>>();
 
 function getCacheKey(assetId: string): string {
   return assetId;
 }
 
-export function getTimeframeFactor(original: Timeframe, target: Timeframe): number {
+export function getTimeframeFactor(original: TimeframeType, target: TimeframeType): number {
   if (original === target) return 1;
-  return TIMEFRAME_MINUTES[target] / TIMEFRAME_MINUTES[original];
+  return Timeframe.getMinutes(target) / Timeframe.getMinutes(original);
 }
 
 export function aggregate(
   data: PriceData[],
-  targetTF: Timeframe,
-  originalTF: Timeframe
+  targetTF: TimeframeType,
+  originalTF: TimeframeType
 ): PriceData[] {
   if (targetTF === originalTF) {
     return data;
@@ -60,7 +61,7 @@ export function aggregate(
 
 export function getCachedData(
   assetId: string,
-  timeframe: Timeframe
+  timeframe: TimeframeType
 ): PriceData[] | undefined {
   const assetCache = cache.get(getCacheKey(assetId));
   if (!assetCache) return undefined;
@@ -69,7 +70,7 @@ export function getCachedData(
 
 export function setCachedData(
   assetId: string,
-  timeframe: Timeframe,
+  timeframe: TimeframeType,
   data: PriceData[]
 ): void {
   let assetCache = cache.get(getCacheKey(assetId));
@@ -91,8 +92,8 @@ export function clearCache(assetId?: string): void {
 export function getAggregatedData(
   assetId: string,
   originalData: PriceData[],
-  originalTimeframe: Timeframe,
-  targetTimeframe: Timeframe
+  originalTimeframe: TimeframeType,
+  targetTimeframe: TimeframeType
 ): PriceData[] {
   if (targetTimeframe === originalTimeframe) {
     return originalData;

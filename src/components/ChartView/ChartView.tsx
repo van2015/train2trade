@@ -1,26 +1,21 @@
 import { useEffect, useRef } from 'react';
-import { PriceData, ChartType, Timeframe } from '../../types/asset';
+import { useAppPresenter } from '../../hooks/useAppPresenter';
 import { useChart } from '../../hooks/useChart';
 import { ChartTypeSelector } from '../ChartTypeSelector/ChartTypeSelector';
 import { TimeframeSelector } from '../TimeframeSelector/TimeframeSelector';
 
 interface ChartViewProps {
-  data: PriceData[] | null;
-  chartType: ChartType;
-  onChartTypeChange: (type: ChartType) => void;
-  timeframe: Timeframe;
-  onTimeframeChange: (timeframe: Timeframe) => void;
+  assetId: string | null;
 }
 
-export function ChartView({
-  data,
-  chartType,
-  onChartTypeChange,
-  timeframe,
-  onTimeframeChange,
-}: ChartViewProps) {
+export function ChartView({ assetId }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { state, getTimeframeData, changeChartType, changeTimeframe } = useAppPresenter();
   const { renderChart, destroyChart } = useChart();
+
+  const data = assetId
+    ? getTimeframeData(assetId, state.selectedTimeframe)
+    : null;
 
   useEffect(() => {
     return () => {
@@ -30,22 +25,22 @@ export function ChartView({
 
   useEffect(() => {
     if (containerRef.current && data) {
-      renderChart(chartType, containerRef.current, data);
+      renderChart(state.chartType, containerRef.current, data);
     } else {
       destroyChart();
     }
-  }, [data, chartType, renderChart, destroyChart]);
+  }, [data, state.chartType, renderChart, destroyChart]);
 
   return (
     <div className="chart-view">
       <TimeframeSelector
-        value={timeframe}
-        onChange={onTimeframeChange}
+        value={state.selectedTimeframe}
+        onChange={changeTimeframe}
         disabled={!data}
       />
       <ChartTypeSelector
-        value={chartType}
-        onChange={onChartTypeChange}
+        value={state.chartType}
+        onChange={changeChartType}
         disabled={!data}
       />
       <div className="chart-container" ref={containerRef}>

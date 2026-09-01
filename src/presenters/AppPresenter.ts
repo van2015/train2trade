@@ -1,4 +1,5 @@
-import { Asset, ChartType, PriceData, Timeframe } from '../types/asset';
+import { Asset, ChartType, PriceData } from '../types/asset';
+import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
 import { getAssets, saveAsset, deleteAsset } from '../services/storageService';
 import { validateAndParse } from '../services/ValidationService';
 import { getAggregatedData } from '../services/AggregationService';
@@ -9,7 +10,7 @@ export interface AppState {
   assets: Asset[];
   selectedAssetId: string | null;
   chartType: ChartType;
-  selectedTimeframe: Timeframe;
+  selectedTimeframe: TimeframeType;
   error: string | null;
   warnings: string[];
 }
@@ -20,7 +21,7 @@ class AppPresenter {
   private assets: Asset[] = [];
   private selectedAssetId: string | null = null;
   private chartType: ChartType = 'line';
-  private selectedTimeframe: Timeframe = '1D';
+  private selectedTimeframe: TimeframeType = '1D';
   private error: string | null = null;
   private warnings: string[] = [];
   private listeners: Set<(state: AppState) => void> = new Set();
@@ -39,8 +40,8 @@ class AppPresenter {
   private loadTimeframeFromStorage(): void {
     try {
       const stored = localStorage.getItem(TIMEFRAME_STORAGE_KEY);
-      if (stored && ['1m', '5m', '15m', '1h', '4h', '1D', '1W'].includes(stored)) {
-        this.selectedTimeframe = stored as Timeframe;
+      if (stored && Timeframe.isValid(stored)) {
+        this.selectedTimeframe = stored as TimeframeType;
       }
     } catch {
       this.selectedTimeframe = '1D';
@@ -139,13 +140,13 @@ class AppPresenter {
     this.notify();
   }
 
-  changeTimeframe(tf: Timeframe): void {
+  changeTimeframe(tf: TimeframeType): void {
     this.selectedTimeframe = tf;
     this.saveTimeframeToStorage();
     this.notify();
   }
 
-  getTimeframeData(assetId: string, timeframe: Timeframe): PriceData[] | null {
+  getTimeframeData(assetId: string, timeframe: TimeframeType): PriceData[] | null {
     const asset = this.assets.find(a => a.id === assetId);
     if (!asset) return null;
 

@@ -12,18 +12,9 @@ function App() {
     importAsset,
     selectAsset,
     removeAsset,
-    changeChartType,
-    changeTimeframe,
-    getTimeframeData,
     clearWarnings,
   } = useAppPresenter();
   const { toasts, showToast, dismissToast } = useToast();
-
-  const selectedAsset = state.assets.find(a => a.id === state.selectedAssetId) || null;
-
-  const chartData = selectedAsset
-    ? getTimeframeData(selectedAsset.id, state.selectedTimeframe)
-    : null;
 
   useEffect(() => {
     if (state.warnings.length > 0) {
@@ -59,13 +50,7 @@ function App() {
 
         <section className="chart-section">
           {state.error && <div className="error-message">{state.error}</div>}
-          <ChartView
-            data={chartData}
-            chartType={state.chartType}
-            onChartTypeChange={changeChartType}
-            timeframe={state.selectedTimeframe}
-            onTimeframeChange={changeTimeframe}
-          />
+          <ChartView assetId={state.selectedAssetId} />
         </section>
       </main>
     </div>

@@ -1,32 +1,24 @@
-import { Timeframe } from '../../types/asset';
+import { Timeframe, Timeframe as TimeframeType } from '../../timeframe/Timeframe';
 
 interface TimeframeSelectorProps {
-  value: Timeframe;
-  onChange: (timeframe: Timeframe) => void;
+  value: TimeframeType;
+  onChange: (timeframe: TimeframeType) => void;
   disabled?: boolean;
 }
 
-const TIMEFRAMES: { value: Timeframe; label: string }[] = [
-  { value: '1m', label: '1m' },
-  { value: '5m', label: '5m' },
-  { value: '15m', label: '15m' },
-  { value: '1h', label: '1h' },
-  { value: '4h', label: '4h' },
-  { value: '1D', label: '1D' },
-  { value: '1W', label: '1W' },
-];
-
 export function TimeframeSelector({ value, onChange, disabled }: TimeframeSelectorProps) {
+  const timeframes = Timeframe.getValues();
+
   return (
     <div className="timeframe-selector">
-      {TIMEFRAMES.map((tf) => (
+      {timeframes.map((tf) => (
         <button
-          key={tf.value}
-          className={`timeframe-btn ${value === tf.value ? 'active' : ''}`}
-          onClick={() => onChange(tf.value)}
+          key={tf}
+          className={`timeframe-btn ${value === tf ? 'active' : ''}`}
+          onClick={() => onChange(tf)}
           disabled={disabled}
         >
-          {tf.label}
+          {Timeframe.getLabel(tf)}
         </button>
       ))}
     </div>
