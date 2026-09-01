@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useAppPresenter } from './hooks/useAppPresenter';
 import { useToast } from './hooks/useToast';
 import { FileImport } from './components/FileImport/FileImport';
+import { TestDataGenerator } from './components/TestDataGenerator/TestDataGenerator';
 import { AssetList } from './components/AssetList/AssetList';
 import { ChartView } from './components/ChartView/ChartView';
 import { Toast } from './components/Toast/Toast';
@@ -35,6 +36,11 @@ function App() {
           <section className="import-section">
             <h2>Import</h2>
             <FileImport onImport={importAsset} />
+          </section>
+
+          <section className="test-data-section">
+            <h2>Test Data</h2>
+            <TestDataGenerator onImport={importAsset} />
           </section>
 
           <section className="assets-section">
