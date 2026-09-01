@@ -6,4 +6,5 @@ export interface ChartService {
   renderOHLC(container: HTMLElement, data: PriceData[]): void;
   destroy(): void;
   switchChartType(type: ChartType, container: HTMLElement, data: PriceData[]): void;
+  updateTheme(): void;
 }

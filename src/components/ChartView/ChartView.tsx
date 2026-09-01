@@ -11,7 +11,7 @@ interface ChartViewProps {
 export function ChartView({ assetId }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { state, getTimeframeData, changeChartType, changeTimeframe } = useAppPresenter();
-  const { renderChart, destroyChart } = useChart();
+  const { renderChart, destroyChart, updateChartTheme } = useChart();
 
   const data = assetId
     ? getTimeframeData(assetId, state.selectedTimeframe)
@@ -30,6 +30,15 @@ export function ChartView({ assetId }: ChartViewProps) {
       destroyChart();
     }
   }, [data, state.chartType, renderChart, destroyChart]);
+
+  useEffect(() => {
+    const handleThemeChange = () => {
+      updateChartTheme();
+    };
+
+    window.addEventListener('themechange', handleThemeChange);
+    return () => window.removeEventListener('themechange', handleThemeChange);
+  }, [updateChartTheme]);
 
   return (
     <div className="chart-view">

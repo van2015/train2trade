@@ -39,8 +39,15 @@ export function useChart() {
     }
   }, []);
 
+  const updateChartTheme = useCallback(() => {
+    if (chartServiceRef.current) {
+      chartServiceRef.current.updateTheme();
+    }
+  }, []);
+
   return {
     renderChart,
     destroyChart,
+    updateChartTheme,
   };
 }

@@ -38,19 +38,30 @@ export class LightweightChartService implements ChartService {
     }));
   }
 
+  private getThemeColors() {
+    const styles = getComputedStyle(document.documentElement);
+    return {
+      chartBg: styles.getPropertyValue('--chart-bg').trim() || '#ffffff',
+      chartText: styles.getPropertyValue('--chart-text').trim() || '#666680',
+      chartGrid: styles.getPropertyValue('--chart-grid').trim() || '#e8e8e8',
+    };
+  }
+
   private createChartContainer(container: HTMLElement): void {
     if (this.chart) {
       this.chart.remove();
     }
 
+    const colors = this.getThemeColors();
+
     this.chart = createChart(container, {
       layout: {
-        background: { color: '#ffffff' },
-        textColor: '#333333',
+        background: { color: colors.chartBg },
+        textColor: colors.chartText,
       },
       grid: {
-        vertLines: { color: '#e0e0e0' },
-        horzLines: { color: '#e0e0e0' },
+        vertLines: { color: colors.chartGrid },
+        horzLines: { color: colors.chartGrid },
       },
       width: container.clientWidth,
       height: container.clientHeight,
@@ -133,5 +144,21 @@ export class LightweightChartService implements ChartService {
         this.renderOHLC(container, data);
         break;
     }
+  }
+
+  updateTheme(): void {
+    if (!this.chart) return;
+
+    const colors = this.getThemeColors();
+    this.chart.applyOptions({
+      layout: {
+        background: { color: colors.chartBg },
+        textColor: colors.chartText,
+      },
+      grid: {
+        vertLines: { color: colors.chartGrid },
+        horzLines: { color: colors.chartGrid },
+      },
+    });
   }
 }

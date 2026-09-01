@@ -6,6 +6,9 @@ import { TestDataGenerator } from './components/TestDataGenerator/TestDataGenera
 import { AssetList } from './components/AssetList/AssetList';
 import { ChartView } from './components/ChartView/ChartView';
 import { Toast } from './components/Toast/Toast';
+import { ThemeToggle, initTheme } from './components/ThemeToggle/ThemeToggle';
+
+initTheme();
 
 function App() {
   const {
@@ -29,6 +32,7 @@ function App() {
       <Toast toasts={toasts} onDismiss={dismissToast} />
       <header className="app-header">
         <h1>Asset Chart Analysis</h1>
+        <ThemeToggle />
       </header>
 
       <main className="app-main">
