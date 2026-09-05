@@ -7,7 +7,7 @@ function getCacheKey(assetId: string): string {
   return assetId;
 }
 
-export function getTimeframeFactor(original: TimeframeType, target: TimeframeType): number {
+function getTimeframeFactor(original: TimeframeType, target: TimeframeType): number {
   if (original === target) return 1;
   return Timeframe.getMinutes(target) / Timeframe.getMinutes(original);
 }
