@@ -176,18 +176,19 @@ class AppPresenter {
   onViewportChange(range: { from: string; to: string }): void {
     if (!this.selectedAssetId) return;
 
-    const fullData = this.getTimeframeData(this.selectedAssetId, this.selectedTimeframe);
-    if (!fullData) return;
+    const asset = this.assets.find(a => a.id === this.selectedAssetId);
+    if (!asset) return;
 
-    if (fullData.length < 5000) {
-      return;
-    }
+    const visible = AggregationService.getInstance().getVisibleData(
+      this.selectedAssetId,
+      asset.data,
+      asset.originalTimeframe,
+      this.selectedTimeframe,
+      range
+    );
 
-    const aggregationService = AggregationService.getInstance();
-    const filtered = aggregationService.filterByRangeWithBuffer(fullData, range.from, range.to);
-
-    this.visibleRange = range;
-    this.visibleData = filtered;
+    this.visibleRange = visible ? range : null;
+    this.visibleData = visible ?? [];
     this.notify();
   }
 

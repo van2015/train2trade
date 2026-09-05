@@ -1,6 +1,5 @@
-import { useContext, useCallback } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
 import { PresenterContext } from '../context/PresenterContext';
-import { usePresenter } from './usePresenter';
 import { Timeframe as TimeframeType } from '../timeframe/Timeframe';
 
 export interface ViewportRange {
@@ -14,7 +13,12 @@ export function useAppPresenter() {
     throw new Error('Must be inside PresenterProvider');
   }
 
-  const state = usePresenter(presenter);
+  const [state, setState] = useState(() => presenter.getState());
+
+  useEffect(() => {
+    const unsubscribe = presenter.subscribe(setState);
+    return unsubscribe;
+  }, [presenter]);
 
   const importAsset = useCallback(
     (name: string, file: File) => presenter.importAsset(name, file),
@@ -41,11 +45,6 @@ export function useAppPresenter() {
     [presenter]
   );
 
-  const getTimeframeData = useCallback(
-    (assetId: string, tf: TimeframeType) => presenter.getTimeframeData(assetId, tf),
-    [presenter]
-  );
-
   const getChartData = useCallback(
     (assetId: string, tf: TimeframeType) => presenter.getChartData(assetId, tf),
     [presenter]
@@ -56,18 +55,8 @@ export function useAppPresenter() {
     [presenter]
   );
 
-  const resetViewport = useCallback(
-    () => presenter.resetViewport(),
-    [presenter]
-  );
-
   const clearWarnings = useCallback(
     () => presenter.clearWarnings(),
-    [presenter]
-  );
-
-  const loadAssets = useCallback(
-    () => presenter.loadAssets(),
     [presenter]
   );
 
@@ -78,11 +67,8 @@ export function useAppPresenter() {
     removeAsset,
     changeChartType,
     changeTimeframe,
-    getTimeframeData,
     getChartData,
     onViewportChange,
-    resetViewport,
     clearWarnings,
-    loadAssets,
   };
 }

@@ -154,6 +154,18 @@ class AggregationService {
     return this.filterByRange(data, clampedFrom, clampedTo);
   }
 
+  getVisibleData(
+    assetId: string,
+    originalData: PriceData[],
+    originalTimeframe: TimeframeType,
+    targetTimeframe: TimeframeType,
+    range: { from: string; to: string }
+  ): PriceData[] | null {
+    const fullData = this.getTimeframeData(assetId, originalData, originalTimeframe, targetTimeframe);
+    if (fullData.length < 5000) return null;
+    return this.filterByRangeWithBuffer(fullData, range.from, range.to);
+  }
+
   private lowerBound(data: PriceData[], target: string): number {
     let low = 0;
     let high = data.length;
