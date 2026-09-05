@@ -3,6 +3,11 @@ import { PresenterContext } from '../context/PresenterContext';
 import { usePresenter } from './usePresenter';
 import { Timeframe as TimeframeType } from '../timeframe/Timeframe';
 
+export interface ViewportRange {
+  from: string;
+  to: string;
+}
+
 export function useAppPresenter() {
   const presenter = useContext(PresenterContext);
   if (!presenter) {
@@ -41,6 +46,21 @@ export function useAppPresenter() {
     [presenter]
   );
 
+  const getChartData = useCallback(
+    (assetId: string, tf: TimeframeType) => presenter.getChartData(assetId, tf),
+    [presenter]
+  );
+
+  const onViewportChange = useCallback(
+    (range: ViewportRange) => presenter.onViewportChange(range),
+    [presenter]
+  );
+
+  const resetViewport = useCallback(
+    () => presenter.resetViewport(),
+    [presenter]
+  );
+
   const clearWarnings = useCallback(
     () => presenter.clearWarnings(),
     [presenter]
@@ -59,6 +79,9 @@ export function useAppPresenter() {
     changeChartType,
     changeTimeframe,
     getTimeframeData,
+    getChartData,
+    onViewportChange,
+    resetViewport,
     clearWarnings,
     loadAssets,
   };

@@ -126,6 +126,62 @@ class AggregationService {
     return aggregated;
   }
 
+  filterByRange(data: PriceData[], from: string, to: string): PriceData[] {
+    if (data.length === 0) return [];
+
+    const startIndex = this.lowerBound(data, from);
+    const endIndex = this.upperBound(data, to);
+
+    if (startIndex >= endIndex) return [];
+
+    return data.slice(startIndex, endIndex);
+  }
+
+  filterByRangeWithBuffer(data: PriceData[], from: string, to: string): PriceData[] {
+    if (data.length === 0) return [];
+
+    const rangeStart = new Date(from).getTime();
+    const rangeEnd = new Date(to).getTime();
+    const rangeMs = rangeEnd - rangeStart;
+    const bufferMs = rangeMs * 0.2;
+
+    const bufferedFrom = new Date(rangeStart - bufferMs).toISOString();
+    const bufferedTo = new Date(rangeEnd + bufferMs).toISOString();
+
+    const clampedFrom = bufferedFrom < data[0].date ? data[0].date : bufferedFrom;
+    const clampedTo = bufferedTo > data[data.length - 1].date ? data[data.length - 1].date : bufferedTo;
+
+    return this.filterByRange(data, clampedFrom, clampedTo);
+  }
+
+  private lowerBound(data: PriceData[], target: string): number {
+    let low = 0;
+    let high = data.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (data[mid].date < target) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  private upperBound(data: PriceData[], target: string): number {
+    let low = 0;
+    let high = data.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (data[mid].date <= target) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
   clearCache(assetId?: string): void {
     this.cache.clear(assetId);
   }
