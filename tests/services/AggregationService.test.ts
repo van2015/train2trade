@@ -1,20 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import {
-  aggregate,
-  getCachedData,
-  setCachedData,
-  clearCache,
-  getAggregatedData,
-} from '../../src/services/AggregationService';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { AggregationService } from '../../src/services/AggregationService';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 
 describe('AggregationService', () => {
-  beforeEach(() => {
-    clearCache();
-  });
+  let service: AggregationService;
 
-  afterEach(() => {
-    clearCache();
+  beforeEach(() => {
+    service = AggregationService.getInstance();
+    service.clearCache();
   });
 
   describe('aggregate', () => {
@@ -23,7 +16,7 @@ describe('AggregationService', () => {
         new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne(),
         new SamplePriceBuilder().date('2024-01-01T00:01:00Z').open(102).high(108).low(100).close(105).volume(1200).buildOne(),
       ];
-      const result = aggregate(data, '1m', '1m');
+      const result = service.aggregate(data, '1m', '1m');
       expect(result).toEqual(data);
     });
 
@@ -32,7 +25,7 @@ describe('AggregationService', () => {
         new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne(),
         new SamplePriceBuilder().date('2024-01-02T00:00:00Z').open(102).high(108).low(100).close(105).volume(1200).buildOne(),
       ];
-      const result = aggregate(data, '4h', '1D');
+      const result = service.aggregate(data, '4h', '1D');
       expect(result).toEqual(data);
     });
 
@@ -44,7 +37,7 @@ describe('AggregationService', () => {
         .green(2)
         .volume(1000)
         .buildSeries();
-      const result = aggregate(data, '5m', '1m');
+      const result = service.aggregate(data, '5m', '1m');
       expect(result).toHaveLength(1);
       expect(result[0].open).toBe(100);
       expect(result[0].date).toBe('2024-01-01T00:00:00Z');
@@ -59,7 +52,7 @@ describe('AggregationService', () => {
         .green(1)
         .volume(1000)
         .buildSeries();
-      const result = aggregate(data, '5m', '1m');
+      const result = service.aggregate(data, '5m', '1m');
       expect(result).toHaveLength(1);
     });
 
@@ -71,7 +64,7 @@ describe('AggregationService', () => {
         .green(1)
         .volume(1000)
         .buildSeries();
-      const result = aggregate(data, '5m', '1m');
+      const result = service.aggregate(data, '5m', '1m');
       expect(result).toHaveLength(2);
     });
 
@@ -84,68 +77,48 @@ describe('AggregationService', () => {
         .green(1)
         .volume(10000)
         .buildSeries();
-      const result = aggregate(data, '1D', '1h');
+      const result = service.aggregate(data, '1D', '1h');
       expect(result).toHaveLength(1);
       expect(result[0].volume).toBe(240000);
     });
   });
 
-  describe('caching', () => {
-    it('getCachedData returns undefined for missing asset', () => {
-      expect(getCachedData('nonexistent', '1m')).toBeUndefined();
-    });
-
-    it('setCachedData and getCachedData roundtrip', () => {
-      const data = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
-      setCachedData('asset1', '1m', data);
-      expect(getCachedData('asset1', '1m')).toEqual(data);
-    });
-
-    it('setCachedData does not affect different asset', () => {
-      const data1 = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
-      const data2 = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(200).high(205).low(198).close(202).volume(2000).buildOne()];
-      setCachedData('asset1', '1m', data1);
-      setCachedData('asset2', '1m', data2);
-      expect(getCachedData('asset1', '1m')).toEqual(data1);
-      expect(getCachedData('asset2', '1m')).toEqual(data2);
-    });
-
-    it('setCachedData does not affect different timeframe', () => {
-      const data1m = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
-      const data5m = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(5000).buildOne()];
-      setCachedData('asset1', '1m', data1m);
-      setCachedData('asset1', '5m', data5m);
-      expect(getCachedData('asset1', '1m')).toEqual(data1m);
-      expect(getCachedData('asset1', '5m')).toEqual(data5m);
-    });
-
-    it('clearCache removes specific asset', () => {
-      const data = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
-      setCachedData('asset1', '1m', data);
-      setCachedData('asset2', '1m', data);
-      clearCache('asset1');
-      expect(getCachedData('asset1', '1m')).toBeUndefined();
-      expect(getCachedData('asset2', '1m')).toEqual(data);
-    });
-
-    it('clearCache without assetId clears all', () => {
-      const data = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
-      setCachedData('asset1', '1m', data);
-      setCachedData('asset2', '1m', data);
-      clearCache();
-      expect(getCachedData('asset1', '1m')).toBeUndefined();
-      expect(getCachedData('asset2', '1m')).toBeUndefined();
-    });
-  });
-
-  describe('getAggregatedData', () => {
+  describe('getTimeframeData', () => {
     it('returns original data for same timeframe', () => {
       const data = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
-      const result = getAggregatedData('asset1', data, '1m', '1m');
+      const result = service.getTimeframeData('asset1', data, '1m', '1m');
       expect(result).toEqual(data);
     });
 
-    it('uses cache when available', () => {
+    it('uses cache on repeated calls', () => {
+      const originalData = new SamplePriceBuilder()
+        .timeframe('1m')
+        .count(5)
+        .startPrice(100)
+        .green(1)
+        .volume(1000)
+        .buildSeries();
+
+      const result1 = service.getTimeframeData('asset1', originalData, '1m', '5m');
+      const result2 = service.getTimeframeData('asset1', originalData, '1m', '5m');
+
+      expect(result1).toBe(result2);
+    });
+
+    it('computes on cache miss', () => {
+      const data = new SamplePriceBuilder()
+        .timeframe('1m')
+        .count(5)
+        .startPrice(100)
+        .green(2)
+        .volume(1000)
+        .buildSeries();
+      const result = service.getTimeframeData('asset1', data, '1m', '5m');
+      expect(result).toHaveLength(1);
+      expect(result[0].open).toBe(100);
+    });
+
+    it('returns cached data from previous call', () => {
       const originalData = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
@@ -154,23 +127,59 @@ describe('AggregationService', () => {
         .volume(1000)
         .buildSeries();
       const cachedData = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(999).high(999).low(999).close(999).volume(9999).buildOne()];
-      setCachedData('asset1', '5m', cachedData);
-      const result = getAggregatedData('asset1', originalData, '1m', '5m');
-      expect(result).toEqual(cachedData);
-    });
 
-    it('computes and caches on miss', () => {
+      service.getTimeframeData('asset1', originalData, '1m', '5m');
+      service.clearCache();
+      const result = service.getTimeframeData('asset1', originalData, '1m', '5m');
+
+      expect(result[0].open).not.toBe(999);
+    });
+  });
+
+  describe('clearCache', () => {
+    it('clears all cache when no assetId provided', () => {
       const data = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
         .startPrice(100)
-        .green(2)
+        .green(1)
         .volume(1000)
         .buildSeries();
-      const result = getAggregatedData('asset1', data, '1m', '5m');
+
+      service.getTimeframeData('asset1', data, '1m', '5m');
+      service.clearCache();
+
+      const result = service.getTimeframeData('asset1', data, '1m', '5m');
       expect(result).toHaveLength(1);
       expect(result[0].open).toBe(100);
-      expect(getCachedData('asset1', '5m')).toEqual(result);
+    });
+
+    it('clears specific asset cache', () => {
+      const data1 = new SamplePriceBuilder()
+        .timeframe('1m')
+        .count(5)
+        .startPrice(100)
+        .green(1)
+        .volume(1000)
+        .buildSeries();
+      const data2 = new SamplePriceBuilder()
+        .timeframe('1m')
+        .count(5)
+        .startPrice(200)
+        .green(1)
+        .volume(1000)
+        .buildSeries();
+
+      service.getTimeframeData('asset1', data1, '1m', '5m');
+      service.getTimeframeData('asset2', data2, '1m', '5m');
+
+      service.clearCache('asset1');
+
+      const result1 = service.getTimeframeData('asset1', data1, '1m', '5m');
+      const result2 = service.getTimeframeData('asset2', data2, '1m', '5m');
+
+      expect(result1[0].open).toBe(100);
+      expect(result2[0].open).toBe(200);
     });
   });
 });

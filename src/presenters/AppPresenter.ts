@@ -2,7 +2,7 @@ import { Asset, ChartType, PriceData } from '../types/asset';
 import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
 import { getAssets, saveAsset, deleteAsset } from '../services/storageService';
 import { validateAndParse } from '../services/ValidationService';
-import { getAggregatedData } from '../services/AggregationService';
+import { AggregationService } from '../services/AggregationService';
 
 const TIMEFRAME_STORAGE_KEY = 'selectedTimeframe';
 
@@ -150,7 +150,7 @@ class AppPresenter {
     const asset = this.assets.find(a => a.id === assetId);
     if (!asset) return null;
 
-    return getAggregatedData(
+    return AggregationService.getInstance().getTimeframeData(
       assetId,
       asset.data,
       asset.originalTimeframe,
