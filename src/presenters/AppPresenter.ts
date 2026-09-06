@@ -7,7 +7,6 @@ import { AggregationService } from '../services/AggregationService';
 const TIMEFRAME_STORAGE_KEY = 'selectedTimeframe';
 
 export interface AppState {
-  assets: AssetSummary[];
   selectedAssetId: string | null;
   chartType: ChartType;
   selectedTimeframe: TimeframeType;
@@ -71,13 +70,16 @@ class AppPresenter {
 
   getState(): AppState {
     return {
-      assets: this.assets,
       selectedAssetId: this.selectedAssetId,
       chartType: this.chartType,
       selectedTimeframe: this.selectedTimeframe,
       error: this.error,
       warnings: this.warnings,
     };
+  }
+
+  getAssetList(): AssetSummary[] {
+    return this.assets;
   }
 
   async loadAssets(): Promise<void> {

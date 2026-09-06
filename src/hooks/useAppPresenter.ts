@@ -50,8 +50,14 @@ export function useAppPresenter() {
     [presenter]
   );
 
+  const getAssetList = useCallback(
+    () => presenter.getAssetList(),
+    [presenter]
+  );
+
   return {
     state,
+    getAssetList,
     importAsset,
     selectAsset,
     removeAsset,

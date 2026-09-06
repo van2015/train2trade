@@ -1,14 +1,15 @@
-import { AssetSummary } from '../../types/asset';
+import { useAppPresenter } from '../../hooks/useAppPresenter';
 
 interface AssetListProps {
-  assets: AssetSummary[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
   disabled?: boolean;
 }
 
-export function AssetList({ assets, selectedId, onSelect, onDelete, disabled }: AssetListProps) {
+export function AssetList({ selectedId, onSelect, onDelete, disabled }: AssetListProps) {
+  const { getAssetList } = useAppPresenter();
+  const assets = getAssetList();
   if (assets.length === 0) {
     return <div className="asset-list-empty">No assets imported</div>;
   }

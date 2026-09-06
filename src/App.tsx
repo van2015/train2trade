@@ -50,7 +50,6 @@ function App() {
           <section className="assets-section">
             <h2>Assets</h2>
             <AssetList
-              assets={state.assets}
               selectedId={state.selectedAssetId}
               onSelect={selectAsset}
               onDelete={removeAsset}
