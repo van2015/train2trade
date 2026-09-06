@@ -231,7 +231,8 @@ export function ChartView({ assetId }: ChartViewProps) {
         disabled={!data}
       />
       <div className="chart-container" ref={containerRef}>
-        {!data && <div className="chart-placeholder">Select an asset to view chart</div>}
+        {!data && state.selectedAssetId && <div className="chart-placeholder">Loading chart...</div>}
+        {!data && !state.selectedAssetId && <div className="chart-placeholder">Select an asset to view chart</div>}
       </div>
     </div>
   );

@@ -19,4 +19,11 @@ export interface Asset {
   originalTimeframe: Timeframe;
 }
 
+export interface AssetSummary {
+  id: string;
+  name: string;
+  createdAt: Date;
+  originalTimeframe: Timeframe;
+}
+
 export type ChartType = 'line' | 'candlestick' | 'ohlc';

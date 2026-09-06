@@ -1,7 +1,7 @@
-import { Asset } from '../../types/asset';
+import { AssetSummary } from '../../types/asset';
 
 interface AssetListProps {
-  assets: Asset[];
+  assets: AssetSummary[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onDelete: (id: string) => void;
@@ -23,7 +23,6 @@ export function AssetList({ assets, selectedId, onSelect, onDelete, disabled }: 
           <span className="asset-name" onClick={() => onSelect(asset.id)}>
             {asset.name}
           </span>
-          <span className="asset-data-count">{asset.data.length} points</span>
           <button
             className="delete-btn"
             onClick={() => onDelete(asset.id)}

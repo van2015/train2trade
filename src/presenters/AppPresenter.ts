@@ -1,13 +1,13 @@
-import { Asset, ChartType, PriceData } from '../types/asset';
+import { AssetSummary, ChartType, PriceData } from '../types/asset';
 import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
-import { getAssets, saveAsset, deleteAsset } from '../services/storageService';
+import { getAssetSummaries, getAssetData, saveAsset, deleteAsset } from '../services/storageService';
 import { validateAndParse } from '../services/ValidationService';
 import { AggregationService } from '../services/AggregationService';
 
 const TIMEFRAME_STORAGE_KEY = 'selectedTimeframe';
 
 export interface AppState {
-  assets: Asset[];
+  assets: AssetSummary[];
   selectedAssetId: string | null;
   chartType: ChartType;
   selectedTimeframe: TimeframeType;
@@ -18,7 +18,8 @@ export interface AppState {
 class AppPresenter {
   private static instance: AppPresenter;
 
-  private assets: Asset[] = [];
+  private assets: AssetSummary[] = [];
+  private assetDataCache: Map<string, PriceData[]> = new Map();
   private selectedAssetId: string | null = null;
   private chartType: ChartType = 'line';
   private selectedTimeframe: TimeframeType = '1D';
@@ -81,7 +82,7 @@ class AppPresenter {
 
   async loadAssets(): Promise<void> {
     try {
-      this.assets = await getAssets();
+      this.assets = await getAssetSummaries();
       this.notify();
     } catch (err) {
       this.error = 'Failed to load assets';
@@ -118,12 +119,27 @@ class AppPresenter {
   selectAsset(id: string): void {
     this.selectedAssetId = id;
     this.notify();
+    this.loadAssetData(id);
+  }
+
+  private async loadAssetData(assetId: string): Promise<void> {
+    if (this.assetDataCache.has(assetId)) return;
+
+    try {
+      const data = await getAssetData(assetId);
+      this.assetDataCache.set(assetId, data);
+      this.notify();
+    } catch (err) {
+      this.error = 'Failed to load asset data';
+      this.notify();
+    }
   }
 
   async removeAsset(id: string): Promise<void> {
     try {
       this.error = null;
       await deleteAsset(id);
+      this.assetDataCache.delete(id);
       if (this.selectedAssetId === id) {
         this.selectedAssetId = null;
       }
@@ -147,12 +163,15 @@ class AppPresenter {
   }
 
   getTimeframeData(assetId: string, timeframe: TimeframeType): PriceData[] | null {
+    const data = this.assetDataCache.get(assetId);
+    if (!data) return null;
+
     const asset = this.assets.find(a => a.id === assetId);
     if (!asset) return null;
 
     return AggregationService.getInstance().getTimeframeData(
       assetId,
-      asset.data,
+      data,
       asset.originalTimeframe,
       timeframe
     );

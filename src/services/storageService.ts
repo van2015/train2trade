@@ -1,4 +1,4 @@
-import { Asset, PriceData, Timeframe } from '../types/asset';
+import { Asset, AssetSummary, PriceData, Timeframe } from '../types/asset';
 
 const DB_NAME = 'AssetChartDB';
 const DB_VERSION = 2;
@@ -68,6 +68,43 @@ export async function getAssets(): Promise<Asset[]> {
         originalTimeframe: asset.originalTimeframe || '1D',
       }));
       resolve(assets);
+    };
+  });
+}
+
+export async function getAssetSummaries(): Promise<AssetSummary[]> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const summaries: AssetSummary[] = request.result.map((asset: Asset) => ({
+        id: asset.id,
+        name: asset.name,
+        createdAt: asset.createdAt,
+        originalTimeframe: asset.originalTimeframe || '1D',
+      }));
+      resolve(summaries);
+    };
+  });
+}
+
+export async function getAssetData(id: string): Promise<PriceData[]> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get(id);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const asset = request.result as Asset | undefined;
+      resolve(asset?.data ?? []);
     };
   });
 }
