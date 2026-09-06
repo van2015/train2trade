@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useAppPresenter, ViewportRange } from '../../hooks/useAppPresenter';
+import { useAppPresenter } from '../../hooks/useAppPresenter';
 import { ChartType } from '../../types/asset';
 import { PriceData } from '../../types/asset';
 import { ChartTypeSelector } from '../ChartTypeSelector/ChartTypeSelector';
@@ -58,7 +58,7 @@ interface ChartViewProps {
 
 export function ChartView({ assetId }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { state, getChartData, changeChartType, changeTimeframe, onViewportChange } = useAppPresenter();
+  const { state, getTimeframeData, changeChartType, changeTimeframe } = useAppPresenter();
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const hasRenderedRef = useRef(false);
@@ -66,7 +66,7 @@ export function ChartView({ assetId }: ChartViewProps) {
   const currentChartTypeRef = useRef<string | null>(null);
 
   const data = assetId
-    ? getChartData(assetId, state.selectedTimeframe)
+    ? getTimeframeData(assetId, state.selectedTimeframe)
     : null;
 
   const createChartInstance = useCallback((container: HTMLElement) => {
@@ -134,25 +134,6 @@ export function ChartView({ assetId }: ChartViewProps) {
     }
   }, []);
 
-  const subscribeViewport = useCallback((callback: (range: ViewportRange) => void) => {
-    if (!chartRef.current) return;
-
-    chartRef.current.timeScale().subscribeVisibleLogicalRangeChange(() => {
-      if (!chartRef.current) return;
-
-      const range = chartRef.current.timeScale().getVisibleRange();
-      if (!range) return;
-
-      const fromTime = new Date((range.from as number) * 1000);
-      const toTime = new Date((range.to as number) * 1000);
-
-      callback({
-        from: fromTime.toISOString(),
-        to: toTime.toISOString(),
-      });
-    });
-  }, []);
-
   useEffect(() => {
     return () => {
       if (chartRef.current) {
@@ -204,7 +185,6 @@ export function ChartView({ assetId }: ChartViewProps) {
           chartRef.current?.timeScale().fitContent();
         }
 
-        subscribeViewport(onViewportChange);
         hasRenderedRef.current = true;
 
         return () => {
@@ -215,7 +195,7 @@ export function ChartView({ assetId }: ChartViewProps) {
         seriesRef.current.setData(chartData as any);
       }
     }
-  }, [data, state.chartType, assetId, createChartInstance, addSeries, subscribeViewport, onViewportChange]);
+  }, [data, state.chartType, assetId, createChartInstance, addSeries]);
 
   useEffect(() => {
     const handleThemeChange = () => {

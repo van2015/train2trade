@@ -13,8 +13,6 @@ export interface AppState {
   selectedTimeframe: TimeframeType;
   error: string | null;
   warnings: string[];
-  visibleRange: { from: string; to: string } | null;
-  visibleData: PriceData[];
 }
 
 class AppPresenter {
@@ -27,8 +25,6 @@ class AppPresenter {
   private error: string | null = null;
   private warnings: string[] = [];
   private listeners: Set<(state: AppState) => void> = new Set();
-  private visibleRange: { from: string; to: string } | null = null;
-  private visibleData: PriceData[] = [];
 
   private constructor() {
     this.loadTimeframeFromStorage();
@@ -80,8 +76,6 @@ class AppPresenter {
       selectedTimeframe: this.selectedTimeframe,
       error: this.error,
       warnings: this.warnings,
-      visibleRange: this.visibleRange,
-      visibleData: this.visibleData,
     };
   }
 
@@ -123,7 +117,6 @@ class AppPresenter {
 
   selectAsset(id: string): void {
     this.selectedAssetId = id;
-    this.resetViewport();
     this.notify();
   }
 
@@ -150,7 +143,6 @@ class AppPresenter {
   changeTimeframe(tf: TimeframeType): void {
     this.selectedTimeframe = tf;
     this.saveTimeframeToStorage();
-    this.resetViewport();
     this.notify();
   }
 
@@ -164,37 +156,6 @@ class AppPresenter {
       asset.originalTimeframe,
       timeframe
     );
-  }
-
-  getChartData(assetId: string, timeframe: TimeframeType): PriceData[] | null {
-    if (this.visibleRange && this.visibleData.length > 0) {
-      return this.visibleData;
-    }
-    return this.getTimeframeData(assetId, timeframe);
-  }
-
-  onViewportChange(range: { from: string; to: string }): void {
-    if (!this.selectedAssetId) return;
-
-    const asset = this.assets.find(a => a.id === this.selectedAssetId);
-    if (!asset) return;
-
-    const visible = AggregationService.getInstance().getVisibleData(
-      this.selectedAssetId,
-      asset.data,
-      asset.originalTimeframe,
-      this.selectedTimeframe,
-      range
-    );
-
-    this.visibleRange = visible ? range : null;
-    this.visibleData = visible ?? [];
-    this.notify();
-  }
-
-  resetViewport(): void {
-    this.visibleRange = null;
-    this.visibleData = [];
   }
 
   clearWarnings(): void {
