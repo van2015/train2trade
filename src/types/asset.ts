@@ -11,14 +11,6 @@ export interface PriceData {
   volume: number;
 }
 
-export interface Asset {
-  id: string;
-  name: string;
-  data: PriceData[];
-  createdAt: Date;
-  originalTimeframe: Timeframe;
-}
-
 export interface AssetSummary {
   id: string;
   name: string;
