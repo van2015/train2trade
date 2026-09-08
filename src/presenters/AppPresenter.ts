@@ -1,6 +1,6 @@
 import { AssetSummary, ChartType, PriceData } from '../types/asset';
 import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
-import { getAssetSummaries, getAssetData, saveAsset, deleteAsset } from '../services/storageService';
+import { IndexedDbAssetChartRepository } from '../services/IndexedDbAssetChartRepository';
 import { validateAndParse } from '../services/ValidationService';
 import { AggregationService } from '../services/AggregationService';
 
@@ -17,6 +17,8 @@ export interface AppState {
 class AppPresenter {
   private static instance: AppPresenter;
 
+  private repo = IndexedDbAssetChartRepository.getInstance();
+  private initPromise: Promise<void>;
   private assets: AssetSummary[] = [];
   private assetDataCache: Map<string, PriceData[]> = new Map();
   private selectedAssetId: string | null = null;
@@ -27,6 +29,7 @@ class AppPresenter {
   private listeners: Set<(state: AppState) => void> = new Set();
 
   private constructor() {
+    this.initPromise = this.repo.init();
     this.loadTimeframeFromStorage();
   }
 
@@ -82,9 +85,14 @@ class AppPresenter {
     return this.assets;
   }
 
-  async loadAssets(): Promise<void> {
+  async init(): Promise<void> {
+    await this.loadAssets();
+  }
+
+  private async loadAssets(): Promise<void> {
     try {
-      this.assets = await getAssetSummaries();
+      await this.initPromise;
+      this.assets = await this.repo.getAssetSummaries();
       this.notify();
     } catch (err) {
       this.error = 'Failed to load assets';
@@ -109,7 +117,7 @@ class AppPresenter {
       }
 
       const assetName = name || file.name.replace(/\.[^.]+$/, '');
-      await saveAsset(assetName, result.data!, result.detectedTimeframe!);
+      await this.repo.saveAsset(assetName, result.data!, result.detectedTimeframe!);
       await this.loadAssets();
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Failed to import file';
@@ -128,7 +136,7 @@ class AppPresenter {
     if (this.assetDataCache.has(assetId)) return;
 
     try {
-      const data = await getAssetData(assetId);
+      const data = await this.repo.getAssetData(assetId);
       this.assetDataCache.set(assetId, data);
       this.notify();
     } catch (err) {
@@ -140,7 +148,7 @@ class AppPresenter {
   async removeAsset(id: string): Promise<void> {
     try {
       this.error = null;
-      await deleteAsset(id);
+      await this.repo.deleteAsset(id);
       this.assetDataCache.delete(id);
       if (this.selectedAssetId === id) {
         this.selectedAssetId = null;

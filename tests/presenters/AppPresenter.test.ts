@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
 import AppPresenter from '../../src/presenters/AppPresenter';
 import { AggregationService } from '../../src/services/AggregationService';
 
@@ -6,6 +8,7 @@ describe('AppPresenter', () => {
   let presenter: AppPresenter;
 
   beforeEach(() => {
+    (globalThis as any).indexedDB = new IDBFactory();
     presenter = AppPresenter.getInstance();
     AggregationService.getInstance().clearCache();
     (presenter as any).assets = [];
@@ -24,8 +27,9 @@ describe('AppPresenter', () => {
       }));
 
       (presenter as any).assets = [
-        { id: 'asset1', name: 'Test', data, createdAt: new Date(), originalTimeframe: '1m' }
+        { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
       ];
+      (presenter as any).assetDataCache.set('asset1', data);
 
       const result = presenter.getTimeframeData('asset1', '1m');
       expect(result).not.toBeNull();
