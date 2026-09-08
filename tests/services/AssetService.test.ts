@@ -128,16 +128,16 @@ describe('AssetService', () => {
     });
   });
 
-  describe('getTimeframeData', () => {
+  describe('priceSample', () => {
     it('returns null when data is not loaded', () => {
-      expect(service.getTimeframeData('asset1', '1m', '1m')).toBeNull();
+      expect(service.priceSample('asset1', '1m', '1m')).toBeNull();
     });
 
     it('returns original data for same timeframe', async () => {
       const data = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
       repo.setData('asset1', data);
       await service.ensureData('asset1');
-      const result = service.getTimeframeData('asset1', '1m', '1m');
+      const result = service.priceSample('asset1', '1m', '1m');
       expect(result).toEqual(data);
     });
 
@@ -153,8 +153,8 @@ describe('AssetService', () => {
       repo.setData('asset1', originalData);
       await service.ensureData('asset1');
 
-      const result1 = service.getTimeframeData('asset1', '1m', '5m');
-      const result2 = service.getTimeframeData('asset1', '1m', '5m');
+      const result1 = service.priceSample('asset1', '1m', '5m');
+      const result2 = service.priceSample('asset1', '1m', '5m');
 
       expect(result1).toBe(result2);
     });
@@ -169,7 +169,7 @@ describe('AssetService', () => {
         .buildSeries();
       repo.setData('asset1', data);
       await service.ensureData('asset1');
-      const result = service.getTimeframeData('asset1', '1m', '5m');
+      const result = service.priceSample('asset1', '1m', '5m');
       expect(result).toHaveLength(1);
       expect(result![0].open).toBe(100);
     });
@@ -277,11 +277,11 @@ describe('AssetService', () => {
         .buildSeries();
       repo.setData('asset1', data);
       await service.ensureData('asset1');
-      service.getTimeframeData('asset1', '1m', '5m');
+      service.priceSample('asset1', '1m', '5m');
 
       service.clearCache();
 
-      expect(service.getTimeframeData('asset1', '1m', '5m')).toBeNull();
+      expect(service.priceSample('asset1', '1m', '5m')).toBeNull();
     });
 
     it('clears specific asset cache', async () => {
@@ -304,13 +304,13 @@ describe('AssetService', () => {
       repo.setData('asset2', data2);
       await service.ensureData('asset1');
       await service.ensureData('asset2');
-      service.getTimeframeData('asset1', '1m', '5m');
-      service.getTimeframeData('asset2', '1m', '5m');
+      service.priceSample('asset1', '1m', '5m');
+      service.priceSample('asset2', '1m', '5m');
 
       service.clearCache('asset1');
 
-      expect(service.getTimeframeData('asset1', '1m', '5m')).toBeNull();
-      expect(service.getTimeframeData('asset2', '1m', '5m')).not.toBeNull();
+      expect(service.priceSample('asset1', '1m', '5m')).toBeNull();
+      expect(service.priceSample('asset2', '1m', '5m')).not.toBeNull();
     });
   });
 
@@ -349,12 +349,12 @@ describe('AssetService', () => {
 
       const summary = await service.save('Test', data, '1m');
       await service.ensureData(summary.id);
-      service.getTimeframeData(summary.id, '1m', '1m');
+      service.priceSample(summary.id, '1m', '1m');
 
       await service.delete(summary.id);
 
       expect(await service.getSummaries()).toEqual([]);
-      expect(service.getTimeframeData(summary.id, '1m', '1m')).toBeNull();
+      expect(service.priceSample(summary.id, '1m', '1m')).toBeNull();
     });
   });
 });

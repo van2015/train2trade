@@ -162,11 +162,11 @@ class AppPresenter {
     this.notify();
   }
 
-  getTimeframeData(assetId: string, timeframe: TimeframeType): PriceData[] | null {
+  priceSample(assetId: string, timeframe: TimeframeType): PriceData[] | null {
     const asset = this.assets.find(a => a.id === assetId);
     if (!asset) return null;
 
-    return this.assetService.getTimeframeData(assetId, asset.originalTimeframe, timeframe);
+    return this.assetService.priceSample(assetId, asset.originalTimeframe, timeframe);
   }
 
   clearWarnings(): void {

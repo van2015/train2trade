@@ -15,7 +15,7 @@ describe('AppPresenter', () => {
     (presenter as any).selectedAssetId = null;
   });
 
-  describe('getTimeframeData', () => {
+  describe('priceSample', () => {
     it('returns data for valid asset and timeframe', () => {
       const data = Array.from({ length: 100 }, (_, i) => ({
         date: `2024-01-01T${String(i).padStart(2, '0')}:00:00Z`,
@@ -31,13 +31,13 @@ describe('AppPresenter', () => {
       ];
       (AssetService.getInstance() as any).rawCache.set('asset1', data);
 
-      const result = presenter.getTimeframeData('asset1', '1m');
+      const result = presenter.priceSample('asset1', '1m');
       expect(result).not.toBeNull();
       expect(result).toHaveLength(100);
     });
 
     it('returns null for non-existent asset', () => {
-      const result = presenter.getTimeframeData('nonexistent', '1m');
+      const result = presenter.priceSample('nonexistent', '1m');
       expect(result).toBeNull();
     });
   });

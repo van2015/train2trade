@@ -40,8 +40,8 @@ export function useAppPresenter() {
     [presenter]
   );
 
-  const getTimeframeData = useCallback(
-    (assetId: string, tf: TimeframeType) => presenter.getTimeframeData(assetId, tf),
+  const priceSample = useCallback(
+    (assetId: string, tf: TimeframeType) => presenter.priceSample(assetId, tf),
     [presenter]
   );
 
@@ -63,7 +63,7 @@ export function useAppPresenter() {
     removeAsset,
     changeChartType,
     changeTimeframe,
-    getTimeframeData,
+    priceSample,
     clearWarnings,
   };
 }

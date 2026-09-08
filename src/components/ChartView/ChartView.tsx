@@ -58,7 +58,7 @@ interface ChartViewProps {
 
 export function ChartView({ assetId }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { state, getTimeframeData, changeChartType, changeTimeframe } = useAppPresenter();
+  const { state, priceSample, changeChartType, changeTimeframe } = useAppPresenter();
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const hasRenderedRef = useRef(false);
@@ -66,7 +66,7 @@ export function ChartView({ assetId }: ChartViewProps) {
   const currentChartTypeRef = useRef<string | null>(null);
 
   const data = assetId
-    ? getTimeframeData(assetId, state.selectedTimeframe)
+    ? priceSample(assetId, state.selectedTimeframe)
     : null;
 
   const createChartInstance = useCallback((container: HTMLElement) => {

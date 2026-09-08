@@ -45,7 +45,7 @@ class AssetService {
     this.rawCache.set(assetId, data);
   }
 
-  getTimeframeData(
+  priceSample(
     assetId: string,
     originalTimeframe: TimeframeType,
     targetTimeframe: TimeframeType
