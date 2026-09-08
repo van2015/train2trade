@@ -1,8 +1,7 @@
 export const DB_NAME = 'AssetChartDB';
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 export const ASSETS_STORE = 'assets';
-export const SAMPLE_INDEX_STORE = 'sampleIndexes';
-export const SAMPLE_CHUNK_STORE = 'assetSamples';
+export const SAMPLE_STORE = 'samples';
 
 export function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -24,18 +23,16 @@ export function openDatabase(): Promise<IDBDatabase> {
         }
       }
 
-      if (!db.objectStoreNames.contains(SAMPLE_INDEX_STORE)) {
-        const store = db.createObjectStore(SAMPLE_INDEX_STORE, { keyPath: ['assetId', 'timemili'] });
+      if (!db.objectStoreNames.contains(SAMPLE_STORE)) {
+        const store = db.createObjectStore(SAMPLE_STORE, { keyPath: ['assetId', 'timemili'] });
         store.createIndex('assetId', 'assetId', { unique: false });
       }
 
-      if (!db.objectStoreNames.contains(SAMPLE_CHUNK_STORE)) {
-        const store = db.createObjectStore(SAMPLE_CHUNK_STORE, { keyPath: ['assetId', 'timemili'] });
-        store.createIndex('assetId', 'assetId', { unique: false });
+      if (db.objectStoreNames.contains('sampleIndexes')) {
+        db.deleteObjectStore('sampleIndexes');
       }
-
-      if (db.objectStoreNames.contains('assetPrices')) {
-        db.deleteObjectStore('assetPrices');
+      if (db.objectStoreNames.contains('assetSamples')) {
+        db.deleteObjectStore('assetSamples');
       }
     };
   });

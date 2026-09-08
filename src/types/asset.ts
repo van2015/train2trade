@@ -18,11 +18,4 @@ export interface AssetSummary {
   originalTimeframe: Timeframe;
 }
 
-export interface SampleIndex {
-  assetId: string;
-  timemili: number;
-  endTime: number;
-  sampleCount: number;
-}
-
 export type ChartType = 'line' | 'candlestick' | 'ohlc';

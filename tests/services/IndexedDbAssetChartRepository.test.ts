@@ -41,20 +41,47 @@ describe('IndexedDbAssetChartRepository', () => {
     expect(summaries[0]).toEqual(summary);
   });
 
-  it('getAssetData reconstructs the full array from chunks', async () => {
+  it('getAssetData reconstructs the full array from samples', async () => {
     const summary = await repo.saveAsset('Test', buildData(1000), '1m');
     const data = await repo.getAssetData(summary.id);
     expect(data).toHaveLength(1000);
     expect(data[500]).toEqual(buildData(1000)[500]);
+    expect(data[999]).toEqual(buildData(1000)[999]);
   });
 
-  it('returns chunk indexes sorted by time with correct metadata', async () => {
+  it('getSamplesRange returns samples within a time range', async () => {
     const summary = await repo.saveAsset('Test', buildData(1000), '1m');
-    const indexes = await repo.getChunkIndexes(summary.id);
-    expect(indexes).toHaveLength(2);
-    expect(indexes[0].timemili).toBe(START);
-    expect(indexes[0].sampleCount).toBe(500);
-    expect(indexes[1].timemili).toBe(START + 500 * MINUTE);
+    const result = await repo.getSamplesRange(summary.id, START + 100 * MINUTE, START + 900 * MINUTE);
+    expect(result).toHaveLength(801);
+    expect(result[0].date).toBe(new Date(START + 100 * MINUTE).toISOString());
+    expect(result[result.length - 1].date).toBe(new Date(START + 900 * MINUTE).toISOString());
+  });
+
+  it('getSampleAfter returns the next sample after time', async () => {
+    const summary = await repo.saveAsset('Test', buildData(1000), '1m');
+    const sample = await repo.getSampleAfter(summary.id, START + 499 * MINUTE);
+    expect(sample).not.toBeNull();
+    expect(sample!.date).toBe(new Date(START + 500 * MINUTE).toISOString());
+  });
+
+  it('getSampleBefore returns the previous sample before time', async () => {
+    const summary = await repo.saveAsset('Test', buildData(1000), '1m');
+    const sample = await repo.getSampleBefore(summary.id, START + 500 * MINUTE);
+    expect(sample).not.toBeNull();
+    expect(sample!.date).toBe(new Date(START + 499 * MINUTE).toISOString());
+  });
+
+  it('getLastSample returns the most recent sample', async () => {
+    const summary = await repo.saveAsset('Test', buildData(1000), '1m');
+    const sample = await repo.getLastSample(summary.id);
+    expect(sample).not.toBeNull();
+    expect(sample!.date).toBe(new Date(START + 999 * MINUTE).toISOString());
+  });
+
+  it('returns null when there is no after/before/last sample', async () => {
+    const summary = await repo.saveAsset('Test', buildData(5), '1m');
+    expect(await repo.getSampleAfter(summary.id, START + 4 * MINUTE)).toBeNull();
+    expect(await repo.getSampleBefore(summary.id, START)).toBeNull();
   });
 
   it('deleteAsset removes the summary and all samples', async () => {
@@ -62,7 +89,7 @@ describe('IndexedDbAssetChartRepository', () => {
     await repo.deleteAsset(summary.id);
     expect(await repo.getAssetSummaries()).toEqual([]);
     expect(await repo.getAssetData(summary.id)).toEqual([]);
-    expect(await repo.getChunkIndexes(summary.id)).toEqual([]);
+    expect(await repo.getLastSample(summary.id)).toBeNull();
   });
 
   it('multiple assets are listed independently', async () => {

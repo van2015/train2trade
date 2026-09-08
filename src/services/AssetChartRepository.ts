@@ -1,4 +1,4 @@
-import { AssetSummary, PriceData, SampleIndex } from '../types/asset';
+import { AssetSummary, PriceData } from '../types/asset';
 import { Timeframe } from '../timeframe/Timeframe';
 
 export interface AssetChartRepository {
@@ -7,6 +7,8 @@ export interface AssetChartRepository {
   getAssetSummaries(): Promise<AssetSummary[]>;
   getAssetData(id: string): Promise<PriceData[]>;
   deleteAsset(id: string): Promise<void>;
-  getChunkIndexes(assetId: string): Promise<SampleIndex[]>;
-  getChunkSamples(assetId: string, timemili: number): Promise<PriceData[]>;
+  getSamplesRange(assetId: string, from: number, to: number): Promise<PriceData[]>;
+  getSampleAfter(assetId: string, time: number): Promise<PriceData | null>;
+  getSampleBefore(assetId: string, time: number): Promise<PriceData | null>;
+  getLastSample(assetId: string): Promise<PriceData | null>;
 }

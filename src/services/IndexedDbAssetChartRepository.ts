@@ -1,8 +1,13 @@
-import { AssetSummary, PriceData, SampleIndex } from '../types/asset';
+import { AssetSummary, PriceData } from '../types/asset';
 import { Timeframe } from '../timeframe/Timeframe';
 import { AssetChartRepository } from './AssetChartRepository';
-import { openDatabase, ASSETS_STORE, SAMPLE_INDEX_STORE, SAMPLE_CHUNK_STORE } from './db';
-import { splitIntoChunks } from './chunking';
+import { openDatabase, ASSETS_STORE, SAMPLE_STORE } from './db';
+
+interface StoredSample {
+  assetId: string;
+  timemili: number;
+  sample: PriceData;
+}
 
 class IndexedDbAssetChartRepository implements AssetChartRepository {
   private static instance: IndexedDbAssetChartRepository;
@@ -34,26 +39,20 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
       originalTimeframe,
     };
 
-    const chunks = splitIntoChunks(data);
-    const indexes: SampleIndex[] = chunks.map(c => ({
+    const records: StoredSample[] = data.map(sample => ({
       assetId: id,
-      timemili: c.timemili,
-      endTime: c.endTime,
-      sampleCount: c.samples.length,
+      timemili: new Date(sample.date).getTime(),
+      sample,
     }));
 
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([ASSETS_STORE, SAMPLE_INDEX_STORE, SAMPLE_CHUNK_STORE], 'readwrite');
+      const transaction = db.transaction([ASSETS_STORE, SAMPLE_STORE], 'readwrite');
       const assetStore = transaction.objectStore(ASSETS_STORE);
-      const indexStore = transaction.objectStore(SAMPLE_INDEX_STORE);
-      const chunkStore = transaction.objectStore(SAMPLE_CHUNK_STORE);
+      const sampleStore = transaction.objectStore(SAMPLE_STORE);
 
       assetStore.put(summary);
-      for (const index of indexes) {
-        indexStore.put(index);
-      }
-      for (const chunk of chunks) {
-        chunkStore.put({ assetId: id, timemili: chunk.timemili, samples: chunk.samples });
+      for (const record of records) {
+        sampleStore.put(record);
       }
 
       transaction.onerror = () => reject(transaction.error);
@@ -83,31 +82,22 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
   }
 
   async getAssetData(id: string): Promise<PriceData[]> {
-    const indexes = await this.getChunkIndexes(id);
-    const result: PriceData[] = [];
-
-    for (const index of indexes) {
-      const samples = await this.getChunkSamples(id, index.timemili);
-      result.push(...samples);
-    }
-
-    return result;
+    const samples = await this.getAllSamples(id);
+    return samples.map(s => s.sample);
   }
 
   async deleteAsset(id: string): Promise<void> {
     const db = await openDatabase();
-    const chunkIndexes = await this.getChunkIndexes(id);
+    const samples = await this.getAllSamples(id);
 
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([ASSETS_STORE, SAMPLE_INDEX_STORE, SAMPLE_CHUNK_STORE], 'readwrite');
+      const transaction = db.transaction([ASSETS_STORE, SAMPLE_STORE], 'readwrite');
       const assetStore = transaction.objectStore(ASSETS_STORE);
-      const indexStore = transaction.objectStore(SAMPLE_INDEX_STORE);
-      const chunkStore = transaction.objectStore(SAMPLE_CHUNK_STORE);
+      const sampleStore = transaction.objectStore(SAMPLE_STORE);
 
       assetStore.delete(id);
-      for (const index of chunkIndexes) {
-        indexStore.delete([id, index.timemili]);
-        chunkStore.delete([id, index.timemili]);
+      for (const sample of samples) {
+        sampleStore.delete([id, sample.timemili]);
       }
 
       transaction.onerror = () => reject(transaction.error);
@@ -115,35 +105,84 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     });
   }
 
-  async getChunkIndexes(assetId: string): Promise<SampleIndex[]> {
+  async getSamplesRange(assetId: string, from: number, to: number): Promise<PriceData[]> {
     const db = await openDatabase();
 
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction(SAMPLE_INDEX_STORE, 'readonly');
-      const store = transaction.objectStore(SAMPLE_INDEX_STORE);
+      const transaction = db.transaction(SAMPLE_STORE, 'readonly');
+      const store = transaction.objectStore(SAMPLE_STORE);
+      const request = store.getAll(IDBKeyRange.bound([assetId, from], [assetId, to]));
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const records = (request.result as StoredSample[]).sort((a, b) => a.timemili - b.timemili);
+        resolve(records.map(r => r.sample));
+      };
+    });
+  }
+
+  async getSampleAfter(assetId: string, time: number): Promise<PriceData | null> {
+    const db = await openDatabase();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(SAMPLE_STORE, 'readonly');
+      const store = transaction.objectStore(SAMPLE_STORE);
+      const request = store.openCursor(IDBKeyRange.lowerBound([assetId, time], true));
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const cursor = request.result;
+        resolve(cursor ? (cursor.value as StoredSample).sample : null);
+      };
+    });
+  }
+
+  async getSampleBefore(assetId: string, time: number): Promise<PriceData | null> {
+    const db = await openDatabase();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(SAMPLE_STORE, 'readonly');
+      const store = transaction.objectStore(SAMPLE_STORE);
+      const request = store.openCursor(IDBKeyRange.upperBound([assetId, time], true), 'prev');
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const cursor = request.result;
+        resolve(cursor ? (cursor.value as StoredSample).sample : null);
+      };
+    });
+  }
+
+  async getLastSample(assetId: string): Promise<PriceData | null> {
+    const db = await openDatabase();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(SAMPLE_STORE, 'readonly');
+      const store = transaction.objectStore(SAMPLE_STORE);
+      const index = store.index('assetId');
+      const request = index.openCursor(IDBKeyRange.only(assetId), 'prev');
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const cursor = request.result;
+        resolve(cursor ? (cursor.value as StoredSample).sample : null);
+      };
+    });
+  }
+
+  private async getAllSamples(assetId: string): Promise<StoredSample[]> {
+    const db = await openDatabase();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(SAMPLE_STORE, 'readonly');
+      const store = transaction.objectStore(SAMPLE_STORE);
       const index = store.index('assetId');
       const request = index.getAll(IDBKeyRange.only(assetId));
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
-        const records = (request.result as SampleIndex[]).sort((a, b) => a.timemili - b.timemili);
+        const records = (request.result as StoredSample[]).sort((a, b) => a.timemili - b.timemili);
         resolve(records);
-      };
-    });
-  }
-
-  async getChunkSamples(assetId: string, timemili: number): Promise<PriceData[]> {
-    const db = await openDatabase();
-
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(SAMPLE_CHUNK_STORE, 'readonly');
-      const store = transaction.objectStore(SAMPLE_CHUNK_STORE);
-      const request = store.get([assetId, timemili]);
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        const record = request.result as { assetId: string; timemili: number; samples: PriceData[] } | undefined;
-        resolve(record?.samples ?? []);
       };
     });
   }
