@@ -1,8 +1,7 @@
 import { AssetSummary, ChartType, PriceData } from '../types/asset';
 import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
-import { IndexedDbAssetChartRepository } from '../services/IndexedDbAssetChartRepository';
 import { validateAndParse } from '../services/ValidationService';
-import { AggregationService } from '../services/AggregationService';
+import { AssetService } from '../services/AssetService';
 
 const TIMEFRAME_STORAGE_KEY = 'selectedTimeframe';
 
@@ -17,10 +16,9 @@ export interface AppState {
 class AppPresenter {
   private static instance: AppPresenter;
 
-  private repo = IndexedDbAssetChartRepository.getInstance();
+  private assetService = AssetService.getInstance();
   private initPromise: Promise<void>;
   private assets: AssetSummary[] = [];
-  private assetDataCache: Map<string, PriceData[]> = new Map();
   private selectedAssetId: string | null = null;
   private chartType: ChartType = 'line';
   private selectedTimeframe: TimeframeType = '1D';
@@ -29,7 +27,7 @@ class AppPresenter {
   private listeners: Set<(state: AppState) => void> = new Set();
 
   private constructor() {
-    this.initPromise = this.repo.init();
+    this.initPromise = this.assetService.init();
     this.loadTimeframeFromStorage();
   }
 
@@ -92,7 +90,7 @@ class AppPresenter {
   private async loadAssets(): Promise<void> {
     try {
       await this.initPromise;
-      this.assets = await this.repo.getAssetSummaries();
+      this.assets = await this.assetService.getSummaries();
       this.notify();
     } catch (err) {
       this.error = 'Failed to load assets';
@@ -117,7 +115,7 @@ class AppPresenter {
       }
 
       const assetName = name || file.name.replace(/\.[^.]+$/, '');
-      await this.repo.saveAsset(assetName, result.data!, result.detectedTimeframe!);
+      await this.assetService.save(assetName, result.data!, result.detectedTimeframe!);
       await this.loadAssets();
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Failed to import file';
@@ -129,27 +127,19 @@ class AppPresenter {
   selectAsset(id: string): void {
     this.selectedAssetId = id;
     this.notify();
-    this.loadAssetData(id);
-  }
-
-  private async loadAssetData(assetId: string): Promise<void> {
-    if (this.assetDataCache.has(assetId)) return;
-
-    try {
-      const data = await this.repo.getAssetData(assetId);
-      this.assetDataCache.set(assetId, data);
-      this.notify();
-    } catch (err) {
-      this.error = 'Failed to load asset data';
-      this.notify();
-    }
+    this.assetService
+      .ensureData(id)
+      .then(() => this.notify())
+      .catch(() => {
+        this.error = 'Failed to load asset data';
+        this.notify();
+      });
   }
 
   async removeAsset(id: string): Promise<void> {
     try {
       this.error = null;
-      await this.repo.deleteAsset(id);
-      this.assetDataCache.delete(id);
+      await this.assetService.delete(id);
       if (this.selectedAssetId === id) {
         this.selectedAssetId = null;
       }
@@ -173,18 +163,10 @@ class AppPresenter {
   }
 
   getTimeframeData(assetId: string, timeframe: TimeframeType): PriceData[] | null {
-    const data = this.assetDataCache.get(assetId);
-    if (!data) return null;
-
     const asset = this.assets.find(a => a.id === assetId);
     if (!asset) return null;
 
-    return AggregationService.getInstance().getTimeframeData(
-      assetId,
-      data,
-      asset.originalTimeframe,
-      timeframe
-    );
+    return this.assetService.getTimeframeData(assetId, asset.originalTimeframe, timeframe);
   }
 
   clearWarnings(): void {

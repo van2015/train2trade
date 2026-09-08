@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import AppPresenter from '../../src/presenters/AppPresenter';
-import { AggregationService } from '../../src/services/AggregationService';
+import { AssetService } from '../../src/services/AssetService';
 
 describe('AppPresenter', () => {
   let presenter: AppPresenter;
@@ -10,7 +10,7 @@ describe('AppPresenter', () => {
   beforeEach(() => {
     (globalThis as any).indexedDB = new IDBFactory();
     presenter = AppPresenter.getInstance();
-    AggregationService.getInstance().clearCache();
+    AssetService.getInstance().clearCache();
     (presenter as any).assets = [];
     (presenter as any).selectedAssetId = null;
   });
@@ -29,7 +29,7 @@ describe('AppPresenter', () => {
       (presenter as any).assets = [
         { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
       ];
-      (presenter as any).assetDataCache.set('asset1', data);
+      (AssetService.getInstance() as any).rawCache.set('asset1', data);
 
       const result = presenter.getTimeframeData('asset1', '1m');
       expect(result).not.toBeNull();

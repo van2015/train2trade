@@ -1,12 +1,57 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { AggregationService } from '../../src/services/AggregationService';
+import { PriceData, AssetSummary } from '../../src/types/asset';
+import { Timeframe } from '../../src/timeframe/Timeframe';
+import { AssetChartRepository } from '../../src/services/AssetChartRepository';
+import { AssetService } from '../../src/services/AssetService';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 
-describe('AggregationService', () => {
-  let service: AggregationService;
+class FakeRepository implements AssetChartRepository {
+  private dataByAsset = new Map<string, PriceData[]>();
+  private summaries = new Map<string, AssetSummary>();
+
+  setData(assetId: string, data: PriceData[]): void {
+    this.dataByAsset.set(assetId, data);
+  }
+
+  async init(): Promise<void> {}
+  async saveAsset(name: string, data: PriceData[], originalTimeframe: Timeframe): Promise<AssetSummary> {
+    const id = crypto.randomUUID();
+    const summary: AssetSummary = { id, name, createdAt: new Date(), originalTimeframe };
+    this.summaries.set(id, summary);
+    this.dataByAsset.set(id, data);
+    return summary;
+  }
+  async getAssetSummaries(): Promise<AssetSummary[]> {
+    return [...this.summaries.values()];
+  }
+  async getAssetData(id: string): Promise<PriceData[]> {
+    return this.dataByAsset.get(id) ?? [];
+  }
+  async deleteAsset(id: string): Promise<void> {
+    this.summaries.delete(id);
+    this.dataByAsset.delete(id);
+  }
+  async getSamplesRange(_assetId: string, _from: number, _to: number): Promise<PriceData[]> {
+    return [];
+  }
+  async getSampleAfter(_assetId: string, _time: number): Promise<PriceData | null> {
+    return null;
+  }
+  async getSampleBefore(_assetId: string, _time: number): Promise<PriceData | null> {
+    return null;
+  }
+  async getLastSample(_assetId: string): Promise<PriceData | null> {
+    return null;
+  }
+}
+
+describe('AssetService', () => {
+  let repo: FakeRepository;
+  let service: AssetService;
 
   beforeEach(() => {
-    service = AggregationService.getInstance();
+    repo = new FakeRepository();
+    service = new AssetService(repo);
     service.clearCache();
   });
 
@@ -84,13 +129,19 @@ describe('AggregationService', () => {
   });
 
   describe('getTimeframeData', () => {
-    it('returns original data for same timeframe', () => {
+    it('returns null when data is not loaded', () => {
+      expect(service.getTimeframeData('asset1', '1m', '1m')).toBeNull();
+    });
+
+    it('returns original data for same timeframe', async () => {
       const data = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
-      const result = service.getTimeframeData('asset1', data, '1m', '1m');
+      repo.setData('asset1', data);
+      await service.ensureData('asset1');
+      const result = service.getTimeframeData('asset1', '1m', '1m');
       expect(result).toEqual(data);
     });
 
-    it('uses cache on repeated calls', () => {
+    it('uses cache on repeated calls', async () => {
       const originalData = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
@@ -99,13 +150,16 @@ describe('AggregationService', () => {
         .volume(1000)
         .buildSeries();
 
-      const result1 = service.getTimeframeData('asset1', originalData, '1m', '5m');
-      const result2 = service.getTimeframeData('asset1', originalData, '1m', '5m');
+      repo.setData('asset1', originalData);
+      await service.ensureData('asset1');
+
+      const result1 = service.getTimeframeData('asset1', '1m', '5m');
+      const result2 = service.getTimeframeData('asset1', '1m', '5m');
 
       expect(result1).toBe(result2);
     });
 
-    it('computes on cache miss', () => {
+    it('computes on cache miss', async () => {
       const data = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
@@ -113,26 +167,11 @@ describe('AggregationService', () => {
         .green(2)
         .volume(1000)
         .buildSeries();
-      const result = service.getTimeframeData('asset1', data, '1m', '5m');
+      repo.setData('asset1', data);
+      await service.ensureData('asset1');
+      const result = service.getTimeframeData('asset1', '1m', '5m');
       expect(result).toHaveLength(1);
-      expect(result[0].open).toBe(100);
-    });
-
-    it('returns cached data from previous call', () => {
-      const originalData = new SamplePriceBuilder()
-        .timeframe('1m')
-        .count(5)
-        .startPrice(100)
-        .green(1)
-        .volume(1000)
-        .buildSeries();
-      const cachedData = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(999).high(999).low(999).close(999).volume(9999).buildOne()];
-
-      service.getTimeframeData('asset1', originalData, '1m', '5m');
-      service.clearCache();
-      const result = service.getTimeframeData('asset1', originalData, '1m', '5m');
-
-      expect(result[0].open).not.toBe(999);
+      expect(result![0].open).toBe(100);
     });
   });
 
@@ -228,7 +267,7 @@ describe('AggregationService', () => {
   });
 
   describe('clearCache', () => {
-    it('clears all cache when no assetId provided', () => {
+    it('clears all cache when no assetId provided', async () => {
       const data = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
@@ -236,16 +275,16 @@ describe('AggregationService', () => {
         .green(1)
         .volume(1000)
         .buildSeries();
+      repo.setData('asset1', data);
+      await service.ensureData('asset1');
+      service.getTimeframeData('asset1', '1m', '5m');
 
-      service.getTimeframeData('asset1', data, '1m', '5m');
       service.clearCache();
 
-      const result = service.getTimeframeData('asset1', data, '1m', '5m');
-      expect(result).toHaveLength(1);
-      expect(result[0].open).toBe(100);
+      expect(service.getTimeframeData('asset1', '1m', '5m')).toBeNull();
     });
 
-    it('clears specific asset cache', () => {
+    it('clears specific asset cache', async () => {
       const data1 = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
@@ -261,16 +300,61 @@ describe('AggregationService', () => {
         .volume(1000)
         .buildSeries();
 
-      service.getTimeframeData('asset1', data1, '1m', '5m');
-      service.getTimeframeData('asset2', data2, '1m', '5m');
+      repo.setData('asset1', data1);
+      repo.setData('asset2', data2);
+      await service.ensureData('asset1');
+      await service.ensureData('asset2');
+      service.getTimeframeData('asset1', '1m', '5m');
+      service.getTimeframeData('asset2', '1m', '5m');
 
       service.clearCache('asset1');
 
-      const result1 = service.getTimeframeData('asset1', data1, '1m', '5m');
-      const result2 = service.getTimeframeData('asset2', data2, '1m', '5m');
+      expect(service.getTimeframeData('asset1', '1m', '5m')).toBeNull();
+      expect(service.getTimeframeData('asset2', '1m', '5m')).not.toBeNull();
+    });
+  });
 
-      expect(result1[0].open).toBe(100);
-      expect(result2[0].open).toBe(200);
+  describe('asset lifecycle', () => {
+    it('init resolves without throwing', async () => {
+      await expect(service.init()).resolves.toBeUndefined();
+    });
+
+    it('save persists a summary retrievable via getSummaries', async () => {
+      const data = new SamplePriceBuilder()
+        .timeframe('1m')
+        .count(3)
+        .startPrice(100)
+        .green(1)
+        .volume(1000)
+        .buildSeries();
+
+      const summary = await service.save('Test', data, '1m');
+      expect(summary.id).toBeTruthy();
+      expect(summary.name).toBe('Test');
+      expect(summary.originalTimeframe).toBe('1m');
+
+      const summaries = await service.getSummaries();
+      expect(summaries).toHaveLength(1);
+      expect(summaries[0].id).toBe(summary.id);
+    });
+
+    it('delete removes the summary and clears the cache', async () => {
+      const data = new SamplePriceBuilder()
+        .timeframe('1m')
+        .count(3)
+        .startPrice(100)
+        .green(1)
+        .volume(1000)
+        .buildSeries();
+
+      const summary = await service.save('Test', data, '1m');
+      await service.ensureData(summary.id);
+      service.getTimeframeData(summary.id, '1m', '1m');
+
+      await service.delete(summary.id);
+
+      expect(await service.getSummaries()).toEqual([]);
+      expect(service.getTimeframeData(summary.id, '1m', '1m')).toBeNull();
     });
   });
 });

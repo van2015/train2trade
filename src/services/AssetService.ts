@@ -1,56 +1,77 @@
-import { PriceData } from '../types/asset';
+import { AssetSummary, PriceData } from '../types/asset';
 import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
+import { AssetChartRepository } from './AssetChartRepository';
+import { IndexedDbAssetChartRepository } from './IndexedDbAssetChartRepository';
 
-class AggregationCache {
-  private static instance: AggregationCache;
-  private cache = new Map<string, Map<TimeframeType, PriceData[]>>();
+class AssetService {
+  private static instance: AssetService;
 
-  private constructor() {}
+  private rawCache = new Map<string, PriceData[]>();
+  private aggCache = new Map<string, Map<TimeframeType, PriceData[]>>();
 
-  static getInstance(): AggregationCache {
-    if (!AggregationCache.instance) {
-      AggregationCache.instance = new AggregationCache();
+  constructor(private readonly repo: AssetChartRepository) {}
+
+  static getInstance(): AssetService {
+    if (!AssetService.instance) {
+      AssetService.instance = new AssetService(IndexedDbAssetChartRepository.getInstance());
     }
-    return AggregationCache.instance;
+    return AssetService.instance;
   }
 
-  get(assetId: string, tf: TimeframeType): PriceData[] | undefined {
-    const assetCache = this.cache.get(assetId);
-    if (!assetCache) return undefined;
-    return assetCache.get(tf);
+  async init(): Promise<void> {
+    await this.repo.init();
   }
 
-  set(assetId: string, tf: TimeframeType, data: PriceData[]): void {
-    let assetCache = this.cache.get(assetId);
+  async save(
+    name: string,
+    data: PriceData[],
+    originalTimeframe: Timeframe
+  ): Promise<AssetSummary> {
+    return this.repo.saveAsset(name, data, originalTimeframe);
+  }
+
+  async getSummaries(): Promise<AssetSummary[]> {
+    return this.repo.getAssetSummaries();
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.repo.deleteAsset(id);
+    this.clearCache(id);
+  }
+
+  async ensureData(assetId: string): Promise<void> {
+    if (this.rawCache.has(assetId)) return;
+    const data = await this.repo.getAssetData(assetId);
+    this.rawCache.set(assetId, data);
+  }
+
+  getTimeframeData(
+    assetId: string,
+    originalTimeframe: TimeframeType,
+    targetTimeframe: TimeframeType
+  ): PriceData[] | null {
+    const data = this.rawCache.get(assetId);
+    if (!data) return null;
+
+    if (targetTimeframe === originalTimeframe) {
+      return data;
+    }
+
+    const cached = this.aggCache.get(assetId)?.get(targetTimeframe);
+    if (cached) {
+      return cached;
+    }
+
+    const aggregated = this.aggregate(data, targetTimeframe, originalTimeframe);
+
+    let assetCache = this.aggCache.get(assetId);
     if (!assetCache) {
       assetCache = new Map();
-      this.cache.set(assetId, assetCache);
+      this.aggCache.set(assetId, assetCache);
     }
-    assetCache.set(tf, data);
-  }
+    assetCache.set(targetTimeframe, aggregated);
 
-  clear(assetId?: string): void {
-    if (assetId) {
-      this.cache.delete(assetId);
-    } else {
-      this.cache.clear();
-    }
-  }
-}
-
-class AggregationService {
-  private static instance: AggregationService;
-  private cache: AggregationCache;
-
-  private constructor() {
-    this.cache = AggregationCache.getInstance();
-  }
-
-  static getInstance(): AggregationService {
-    if (!AggregationService.instance) {
-      AggregationService.instance = new AggregationService();
-    }
-    return AggregationService.instance;
+    return aggregated;
   }
 
   private getTimeframeFactor(original: TimeframeType, target: TimeframeType): number {
@@ -105,27 +126,6 @@ class AggregationService {
     return result;
   }
 
-  getTimeframeData(
-    assetId: string,
-    originalData: PriceData[],
-    originalTimeframe: TimeframeType,
-    targetTimeframe: TimeframeType
-  ): PriceData[] {
-    if (targetTimeframe === originalTimeframe) {
-      return originalData;
-    }
-
-    const cached = this.cache.get(assetId, targetTimeframe);
-    if (cached) {
-      return cached;
-    }
-
-    const aggregated = this.aggregate(originalData, targetTimeframe, originalTimeframe);
-    this.cache.set(assetId, targetTimeframe, aggregated);
-
-    return aggregated;
-  }
-
   filterByRange(data: PriceData[], from: string, to: string): PriceData[] {
     if (data.length === 0) return [];
 
@@ -154,16 +154,14 @@ class AggregationService {
     return this.filterByRange(data, clampedFrom, clampedTo);
   }
 
-  getVisibleData(
-    assetId: string,
-    originalData: PriceData[],
-    originalTimeframe: TimeframeType,
-    targetTimeframe: TimeframeType,
-    range: { from: string; to: string }
-  ): PriceData[] | null {
-    const fullData = this.getTimeframeData(assetId, originalData, originalTimeframe, targetTimeframe);
-    if (fullData.length < 5000) return null;
-    return this.filterByRangeWithBuffer(fullData, range.from, range.to);
+  clearCache(assetId?: string): void {
+    if (assetId) {
+      this.rawCache.delete(assetId);
+      this.aggCache.delete(assetId);
+    } else {
+      this.rawCache.clear();
+      this.aggCache.clear();
+    }
   }
 
   private lowerBound(data: PriceData[], target: string): number {
@@ -193,10 +191,6 @@ class AggregationService {
     }
     return low;
   }
-
-  clearCache(assetId?: string): void {
-    this.cache.clear(assetId);
-  }
 }
 
-export { AggregationService, AggregationCache };
+export { AssetService };
