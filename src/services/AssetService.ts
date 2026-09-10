@@ -2,11 +2,14 @@ import { AssetSummary, PriceData } from '../types/asset';
 import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
 import { AssetChartRepository } from './AssetChartRepository';
 import { IndexedDbAssetChartRepository } from './IndexedDbAssetChartRepository';
+import { PriceRange } from './PriceRetrievalStrategy';
+
+const DEFAULT_INITIAL_CANDLES = 500;
 
 class AssetService {
   private static instance: AssetService;
 
-  private rawCache = new Map<string, PriceData[]>();
+  private rangeCache = new Map<string, PriceData[]>();
   private aggCache = new Map<string, Map<TimeframeType, PriceData[]>>();
 
   constructor(private readonly repo: AssetChartRepository) {}
@@ -39,10 +42,21 @@ class AssetService {
     this.clearCache(id);
   }
 
-  async ensureData(assetId: string): Promise<void> {
-    if (this.rawCache.has(assetId)) return;
-    const data = await this.repo.getAssetData(assetId);
-    this.rawCache.set(assetId, data);
+  async getInitialRange(assetId: string, originalTimeframe: Timeframe): Promise<PriceRange | null> {
+    const last = await this.repo.getLastSample(assetId);
+    if (!last) return null;
+    const intervalMs = Timeframe.getMinutes(originalTimeframe) * 60 * 1000;
+    const to = new Date(last.date).getTime();
+    const from = to - DEFAULT_INITIAL_CANDLES * intervalMs;
+    return { from, to };
+  }
+
+  async fetchSamples(assetId: string, from: number, to: number): Promise<PriceData[]> {
+    return this.repo.getSamplesRange(assetId, from, to);
+  }
+
+  setRangeData(assetId: string, samples: PriceData[]): void {
+    this.rangeCache.set(assetId, samples);
   }
 
   priceSample(
@@ -50,28 +64,10 @@ class AssetService {
     originalTimeframe: TimeframeType,
     targetTimeframe: TimeframeType
   ): PriceData[] | null {
-    const data = this.rawCache.get(assetId);
+    const data = this.rangeCache.get(assetId);
     if (!data) return null;
 
-    if (targetTimeframe === originalTimeframe) {
-      return data;
-    }
-
-    const cached = this.aggCache.get(assetId)?.get(targetTimeframe);
-    if (cached) {
-      return cached;
-    }
-
-    const aggregated = this.aggregate(data, targetTimeframe, originalTimeframe);
-
-    let assetCache = this.aggCache.get(assetId);
-    if (!assetCache) {
-      assetCache = new Map();
-      this.aggCache.set(assetId, assetCache);
-    }
-    assetCache.set(targetTimeframe, aggregated);
-
-    return aggregated;
+    return this.aggregate(data, targetTimeframe, originalTimeframe);
   }
 
   private getTimeframeFactor(original: TimeframeType, target: TimeframeType): number {
@@ -94,31 +90,41 @@ class AssetService {
       return data;
     }
 
-    const result: PriceData[] = [];
+    const bucketSpanMs = Timeframe.getMinutes(targetTF) * 60 * 1000;
+    const buckets = new Map<number, PriceData[]>();
 
-    for (let i = 0; i < data.length; i += factor) {
-      if (i + factor > data.length) {
-        break;
+    for (const sample of data) {
+      const timestamp = new Date(sample.date).getTime();
+      const bucketStart = Math.floor(timestamp / bucketSpanMs) * bucketSpanMs;
+      let bucket = buckets.get(bucketStart);
+      if (!bucket) {
+        bucket = [];
+        buckets.set(bucketStart, bucket);
       }
+      bucket.push(sample);
+    }
 
-      const chunk = data.slice(i, i + factor);
+    const result: PriceData[] = [];
+    const starts = [...buckets.keys()].sort((a, b) => a - b);
 
+    for (const start of starts) {
+      const bucket = buckets.get(start)!;
       let high = -Infinity;
       let low = Infinity;
       let volume = 0;
 
-      for (const candle of chunk) {
+      for (const candle of bucket) {
         if (candle.high > high) high = candle.high;
         if (candle.low < low) low = candle.low;
         volume += candle.volume;
       }
 
       result.push({
-        date: chunk[0].date,
-        open: chunk[0].open,
+        date: new Date(start).toISOString().replace('.000Z', 'Z'),
+        open: bucket[0].open,
         high,
         low,
-        close: chunk[chunk.length - 1].close,
+        close: bucket[bucket.length - 1].close,
         volume,
       });
     }
@@ -129,8 +135,11 @@ class AssetService {
   filterByRange(data: PriceData[], from: string, to: string): PriceData[] {
     if (data.length === 0) return [];
 
-    const startIndex = this.lowerBound(data, from);
-    const endIndex = this.upperBound(data, to);
+    const fromMs = new Date(from).getTime();
+    const toMs = new Date(to).getTime();
+
+    const startIndex = this.lowerBoundMs(data, fromMs);
+    const endIndex = this.upperBoundMs(data, toMs);
 
     if (startIndex >= endIndex) return [];
 
@@ -156,20 +165,20 @@ class AssetService {
 
   clearCache(assetId?: string): void {
     if (assetId) {
-      this.rawCache.delete(assetId);
+      this.rangeCache.delete(assetId);
       this.aggCache.delete(assetId);
     } else {
-      this.rawCache.clear();
+      this.rangeCache.clear();
       this.aggCache.clear();
     }
   }
 
-  private lowerBound(data: PriceData[], target: string): number {
+  private lowerBoundMs(data: PriceData[], targetMs: number): number {
     let low = 0;
     let high = data.length;
     while (low < high) {
       const mid = (low + high) >>> 1;
-      if (data[mid].date < target) {
+      if (new Date(data[mid].date).getTime() < targetMs) {
         low = mid + 1;
       } else {
         high = mid;
@@ -178,12 +187,12 @@ class AssetService {
     return low;
   }
 
-  private upperBound(data: PriceData[], target: string): number {
+  private upperBoundMs(data: PriceData[], targetMs: number): number {
     let low = 0;
     let high = data.length;
     while (low < high) {
       const mid = (low + high) >>> 1;
-      if (data[mid].date <= target) {
+      if (new Date(data[mid].date).getTime() <= targetMs) {
         low = mid + 1;
       } else {
         high = mid;

@@ -13,12 +13,13 @@ describe('AppPresenter', () => {
     AssetService.getInstance().clearCache();
     (presenter as any).assets = [];
     (presenter as any).selectedAssetId = null;
+    (presenter as any).currentRange = null;
   });
 
   describe('priceSample', () => {
     it('returns data for valid asset and timeframe', () => {
       const data = Array.from({ length: 100 }, (_, i) => ({
-        date: `2024-01-01T${String(i).padStart(2, '0')}:00:00Z`,
+        date: new Date(Date.UTC(2024, 0, 1, 0, i)).toISOString().replace('.000Z', 'Z'),
         open: 100 + i,
         high: 101 + i,
         low: 99 + i,
@@ -29,7 +30,11 @@ describe('AppPresenter', () => {
       (presenter as any).assets = [
         { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
       ];
-      (AssetService.getInstance() as any).rawCache.set('asset1', data);
+      (AssetService.getInstance() as any).setRangeData('asset1', data);
+      (presenter as any).currentRange = {
+        from: new Date(data[0].date).getTime(),
+        to: new Date(data[99].date).getTime(),
+      };
 
       const result = presenter.priceSample('asset1', '1m');
       expect(result).not.toBeNull();

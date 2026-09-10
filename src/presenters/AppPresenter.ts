@@ -2,6 +2,7 @@ import { AssetSummary, ChartType, PriceData } from '../types/asset';
 import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
 import { validateAndParse } from '../services/ValidationService';
 import { AssetService } from '../services/AssetService';
+import { PriceRetrievalStrategy, RangeStrategy, PriceRange } from '../services/PriceRetrievalStrategy';
 
 const TIMEFRAME_STORAGE_KEY = 'selectedTimeframe';
 
@@ -17,9 +18,12 @@ class AppPresenter {
   private static instance: AppPresenter;
 
   private assetService = AssetService.getInstance();
+  private strategy: PriceRetrievalStrategy = new RangeStrategy(1.0);
   private initPromise: Promise<void>;
   private assets: AssetSummary[] = [];
   private selectedAssetId: string | null = null;
+  private currentRange: PriceRange | null = null;
+  private loadedRange: PriceRange | null = null;
   private chartType: ChartType = 'line';
   private selectedTimeframe: TimeframeType = '1D';
   private error: string | null = null;
@@ -126,14 +130,29 @@ class AppPresenter {
 
   selectAsset(id: string): void {
     this.selectedAssetId = id;
+    this.currentRange = null;
+    this.loadedRange = null;
     this.notify();
-    this.assetService
-      .ensureData(id)
-      .then(() => this.notify())
-      .catch(() => {
-        this.error = 'Failed to load asset data';
-        this.notify();
-      });
+    const asset = this.assets.find(a => a.id === id);
+    if (!asset) return;
+    this.assetService.getInitialRange(id, asset.originalTimeframe).then(range => {
+      if (range) this.requestRange(id, range.from, range.to);
+    });
+  }
+
+  async requestRange(assetId: string, from: number, to: number): Promise<void> {
+    debugger;
+    try {
+      this.currentRange = { from, to };
+      const resolved = await this.strategy.getRange(assetId, { from, to });
+      const samples = await this.assetService.fetchSamples(assetId, resolved.from, resolved.to);
+      this.assetService.setRangeData(assetId, samples);
+      this.loadedRange = { from: resolved.from, to: resolved.to };
+      this.notify();
+    } catch {
+      this.error = 'Failed to load asset data';
+      this.notify();
+    }
   }
 
   async removeAsset(id: string): Promise<void> {
@@ -142,6 +161,7 @@ class AppPresenter {
       await this.assetService.delete(id);
       if (this.selectedAssetId === id) {
         this.selectedAssetId = null;
+        this.currentRange = null;
       }
       await this.loadAssets();
     } catch (err) {
@@ -160,6 +180,15 @@ class AppPresenter {
     this.selectedTimeframe = tf;
     this.saveTimeframeToStorage();
     this.notify();
+  }
+
+  getCurrentRange(): PriceRange | null {
+    return this.currentRange;
+  }
+
+  hasCompleteData(from: number, to: number): boolean {
+    if (!this.loadedRange) return false;
+    return from >= this.loadedRange.from && to <= this.loadedRange.to;
   }
 
   priceSample(assetId: string, timeframe: TimeframeType): PriceData[] | null {

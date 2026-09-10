@@ -31,17 +31,35 @@ class FakeRepository implements AssetChartRepository {
     this.summaries.delete(id);
     this.dataByAsset.delete(id);
   }
-  async getSamplesRange(_assetId: string, _from: number, _to: number): Promise<PriceData[]> {
-    return [];
+  async getSamplesRange(assetId: string, from: number, to: number): Promise<PriceData[]> {
+    const data = this.dataByAsset.get(assetId) ?? [];
+    return data.filter(s => {
+      const t = new Date(s.date).getTime();
+      return t >= from && t <= to;
+    });
   }
-  async getSampleAfter(_assetId: string, _time: number): Promise<PriceData | null> {
-    return null;
+  async getSampleAfter(assetId: string, time: number): Promise<PriceData | null> {
+    const data = this.sortedData(assetId);
+    return data.find(s => new Date(s.date).getTime() > time) ?? null;
   }
-  async getSampleBefore(_assetId: string, _time: number): Promise<PriceData | null> {
-    return null;
+  async getSampleBefore(assetId: string, time: number): Promise<PriceData | null> {
+    const data = this.sortedData(assetId);
+    let prev: PriceData | null = null;
+    for (const s of data) {
+      if (new Date(s.date).getTime() < time) prev = s;
+      else break;
+    }
+    return prev;
   }
-  async getLastSample(_assetId: string): Promise<PriceData | null> {
-    return null;
+  async getLastSample(assetId: string): Promise<PriceData | null> {
+    const data = this.sortedData(assetId);
+    return data[data.length - 1] ?? null;
+  }
+
+  private sortedData(assetId: string): PriceData[] {
+    return (this.dataByAsset.get(assetId) ?? [])
+      .slice()
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 }
 
@@ -89,7 +107,7 @@ describe('AssetService', () => {
       expect(result[0].volume).toBe(5000);
     });
 
-    it('discards incomplete chunk', () => {
+    it('aligns buckets to the timeframe grid including a partial edge bucket', () => {
       const data = new SamplePriceBuilder()
         .timeframe('1m')
         .count(7)
@@ -98,7 +116,9 @@ describe('AssetService', () => {
         .volume(1000)
         .buildSeries();
       const result = service.aggregate(data, '5m', '1m');
-      expect(result).toHaveLength(1);
+      expect(result).toHaveLength(2);
+      expect(result[0].date).toBe('2024-01-01T00:00:00Z');
+      expect(result[1].date).toBe('2024-01-01T00:05:00Z');
     });
 
     it('aggregates multiple complete chunks', () => {
@@ -133,15 +153,15 @@ describe('AssetService', () => {
       expect(service.priceSample('asset1', '1m', '1m')).toBeNull();
     });
 
-    it('returns original data for same timeframe', async () => {
+    it('returns original data for same timeframe', () => {
       const data = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
       repo.setData('asset1', data);
-      await service.ensureData('asset1');
+      service.setRangeData('asset1', data);
       const result = service.priceSample('asset1', '1m', '1m');
       expect(result).toEqual(data);
     });
 
-    it('uses cache on repeated calls', async () => {
+    it('uses cache on repeated calls', () => {
       const originalData = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
@@ -151,15 +171,16 @@ describe('AssetService', () => {
         .buildSeries();
 
       repo.setData('asset1', originalData);
-      await service.ensureData('asset1');
+      service.setRangeData('asset1', originalData);
 
       const result1 = service.priceSample('asset1', '1m', '5m');
       const result2 = service.priceSample('asset1', '1m', '5m');
 
-      expect(result1).toBe(result2);
+      expect(result1).toEqual(result2);
+      expect(result1).toHaveLength(1);
     });
 
-    it('computes on cache miss', async () => {
+    it('computes on cache miss', () => {
       const data = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
@@ -168,7 +189,7 @@ describe('AssetService', () => {
         .volume(1000)
         .buildSeries();
       repo.setData('asset1', data);
-      await service.ensureData('asset1');
+      service.setRangeData('asset1', data);
       const result = service.priceSample('asset1', '1m', '5m');
       expect(result).toHaveLength(1);
       expect(result![0].open).toBe(100);
@@ -267,7 +288,7 @@ describe('AssetService', () => {
   });
 
   describe('clearCache', () => {
-    it('clears all cache when no assetId provided', async () => {
+    it('clears all cache when no assetId provided', () => {
       const data = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
@@ -276,7 +297,7 @@ describe('AssetService', () => {
         .volume(1000)
         .buildSeries();
       repo.setData('asset1', data);
-      await service.ensureData('asset1');
+      service.setRangeData('asset1', data);
       service.priceSample('asset1', '1m', '5m');
 
       service.clearCache();
@@ -284,7 +305,7 @@ describe('AssetService', () => {
       expect(service.priceSample('asset1', '1m', '5m')).toBeNull();
     });
 
-    it('clears specific asset cache', async () => {
+    it('clears specific asset cache', () => {
       const data1 = new SamplePriceBuilder()
         .timeframe('1m')
         .count(5)
@@ -302,8 +323,8 @@ describe('AssetService', () => {
 
       repo.setData('asset1', data1);
       repo.setData('asset2', data2);
-      await service.ensureData('asset1');
-      await service.ensureData('asset2');
+      service.setRangeData('asset1', data1);
+      service.setRangeData('asset2', data2);
       service.priceSample('asset1', '1m', '5m');
       service.priceSample('asset2', '1m', '5m');
 
@@ -348,13 +369,56 @@ describe('AssetService', () => {
         .buildSeries();
 
       const summary = await service.save('Test', data, '1m');
-      await service.ensureData(summary.id);
+      service.setRangeData(summary.id, data);
       service.priceSample(summary.id, '1m', '1m');
 
       await service.delete(summary.id);
 
       expect(await service.getSummaries()).toEqual([]);
       expect(service.priceSample(summary.id, '1m', '1m')).toBeNull();
+    });
+  });
+
+  describe('getInitialRange', () => {
+    it('returns a window of the last 500 candles of the original timeframe', async () => {
+      const data = new SamplePriceBuilder()
+        .timeframe('1m')
+        .count(5)
+        .startPrice(100)
+        .green(1)
+        .volume(1000)
+        .buildSeries();
+      repo.setData('asset1', data);
+      const range = await service.getInitialRange('asset1', '1m');
+      const last = new Date('2024-01-01T00:04:00Z').getTime();
+      expect(range).not.toBeNull();
+      expect(range!.to).toBe(last);
+      expect(range!.from).toBe(last - 500 * 60000);
+    });
+
+    it('returns null for an asset with no data', async () => {
+      expect(await service.getInitialRange('missing', '1m')).toBeNull();
+    });
+  });
+
+  describe('fetchSamples', () => {
+    it('returns samples within the given range', async () => {
+      const data = new SamplePriceBuilder()
+        .timeframe('1m')
+        .count(5)
+        .startPrice(100)
+        .green(1)
+        .volume(1000)
+        .buildSeries();
+      repo.setData('asset1', data);
+      const from = new Date('2024-01-01T00:01:00Z').getTime();
+      const to = new Date('2024-01-01T00:03:00Z').getTime();
+
+      const result = await service.fetchSamples('asset1', from, to);
+
+      expect(result).toHaveLength(3);
+      expect(result[0].date).toBe('2024-01-01T00:01:00Z');
+      expect(result[2].date).toBe('2024-01-01T00:03:00Z');
     });
   });
 });

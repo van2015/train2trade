@@ -45,6 +45,21 @@ export function useAppPresenter() {
     [presenter]
   );
 
+  const requestRange = useCallback(
+    (assetId: string, from: number, to: number) => presenter.requestRange(assetId, from, to),
+    [presenter]
+  );
+
+  const getCurrentRange = useCallback(
+    () => presenter.getCurrentRange(),
+    [presenter]
+  );
+
+  const hasCompleteData = useCallback(
+    (from: number, to: number) => presenter.hasCompleteData(from, to),
+    [presenter]
+  );
+
   const clearWarnings = useCallback(
     () => presenter.clearWarnings(),
     [presenter]
@@ -64,6 +79,9 @@ export function useAppPresenter() {
     changeChartType,
     changeTimeframe,
     priceSample,
+    requestRange,
+    getCurrentRange,
+    hasCompleteData,
     clearWarnings,
   };
 }

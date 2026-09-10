@@ -58,12 +58,10 @@ interface ChartViewProps {
 
 export function ChartView({ assetId }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { state, priceSample, changeChartType, changeTimeframe } = useAppPresenter();
+  const { state, priceSample, requestRange, getCurrentRange, hasCompleteData, changeChartType, changeTimeframe } = useAppPresenter();
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
-  const hasRenderedRef = useRef(false);
-  const currentAssetRef = useRef<string | null>(null);
-  const currentChartTypeRef = useRef<string | null>(null);
+  const hasFitContentRef = useRef(false);
 
   const data = assetId
     ? priceSample(assetId, state.selectedTimeframe)
@@ -141,61 +139,89 @@ export function ChartView({ assetId }: ChartViewProps) {
         chartRef.current = null;
         seriesRef.current = null;
       }
-      hasRenderedRef.current = false;
-      currentAssetRef.current = null;
-      currentChartTypeRef.current = null;
     };
   }, []);
 
   useEffect(() => {
-    if (!assetId) {
+    if (!assetId || !containerRef.current) {
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
         seriesRef.current = null;
       }
-      hasRenderedRef.current = false;
-      currentAssetRef.current = null;
-      currentChartTypeRef.current = null;
       return;
     }
 
-    const chartTypeChanged = currentChartTypeRef.current !== null && currentChartTypeRef.current !== state.chartType;
-    const assetChanged = assetId !== currentAssetRef.current;
+    const resizeCleanup = createChartInstance(containerRef.current);
+    seriesRef.current = addSeries(state.chartType);
+    hasFitContentRef.current = false;
 
-    if (assetChanged) {
-      currentAssetRef.current = assetId;
-      hasRenderedRef.current = false;
-    }
+    return () => {
+      resizeCleanup?.();
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+        seriesRef.current = null;
+      }
+    };
+  }, [assetId, state.chartType, createChartInstance, addSeries]);
 
-    if (chartTypeChanged) {
-      hasRenderedRef.current = false;
-    }
+  useEffect(() => {
+    if (!seriesRef.current || !data) return;
 
-    currentChartTypeRef.current = state.chartType;
+    seriesRef.current.setData(transformChartData(state.chartType, data) as any);
 
-    if (containerRef.current && data) {
-      if (!hasRenderedRef.current) {
-        const cleanup = createChartInstance(containerRef.current);
-        seriesRef.current = addSeries(state.chartType);
-
-        if (seriesRef.current) {
-          const chartData = transformChartData(state.chartType, data);
-          seriesRef.current.setData(chartData as any);
-          chartRef.current?.timeScale().fitContent();
-        }
-
-        hasRenderedRef.current = true;
-
-        return () => {
-          cleanup?.();
-        };
-      } else if (seriesRef.current) {
-        const chartData = transformChartData(state.chartType, data);
-        seriesRef.current.setData(chartData as any);
+    if (!hasFitContentRef.current) {
+      hasFitContentRef.current = true;
+      const range = getCurrentRange();
+      if (range) {
+        chartRef.current?.timeScale().setVisibleRange({
+          from: range.from / 1000 as Time,
+          to: range.to / 1000 as Time,
+        });
+      } else {
+        chartRef.current?.timeScale().fitContent();
       }
     }
-  }, [data, state.chartType, assetId, createChartInstance, addSeries]);
+  }, [data, state.chartType, getCurrentRange]);
+
+  useEffect(() => {
+    if (!assetId || !containerRef.current) return;
+    const container = containerRef.current;
+    const DRAG_THRESHOLD = 4;
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+
+    const onPointerDown = (e: PointerEvent) => {
+      dragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      const moved = Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_THRESHOLD;
+      if (!moved) return;
+      const range = chartRef.current?.timeScale().getVisibleRange();
+      if (!range) return;
+      const fromSec = Number(range.from);
+      const toSec = Number(range.to);
+      if (Number.isNaN(fromSec) || Number.isNaN(toSec)) return;
+      const next = { from: Math.floor(fromSec * 1000), to: Math.ceil(toSec * 1000) };
+      if (hasCompleteData(next.from, next.to)) return;
+      requestRange(assetId, next.from, next.to);
+    };
+
+    container.addEventListener('pointerdown', onPointerDown, true);
+    container.addEventListener('pointerup', onPointerUp, true);
+
+    return () => {
+      container.removeEventListener('pointerdown', onPointerDown, true);
+      container.removeEventListener('pointerup', onPointerUp, true);
+    };
+  }, [assetId, requestRange]);
 
   useEffect(() => {
     const handleThemeChange = () => {
