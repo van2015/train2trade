@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext, useCallback } from 'react';
 import { PresenterContext } from '../context/PresenterContext';
 import { Timeframe as TimeframeType } from '../timeframe/Timeframe';
+import { Interval } from '../utils/Interval';
 
 export function useAppPresenter() {
   const presenter = useContext(PresenterContext);
@@ -46,7 +47,7 @@ export function useAppPresenter() {
   );
 
   const requestRange = useCallback(
-    (assetId: string, from: number, to: number) => presenter.requestRange(assetId, from, to),
+    (assetId: string, interval: Interval) => presenter.requestRange(assetId, interval),
     [presenter]
   );
 
@@ -56,7 +57,7 @@ export function useAppPresenter() {
   );
 
   const hasCompleteData = useCallback(
-    (from: number, to: number) => presenter.hasCompleteData(from, to),
+    (interval: Interval) => presenter.hasCompleteData(interval),
     [presenter]
   );
 

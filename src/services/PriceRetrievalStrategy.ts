@@ -1,18 +1,14 @@
-export interface PriceRange {
-  from: number;
-  to: number;
-}
+import { Interval } from '../utils/Interval';
 
 export interface PriceRetrievalStrategy {
-  getRange(assetId: string, range: PriceRange): Promise<PriceRange>;
+  getRange(assetId: string, range: Interval): Promise<Interval>;
 }
 
 export class RangeStrategy implements PriceRetrievalStrategy {
   constructor(private readonly bufferRatio = 0.2) {}
 
-  async getRange(_assetId: string, range: PriceRange): Promise<PriceRange> {
-    const { from, to } = range;
-    const buffer = (to - from) * this.bufferRatio;
-    return { from: from - buffer, to: to + buffer };
+  async getRange(_assetId: string, range: Interval): Promise<Interval> {
+    const buffer = range.span * this.bufferRatio;
+    return new Interval(range.from - buffer, range.to + buffer);
   }
 }

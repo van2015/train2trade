@@ -5,6 +5,7 @@ import { PriceData } from '../../types/asset';
 import { ChartTypeSelector } from '../ChartTypeSelector/ChartTypeSelector';
 import { TimeframeSelector } from '../TimeframeSelector/TimeframeSelector';
 import { getChartThemeColors } from '../../utils/chartTheme';
+import { Interval } from '../../utils/Interval';
 import { createChart, IChartApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData } from 'lightweight-charts';
 
 function parseTime(dateStr: string): Time {
@@ -62,6 +63,7 @@ export function ChartView({ assetId }: ChartViewProps) {
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const hasFitContentRef = useRef(false);
+  const preRangeRef = useRef<Interval | null>(null);
 
   const data = assetId
     ? priceSample(assetId, state.selectedTimeframe)
@@ -197,6 +199,12 @@ export function ChartView({ assetId }: ChartViewProps) {
       dragging = true;
       startX = e.clientX;
       startY = e.clientY;
+      const range = chartRef.current?.timeScale().getVisibleRange();
+      if (!range) return;
+      const fromSec = Number(range.from);
+      const toSec = Number(range.to);
+      if (Number.isNaN(fromSec) || Number.isNaN(toSec)) return;
+      preRangeRef.current = new Interval(Math.floor(fromSec * 1000), Math.ceil(toSec * 1000));
     };
 
     const onPointerUp = (e: PointerEvent) => {
@@ -204,14 +212,17 @@ export function ChartView({ assetId }: ChartViewProps) {
       dragging = false;
       const moved = Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_THRESHOLD;
       if (!moved) return;
+      const pre = preRangeRef.current;
+      if (!pre) return;
       const range = chartRef.current?.timeScale().getVisibleRange();
       if (!range) return;
       const fromSec = Number(range.from);
       const toSec = Number(range.to);
       if (Number.isNaN(fromSec) || Number.isNaN(toSec)) return;
-      const next = { from: Math.floor(fromSec * 1000), to: Math.ceil(toSec * 1000) };
-      if (hasCompleteData(next.from, next.to)) return;
-      requestRange(assetId, next.from, next.to);
+      const post = new Interval(Math.floor(fromSec * 1000), Math.ceil(toSec * 1000));
+      const next = pre.movedTo(post);
+      if (!next || hasCompleteData(next)) return;
+      requestRange(assetId, next);
     };
 
     container.addEventListener('pointerdown', onPointerDown, true);

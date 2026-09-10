@@ -2,7 +2,7 @@ import { AssetSummary, PriceData } from '../types/asset';
 import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
 import { AssetChartRepository } from './AssetChartRepository';
 import { IndexedDbAssetChartRepository } from './IndexedDbAssetChartRepository';
-import { PriceRange } from './PriceRetrievalStrategy';
+import { Interval } from '../utils/Interval';
 
 const DEFAULT_INITIAL_CANDLES = 500;
 
@@ -42,13 +42,13 @@ class AssetService {
     this.clearCache(id);
   }
 
-  async getInitialRange(assetId: string, originalTimeframe: Timeframe): Promise<PriceRange | null> {
+  async getInitialRange(assetId: string, originalTimeframe: Timeframe): Promise<Interval | null> {
     const last = await this.repo.getLastSample(assetId);
     if (!last) return null;
     const intervalMs = Timeframe.getMinutes(originalTimeframe) * 60 * 1000;
     const to = new Date(last.date).getTime();
     const from = to - DEFAULT_INITIAL_CANDLES * intervalMs;
-    return { from, to };
+    return new Interval(from, to);
   }
 
   async fetchSamples(assetId: string, from: number, to: number): Promise<PriceData[]> {

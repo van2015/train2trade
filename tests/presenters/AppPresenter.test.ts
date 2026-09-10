@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import AppPresenter from '../../src/presenters/AppPresenter';
 import { AssetService } from '../../src/services/AssetService';
+import { Interval } from '../../src/utils/Interval';
 
 describe('AppPresenter', () => {
   let presenter: AppPresenter;
@@ -14,6 +15,7 @@ describe('AppPresenter', () => {
     (presenter as any).assets = [];
     (presenter as any).selectedAssetId = null;
     (presenter as any).currentRange = null;
+    (presenter as any).loadedRange = null;
   });
 
   describe('priceSample', () => {
@@ -31,10 +33,6 @@ describe('AppPresenter', () => {
         { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
       ];
       (AssetService.getInstance() as any).setRangeData('asset1', data);
-      (presenter as any).currentRange = {
-        from: new Date(data[0].date).getTime(),
-        to: new Date(data[99].date).getTime(),
-      };
 
       const result = presenter.priceSample('asset1', '1m');
       expect(result).not.toBeNull();
@@ -44,6 +42,18 @@ describe('AppPresenter', () => {
     it('returns null for non-existent asset', () => {
       const result = presenter.priceSample('nonexistent', '1m');
       expect(result).toBeNull();
+    });
+  });
+
+  describe('hasCompleteData', () => {
+    it('returns false when nothing is loaded', () => {
+      expect(presenter.hasCompleteData(new Interval(0, 100))).toBe(false);
+    });
+
+    it('returns true when the interval is within the loaded range', () => {
+      (presenter as any).loadedRange = new Interval(0, 1000);
+      expect(presenter.hasCompleteData(new Interval(100, 900))).toBe(true);
+      expect(presenter.hasCompleteData(new Interval(-1, 900))).toBe(false);
     });
   });
 });

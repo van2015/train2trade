@@ -2,7 +2,8 @@ import { AssetSummary, ChartType, PriceData } from '../types/asset';
 import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
 import { validateAndParse } from '../services/ValidationService';
 import { AssetService } from '../services/AssetService';
-import { PriceRetrievalStrategy, RangeStrategy, PriceRange } from '../services/PriceRetrievalStrategy';
+import { PriceRetrievalStrategy, RangeStrategy } from '../services/PriceRetrievalStrategy';
+import { Interval } from '../utils/Interval';
 
 const TIMEFRAME_STORAGE_KEY = 'selectedTimeframe';
 
@@ -22,8 +23,8 @@ class AppPresenter {
   private initPromise: Promise<void>;
   private assets: AssetSummary[] = [];
   private selectedAssetId: string | null = null;
-  private currentRange: PriceRange | null = null;
-  private loadedRange: PriceRange | null = null;
+  private currentRange: Interval | null = null;
+  private loadedRange: Interval | null = null;
   private chartType: ChartType = 'line';
   private selectedTimeframe: TimeframeType = '1D';
   private error: string | null = null;
@@ -135,19 +136,18 @@ class AppPresenter {
     this.notify();
     const asset = this.assets.find(a => a.id === id);
     if (!asset) return;
-    this.assetService.getInitialRange(id, asset.originalTimeframe).then(range => {
-      if (range) this.requestRange(id, range.from, range.to);
+    this.assetService.getInitialRange(id, asset.originalTimeframe).then(interval => {
+      if (interval) this.requestRange(id, interval);
     });
   }
 
-  async requestRange(assetId: string, from: number, to: number): Promise<void> {
-    debugger;
+  async requestRange(assetId: string, interval: Interval): Promise<void> {
     try {
-      this.currentRange = { from, to };
-      const resolved = await this.strategy.getRange(assetId, { from, to });
+      this.currentRange = interval;
+      const resolved = await this.strategy.getRange(assetId, interval);
       const samples = await this.assetService.fetchSamples(assetId, resolved.from, resolved.to);
       this.assetService.setRangeData(assetId, samples);
-      this.loadedRange = { from: resolved.from, to: resolved.to };
+      this.loadedRange = resolved;
       this.notify();
     } catch {
       this.error = 'Failed to load asset data';
@@ -162,6 +162,7 @@ class AppPresenter {
       if (this.selectedAssetId === id) {
         this.selectedAssetId = null;
         this.currentRange = null;
+        this.loadedRange = null;
       }
       await this.loadAssets();
     } catch (err) {
@@ -182,13 +183,13 @@ class AppPresenter {
     this.notify();
   }
 
-  getCurrentRange(): PriceRange | null {
+  getCurrentRange(): Interval | null {
     return this.currentRange;
   }
 
-  hasCompleteData(from: number, to: number): boolean {
+  hasCompleteData(interval: Interval): boolean {
     if (!this.loadedRange) return false;
-    return from >= this.loadedRange.from && to <= this.loadedRange.to;
+    return this.loadedRange.contains(interval);
   }
 
   priceSample(assetId: string, timeframe: TimeframeType): PriceData[] | null {
