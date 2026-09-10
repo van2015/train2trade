@@ -26,6 +26,30 @@ describe('Interval', () => {
     expect(b.union(a)).toEqual(new Interval(100, 400));
   });
 
+  it('endingAt builds an interval of the given span ending at the point', () => {
+    expect(Interval.endingAt(1000, 400)).toEqual(new Interval(600, 1000));
+  });
+
+  it('expand grows the interval by a ratio of its span on both sides', () => {
+    const interval = new Interval(1000, 2000);
+    expect(interval.expand(0.5)).toEqual(new Interval(500, 2500));
+    expect(interval.expand(0)).toEqual(new Interval(1000, 2000));
+  });
+
+  it('startsBefore checks the lower bound', () => {
+    const base = new Interval(1000, 2000);
+    expect(new Interval(500, 2000).startsBefore(base)).toBe(true);
+    expect(new Interval(1000, 2000).startsBefore(base)).toBe(false);
+    expect(new Interval(1500, 2000).startsBefore(base)).toBe(false);
+  });
+
+  it('endsAfter checks the upper bound', () => {
+    const base = new Interval(1000, 2000);
+    expect(new Interval(1000, 3000).endsAfter(base)).toBe(true);
+    expect(new Interval(1000, 2000).endsAfter(base)).toBe(false);
+    expect(new Interval(1000, 1500).endsAfter(base)).toBe(false);
+  });
+
   describe('movedTo', () => {
     it('shifts by the from delta when from moved', () => {
       const pre = new Interval(1000, 2000);

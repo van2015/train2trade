@@ -47,8 +47,7 @@ class AssetService {
     if (!last) return null;
     const intervalMs = Timeframe.getMinutes(originalTimeframe) * 60 * 1000;
     const to = new Date(last.date).getTime();
-    const from = to - DEFAULT_INITIAL_CANDLES * intervalMs;
-    return new Interval(from, to);
+    return Interval.endingAt(to, DEFAULT_INITIAL_CANDLES * intervalMs);
   }
 
   async fetchSamples(assetId: string, from: number, to: number): Promise<PriceData[]> {
@@ -57,33 +56,31 @@ class AssetService {
 
   addRangeData(assetId: string, samples: PriceData[]): Interval {
     const existing = this.rangeCache.get(assetId) ?? [];
-    const oldMin = existing.length > 0 ? this.timeOf(existing[0]) : Infinity;
-    const oldMax = existing.length > 0 ? this.timeOf(existing[existing.length - 1]) : -Infinity;
-
-    let newMin = oldMin;
-    let newMax = oldMax;
-    for (const sample of samples) {
-      const time = this.timeOf(sample);
-      if (time < newMin) newMin = time;
-      if (time > newMax) newMax = time;
-    }
+    const existingInterval = this.intervalOf(existing);
+    const samplesInterval = this.intervalOf(samples);
+    const combined = existingInterval && samplesInterval
+      ? existingInterval.union(samplesInterval)
+      : (existingInterval ?? samplesInterval);
 
     const merged = this.mergeSamples(existing, samples);
-    let result = merged;
 
-    if (merged.length > MAX_SAMPLES) {
-      const excess = merged.length - MAX_SAMPLES;
-      if (newMin < oldMin) {
-        result = merged.slice(0, merged.length - excess);
-      } else if (newMax > oldMax) {
-        result = merged.slice(excess);
-      } else {
-        result = merged.slice(0, merged.length - excess);
-      }
+    if (merged.length <= MAX_SAMPLES) {
+      this.rangeCache.set(assetId, merged);
+      return combined!;
+    }
+
+    const excess = merged.length - MAX_SAMPLES;
+    let result: PriceData[];
+    if (samplesInterval && existingInterval && samplesInterval.startsBefore(existingInterval)) {
+      result = merged.slice(0, merged.length - excess);
+    } else if (samplesInterval && existingInterval && samplesInterval.endsAfter(existingInterval)) {
+      result = merged.slice(excess);
+    } else {
+      result = merged.slice(0, merged.length - excess);
     }
 
     this.rangeCache.set(assetId, result);
-    return new Interval(this.timeOf(result[0]), this.timeOf(result[result.length - 1]));
+    return this.intervalOf(result)!;
   }
 
   private mergeSamples(a: PriceData[], b: PriceData[]): PriceData[] {
@@ -91,6 +88,11 @@ class AssetService {
     for (const sample of a) byTime.set(this.timeOf(sample), sample);
     for (const sample of b) byTime.set(this.timeOf(sample), sample);
     return [...byTime.entries()].sort((x, y) => x[0] - y[0]).map(([, sample]) => sample);
+  }
+
+  private intervalOf(samples: PriceData[]): Interval | null {
+    if (samples.length === 0) return null;
+    return new Interval(this.timeOf(samples[0]), this.timeOf(samples[samples.length - 1]));
   }
 
   private timeOf(sample: PriceData): number {
@@ -170,71 +172,12 @@ class AssetService {
     return result;
   }
 
-  filterByRange(data: PriceData[], from: string, to: string): PriceData[] {
-    if (data.length === 0) return [];
-
-    const fromMs = new Date(from).getTime();
-    const toMs = new Date(to).getTime();
-
-    const startIndex = this.lowerBoundMs(data, fromMs);
-    const endIndex = this.upperBoundMs(data, toMs);
-
-    if (startIndex >= endIndex) return [];
-
-    return data.slice(startIndex, endIndex);
-  }
-
-  filterByRangeWithBuffer(data: PriceData[], from: string, to: string): PriceData[] {
-    if (data.length === 0) return [];
-
-    const rangeStart = new Date(from).getTime();
-    const rangeEnd = new Date(to).getTime();
-    const rangeMs = rangeEnd - rangeStart;
-    const bufferMs = rangeMs * 0.2;
-
-    const bufferedFrom = new Date(rangeStart - bufferMs).toISOString();
-    const bufferedTo = new Date(rangeEnd + bufferMs).toISOString();
-
-    const clampedFrom = bufferedFrom < data[0].date ? data[0].date : bufferedFrom;
-    const clampedTo = bufferedTo > data[data.length - 1].date ? data[data.length - 1].date : bufferedTo;
-
-    return this.filterByRange(data, clampedFrom, clampedTo);
-  }
-
   clearCache(assetId?: string): void {
     if (assetId) {
       this.rangeCache.delete(assetId);
     } else {
       this.rangeCache.clear();
     }
-  }
-
-  private lowerBoundMs(data: PriceData[], targetMs: number): number {
-    let low = 0;
-    let high = data.length;
-    while (low < high) {
-      const mid = (low + high) >>> 1;
-      if (new Date(data[mid].date).getTime() < targetMs) {
-        low = mid + 1;
-      } else {
-        high = mid;
-      }
-    }
-    return low;
-  }
-
-  private upperBoundMs(data: PriceData[], targetMs: number): number {
-    let low = 0;
-    let high = data.length;
-    while (low < high) {
-      const mid = (low + high) >>> 1;
-      if (new Date(data[mid].date).getTime() <= targetMs) {
-        low = mid + 1;
-      } else {
-        high = mid;
-      }
-    }
-    return low;
   }
 }
 
