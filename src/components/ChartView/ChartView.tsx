@@ -64,6 +64,7 @@ export function ChartView({ assetId }: ChartViewProps) {
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
   const hasFitContentRef = useRef(false);
   const preRangeRef = useRef<Interval | null>(null);
+  const pendingRangeRef = useRef<Interval | null>(null);
 
   const data = assetId
     ? priceSample(assetId, state.selectedTimeframe)
@@ -184,6 +185,14 @@ export function ChartView({ assetId }: ChartViewProps) {
       } else {
         chartRef.current?.timeScale().fitContent();
       }
+      seriesRef.current.priceScale().applyOptions({ autoScale: false });
+    } else if (pendingRangeRef.current) {
+      const pending = pendingRangeRef.current;
+      pendingRangeRef.current = null;
+      chartRef.current?.timeScale().setVisibleRange({
+        from: pending.from / 1000 as Time,
+        to: pending.to / 1000 as Time,
+      });
     }
   }, [data, state.chartType, getCurrentRange]);
 
@@ -222,6 +231,7 @@ export function ChartView({ assetId }: ChartViewProps) {
       const post = new Interval(Math.floor(fromSec * 1000), Math.ceil(toSec * 1000));
       const next = pre.movedTo(post);
       if (!next || hasCompleteData(next)) return;
+      pendingRangeRef.current = next;
       requestRange(assetId, next);
     };
 

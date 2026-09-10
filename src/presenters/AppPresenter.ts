@@ -146,8 +146,7 @@ class AppPresenter {
       this.currentRange = interval;
       const resolved = await this.strategy.getRange(assetId, interval);
       const samples = await this.assetService.fetchSamples(assetId, resolved.from, resolved.to);
-      this.assetService.setRangeData(assetId, samples);
-      this.loadedRange = resolved;
+      this.loadedRange = this.assetService.addRangeData(assetId, samples);
       this.notify();
     } catch {
       this.error = 'Failed to load asset data';

@@ -32,7 +32,7 @@ describe('AppPresenter', () => {
       (presenter as any).assets = [
         { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
       ];
-      (AssetService.getInstance() as any).setRangeData('asset1', data);
+      (AssetService.getInstance() as any).addRangeData('asset1', data);
 
       const result = presenter.priceSample('asset1', '1m');
       expect(result).not.toBeNull();

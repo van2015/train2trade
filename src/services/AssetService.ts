@@ -5,12 +5,12 @@ import { IndexedDbAssetChartRepository } from './IndexedDbAssetChartRepository';
 import { Interval } from '../utils/Interval';
 
 const DEFAULT_INITIAL_CANDLES = 500;
+const MAX_SAMPLES = 10000;
 
 class AssetService {
   private static instance: AssetService;
 
   private rangeCache = new Map<string, PriceData[]>();
-  private aggCache = new Map<string, Map<TimeframeType, PriceData[]>>();
 
   constructor(private readonly repo: AssetChartRepository) {}
 
@@ -55,8 +55,46 @@ class AssetService {
     return this.repo.getSamplesRange(assetId, from, to);
   }
 
-  setRangeData(assetId: string, samples: PriceData[]): void {
-    this.rangeCache.set(assetId, samples);
+  addRangeData(assetId: string, samples: PriceData[]): Interval {
+    const existing = this.rangeCache.get(assetId) ?? [];
+    const oldMin = existing.length > 0 ? this.timeOf(existing[0]) : Infinity;
+    const oldMax = existing.length > 0 ? this.timeOf(existing[existing.length - 1]) : -Infinity;
+
+    let newMin = oldMin;
+    let newMax = oldMax;
+    for (const sample of samples) {
+      const time = this.timeOf(sample);
+      if (time < newMin) newMin = time;
+      if (time > newMax) newMax = time;
+    }
+
+    const merged = this.mergeSamples(existing, samples);
+    let result = merged;
+
+    if (merged.length > MAX_SAMPLES) {
+      const excess = merged.length - MAX_SAMPLES;
+      if (newMin < oldMin) {
+        result = merged.slice(0, merged.length - excess);
+      } else if (newMax > oldMax) {
+        result = merged.slice(excess);
+      } else {
+        result = merged.slice(0, merged.length - excess);
+      }
+    }
+
+    this.rangeCache.set(assetId, result);
+    return new Interval(this.timeOf(result[0]), this.timeOf(result[result.length - 1]));
+  }
+
+  private mergeSamples(a: PriceData[], b: PriceData[]): PriceData[] {
+    const byTime = new Map<number, PriceData>();
+    for (const sample of a) byTime.set(this.timeOf(sample), sample);
+    for (const sample of b) byTime.set(this.timeOf(sample), sample);
+    return [...byTime.entries()].sort((x, y) => x[0] - y[0]).map(([, sample]) => sample);
+  }
+
+  private timeOf(sample: PriceData): number {
+    return new Date(sample.date).getTime();
   }
 
   priceSample(
@@ -166,10 +204,8 @@ class AssetService {
   clearCache(assetId?: string): void {
     if (assetId) {
       this.rangeCache.delete(assetId);
-      this.aggCache.delete(assetId);
     } else {
       this.rangeCache.clear();
-      this.aggCache.clear();
     }
   }
 
