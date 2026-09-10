@@ -6,6 +6,8 @@ import { ChartTypeSelector } from '../ChartTypeSelector/ChartTypeSelector';
 import { TimeframeSelector } from '../TimeframeSelector/TimeframeSelector';
 import { getChartThemeColors } from '../../utils/chartTheme';
 import { Interval } from '../../utils/Interval';
+import { createTimeLabelFormatter } from '../../utils/timeLabel';
+import { Timeframe as TimeframeType } from '../../timeframe/Timeframe';
 import { createChart, IChartApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData } from 'lightweight-charts';
 
 function parseTime(dateStr: string): Time {
@@ -70,7 +72,7 @@ export function ChartView({ assetId }: ChartViewProps) {
     ? priceSample(assetId, state.selectedTimeframe)
     : null;
 
-  const createChartInstance = useCallback((container: HTMLElement) => {
+  const createChartInstance = useCallback((container: HTMLElement, timeframe: TimeframeType) => {
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
@@ -78,6 +80,7 @@ export function ChartView({ assetId }: ChartViewProps) {
     }
 
     const colors = getChartThemeColors();
+    const formatTime = createTimeLabelFormatter(timeframe);
 
     chartRef.current = createChart(container, {
       layout: {
@@ -90,6 +93,9 @@ export function ChartView({ assetId }: ChartViewProps) {
       },
       width: container.clientWidth,
       height: container.clientHeight,
+      localization: {
+        timeFormatter: (time: Time) => formatTime(Number(time)),
+      },
     });
 
     const handleResize = () => {
@@ -155,7 +161,7 @@ export function ChartView({ assetId }: ChartViewProps) {
       return;
     }
 
-    const resizeCleanup = createChartInstance(containerRef.current);
+    const resizeCleanup = createChartInstance(containerRef.current, state.selectedTimeframe);
     seriesRef.current = addSeries(state.chartType);
     hasFitContentRef.current = false;
 
@@ -195,6 +201,16 @@ export function ChartView({ assetId }: ChartViewProps) {
       });
     }
   }, [data, state.chartType, getCurrentRange]);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
+    const formatTime = createTimeLabelFormatter(state.selectedTimeframe);
+    chartRef.current.applyOptions({
+      localization: {
+        timeFormatter: (time: Time) => formatTime(Number(time)),
+      },
+    });
+  }, [state.selectedTimeframe]);
 
   useEffect(() => {
     if (!assetId || !containerRef.current) return;
