@@ -8,7 +8,7 @@ import { getChartThemeColors } from '../../utils/chartTheme';
 import { Interval } from '../../utils/Interval';
 import { createTimeLabelFormatter } from '../../utils/timeLabel';
 import { Timeframe as TimeframeType } from '../../timeframe/Timeframe';
-import { createChart, IChartApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData } from 'lightweight-charts';
+import { createChart, IChartApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData, LineSeries, CandlestickSeries, BarSeries } from 'lightweight-charts';
 
 function parseTime(dateStr: string): Time {
   const date = new Date(dateStr);
@@ -111,17 +111,17 @@ export function ChartView({ assetId }: ChartViewProps) {
     };
   }, []);
 
-  const addSeries = useCallback((type: string) => {
+  const addSeries = useCallback((type: string): ISeriesApi<SeriesType> | null => {
     if (!chartRef.current) return null;
 
     switch (type) {
       case 'line':
-        return chartRef.current.addLineSeries({
+        return chartRef.current.addSeries(LineSeries, {
           color: '#2962FF',
           lineWidth: 2,
         });
       case 'candlestick':
-        return chartRef.current.addCandlestickSeries({
+        return chartRef.current.addSeries(CandlestickSeries, {
           upColor: '#26a69a',
           downColor: '#ef5350',
           borderVisible: false,
@@ -129,12 +129,12 @@ export function ChartView({ assetId }: ChartViewProps) {
           wickDownColor: '#ef5350',
         });
       case 'ohlc':
-        return chartRef.current.addBarSeries({
+        return chartRef.current.addSeries(BarSeries, {
           upColor: '#26a69a',
           downColor: '#ef5350',
         });
       default:
-        return chartRef.current.addLineSeries({
+        return chartRef.current.addSeries(LineSeries, {
           color: '#2962FF',
           lineWidth: 2,
         });
