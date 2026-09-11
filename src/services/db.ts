@@ -1,7 +1,9 @@
 export const DB_NAME = 'AssetChartDB';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 export const ASSETS_STORE = 'assets';
-export const SAMPLE_STORE = 'samples';
+export const CHUNK_META_STORE = 'chunkMeta';
+export const CHUNK_STORE = 'chunks';
+export const CHUNK_SIZE = 1000;
 
 export function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -23,16 +25,17 @@ export function openDatabase(): Promise<IDBDatabase> {
         }
       }
 
-      if (!db.objectStoreNames.contains(SAMPLE_STORE)) {
-        const store = db.createObjectStore(SAMPLE_STORE, { keyPath: ['assetId', 'timemili'] });
-        store.createIndex('assetId', 'assetId', { unique: false });
+      for (const legacy of ['samples', 'sampleIndexes', 'assetSamples']) {
+        if (db.objectStoreNames.contains(legacy)) {
+          db.deleteObjectStore(legacy);
+        }
       }
 
-      if (db.objectStoreNames.contains('sampleIndexes')) {
-        db.deleteObjectStore('sampleIndexes');
+      if (!db.objectStoreNames.contains(CHUNK_META_STORE)) {
+        db.createObjectStore(CHUNK_META_STORE, { keyPath: ['assetId', 'from'] });
       }
-      if (db.objectStoreNames.contains('assetSamples')) {
-        db.deleteObjectStore('assetSamples');
+      if (!db.objectStoreNames.contains(CHUNK_STORE)) {
+        db.createObjectStore(CHUNK_STORE, { keyPath: ['assetId', 'from'] });
       }
     };
   });

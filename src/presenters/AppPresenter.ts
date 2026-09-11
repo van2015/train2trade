@@ -130,6 +130,9 @@ class AppPresenter {
   }
 
   selectAsset(id: string): void {
+    if (this.selectedAssetId && this.selectedAssetId !== id) {
+      this.assetService.clearCache(this.selectedAssetId);
+    }
     this.selectedAssetId = id;
     this.currentRange = null;
     this.loadedRange = null;
@@ -146,7 +149,7 @@ class AppPresenter {
       this.currentRange = interval;
       const resolved = await this.strategy.getRange(assetId, interval);
       const samples = await this.assetService.fetchSamples(assetId, resolved.from, resolved.to);
-      this.loadedRange = this.assetService.addRangeData(assetId, samples);
+      this.loadedRange = this.assetService.setWindow(assetId, samples);
       this.notify();
     } catch {
       this.error = 'Failed to load asset data';

@@ -5,12 +5,16 @@ import { IndexedDbAssetChartRepository } from './IndexedDbAssetChartRepository';
 import { Interval } from '../utils/Interval';
 
 const DEFAULT_INITIAL_CANDLES = 500;
-const MAX_SAMPLES = 10000;
+
+interface RangeWindow {
+  range: Interval | null;
+  samples: PriceData[];
+}
 
 class AssetService {
   private static instance: AssetService;
 
-  private rangeCache = new Map<string, PriceData[]>();
+  private windows = new Map<string, RangeWindow>();
 
   constructor(private readonly repo: AssetChartRepository) {}
 
@@ -54,40 +58,10 @@ class AssetService {
     return this.repo.getSamplesRange(assetId, from, to);
   }
 
-  addRangeData(assetId: string, samples: PriceData[]): Interval {
-    const existing = this.rangeCache.get(assetId) ?? [];
-    const existingInterval = this.intervalOf(existing);
-    const samplesInterval = this.intervalOf(samples);
-    const combined = existingInterval && samplesInterval
-      ? existingInterval.union(samplesInterval)
-      : (existingInterval ?? samplesInterval);
-
-    const merged = this.mergeSamples(existing, samples);
-
-    if (merged.length <= MAX_SAMPLES) {
-      this.rangeCache.set(assetId, merged);
-      return combined!;
-    }
-
-    const excess = merged.length - MAX_SAMPLES;
-    let result: PriceData[];
-    if (samplesInterval && existingInterval && samplesInterval.startsBefore(existingInterval)) {
-      result = merged.slice(0, merged.length - excess);
-    } else if (samplesInterval && existingInterval && samplesInterval.endsAfter(existingInterval)) {
-      result = merged.slice(excess);
-    } else {
-      result = merged.slice(0, merged.length - excess);
-    }
-
-    this.rangeCache.set(assetId, result);
-    return this.intervalOf(result)!;
-  }
-
-  private mergeSamples(a: PriceData[], b: PriceData[]): PriceData[] {
-    const byTime = new Map<number, PriceData>();
-    for (const sample of a) byTime.set(this.timeOf(sample), sample);
-    for (const sample of b) byTime.set(this.timeOf(sample), sample);
-    return [...byTime.entries()].sort((x, y) => x[0] - y[0]).map(([, sample]) => sample);
+  setWindow(assetId: string, samples: PriceData[]): Interval | null {
+    const range = this.intervalOf(samples);
+    this.windows.set(assetId, { range, samples });
+    return range;
   }
 
   private intervalOf(samples: PriceData[]): Interval | null {
@@ -104,10 +78,10 @@ class AssetService {
     originalTimeframe: TimeframeType,
     targetTimeframe: TimeframeType
   ): PriceData[] | null {
-    const data = this.rangeCache.get(assetId);
-    if (!data) return null;
+    const window = this.windows.get(assetId);
+    if (!window) return null;
 
-    return this.aggregate(data, targetTimeframe, originalTimeframe);
+    return this.aggregate(window.samples, targetTimeframe, originalTimeframe);
   }
 
   private getTimeframeFactor(original: TimeframeType, target: TimeframeType): number {
@@ -174,9 +148,9 @@ class AssetService {
 
   clearCache(assetId?: string): void {
     if (assetId) {
-      this.rangeCache.delete(assetId);
+      this.windows.delete(assetId);
     } else {
-      this.rangeCache.clear();
+      this.windows.clear();
     }
   }
 }

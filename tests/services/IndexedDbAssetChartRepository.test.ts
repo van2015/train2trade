@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { PriceData } from '../../src/types/asset';
 import { IndexedDbAssetChartRepository } from '../../src/services/IndexedDbAssetChartRepository';
+import { openDatabase, CHUNK_META_STORE, CHUNK_STORE } from '../../src/services/db';
 
 const START = Date.parse('2024-01-01T00:00:00Z');
 const MINUTE = 60 * 1000;
@@ -98,5 +99,80 @@ describe('IndexedDbAssetChartRepository', () => {
     const summaries = await repo.getAssetSummaries();
     expect(summaries).toHaveLength(2);
     expect(summaries.map(s => s.name).sort()).toEqual(['A', 'B']);
+  });
+
+  describe('chunked storage', () => {
+    async function readStore<T>(storeName: string): Promise<T[]> {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeName, 'readonly');
+        const request = transaction.objectStore(storeName).getAll();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result as T[]);
+      });
+    }
+
+    it('persists at most 1000 samples per chunk with separate metadata', async () => {
+      const summary = await repo.saveAsset('Test', buildData(2500), '1m');
+
+      const chunks = await readStore<{ assetId: string; from: number; samples: PriceData[] }>(CHUNK_STORE);
+      const metas = await readStore<{ assetId: string; from: number; to: number; count: number }>(CHUNK_META_STORE);
+
+      expect(chunks).toHaveLength(3);
+      expect(chunks.every(c => c.samples.length <= 1000)).toBe(true);
+      expect(chunks.map(c => c.samples.length)).toEqual([1000, 1000, 500]);
+      expect(metas).toHaveLength(3);
+      expect(metas.every(m => m.assetId === summary.id && m.count <= 1000)).toBe(true);
+    });
+
+    it('reconstructs a dataset spanning multiple chunks', async () => {
+      const summary = await repo.saveAsset('Test', buildData(2500), '1m');
+      const data = await repo.getAssetData(summary.id);
+      expect(data).toHaveLength(2500);
+      expect(data[0]).toEqual(buildData(2500)[0]);
+      expect(data[2499]).toEqual(buildData(2500)[2499]);
+    });
+
+    it('returns a range spanning a chunk boundary', async () => {
+      const summary = await repo.saveAsset('Test', buildData(2500), '1m');
+      const result = await repo.getSamplesRange(
+        summary.id,
+        START + 900 * MINUTE,
+        START + 1100 * MINUTE
+      );
+      expect(result).toHaveLength(201);
+      expect(result[0].date).toBe(new Date(START + 900 * MINUTE).toISOString());
+      expect(result[result.length - 1].date).toBe(new Date(START + 1100 * MINUTE).toISOString());
+    });
+
+    it('returns the next sample across a chunk boundary', async () => {
+      const summary = await repo.saveAsset('Test', buildData(2500), '1m');
+      const sample = await repo.getSampleAfter(summary.id, START + 999 * MINUTE);
+      expect(sample).not.toBeNull();
+      expect(sample!.date).toBe(new Date(START + 1000 * MINUTE).toISOString());
+    });
+
+    it('returns the previous sample across a chunk boundary', async () => {
+      const summary = await repo.saveAsset('Test', buildData(2500), '1m');
+      const sample = await repo.getSampleBefore(summary.id, START + 1000 * MINUTE);
+      expect(sample).not.toBeNull();
+      expect(sample!.date).toBe(new Date(START + 999 * MINUTE).toISOString());
+    });
+
+    it('returns the last sample of the final chunk', async () => {
+      const summary = await repo.saveAsset('Test', buildData(2500), '1m');
+      const sample = await repo.getLastSample(summary.id);
+      expect(sample).not.toBeNull();
+      expect(sample!.date).toBe(new Date(START + 2499 * MINUTE).toISOString());
+    });
+
+    it('bulk deletes every chunk of an asset', async () => {
+      const summary = await repo.saveAsset('Test', buildData(2500), '1m');
+      await repo.deleteAsset(summary.id);
+
+      expect(await readStore(CHUNK_STORE)).toEqual([]);
+      expect(await readStore(CHUNK_META_STORE)).toEqual([]);
+      expect(await repo.getAssetData(summary.id)).toEqual([]);
+    });
   });
 });

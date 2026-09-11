@@ -32,7 +32,7 @@ describe('AppPresenter', () => {
       (presenter as any).assets = [
         { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
       ];
-      (AssetService.getInstance() as any).addRangeData('asset1', data);
+      (AssetService.getInstance() as any).setWindow('asset1', data);
 
       const result = presenter.priceSample('asset1', '1m');
       expect(result).not.toBeNull();
@@ -42,6 +42,28 @@ describe('AppPresenter', () => {
     it('returns null for non-existent asset', () => {
       const result = presenter.priceSample('nonexistent', '1m');
       expect(result).toBeNull();
+    });
+
+    it('re-aggregates the retained window across timeframe changes without refetching', () => {
+      const data = Array.from({ length: 100 }, (_, i) => ({
+        date: new Date(Date.UTC(2024, 0, 1, 0, i)).toISOString().replace('.000Z', 'Z'),
+        open: 100 + i,
+        high: 101 + i,
+        low: 99 + i,
+        close: 100.5 + i,
+        volume: 1000,
+      }));
+
+      (presenter as any).assets = [
+        { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
+      ];
+      AssetService.getInstance().setWindow('asset1', data);
+
+      expect(presenter.priceSample('asset1', '1m')).toHaveLength(100);
+      presenter.changeTimeframe('5m');
+      const aggregated = presenter.priceSample('asset1', '5m');
+      expect(aggregated).not.toBeNull();
+      expect(aggregated).toHaveLength(20);
     });
   });
 
