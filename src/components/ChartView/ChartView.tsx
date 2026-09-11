@@ -1,14 +1,16 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAppPresenter } from '../../hooks/useAppPresenter';
 import { ChartType } from '../../types/asset';
-import { PriceData } from '../../types/asset';
+import { IndicatorPlot, PriceData } from '../../types/asset';
 import { ChartTypeSelector } from '../ChartTypeSelector/ChartTypeSelector';
 import { TimeframeSelector } from '../TimeframeSelector/TimeframeSelector';
+import { IndicatorSelector } from '../IndicatorSelector/IndicatorSelector';
 import { getChartThemeColors } from '../../utils/chartTheme';
+import { compute, getDefinition } from '../../services/IndicatorService';
 import { Interval } from '../../utils/Interval';
 import { createTimeLabelFormatter } from '../../utils/timeLabel';
 import { Timeframe as TimeframeType } from '../../timeframe/Timeframe';
-import { createChart, IChartApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData, LineSeries, CandlestickSeries, BarSeries } from 'lightweight-charts';
+import { createChart, IChartApi, IPaneApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData, LineSeries, CandlestickSeries, BarSeries, HistogramSeries } from 'lightweight-charts';
 
 function parseTime(dateStr: string): Time {
   const date = new Date(dateStr);
@@ -55,15 +57,31 @@ function transformChartData(type: ChartType, data: PriceData[]): unknown[] {
   }
 }
 
+interface IndicatorSeriesRef {
+  plotKey: string;
+  series: ISeriesApi<SeriesType>;
+}
+
 interface ChartViewProps {
   assetId: string | null;
 }
 
 export function ChartView({ assetId }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { state, priceSample, requestRange, getCurrentRange, hasCompleteData, changeChartType, changeTimeframe } = useAppPresenter();
+  const {
+    state,
+    priceSample,
+    requestRange,
+    getCurrentRange,
+    hasCompleteData,
+    changeChartType,
+    changeTimeframe,
+    addIndicator,
+    removeIndicator,
+  } = useAppPresenter();
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const indicatorSeriesRef = useRef<Map<string, IndicatorSeriesRef[]>>(new Map());
   const hasFitContentRef = useRef(false);
   const preRangeRef = useRef<Interval | null>(null);
   const pendingRangeRef = useRef<Interval | null>(null);
@@ -72,11 +90,18 @@ export function ChartView({ assetId }: ChartViewProps) {
     ? priceSample(assetId, state.selectedTimeframe)
     : null;
 
+  const indicatorSignature = state.activeIndicators
+    .map(indicator =>
+      `${indicator.key}:${indicator.indicatorId}:${JSON.stringify(indicator.params)}:${indicator.color ?? ''}`
+    )
+    .join('|');
+
   const createChartInstance = useCallback((container: HTMLElement, timeframe: TimeframeType) => {
     if (chartRef.current) {
       chartRef.current.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      indicatorSeriesRef.current = new Map();
     }
 
     const colors = getChartThemeColors();
@@ -141,12 +166,23 @@ export function ChartView({ assetId }: ChartViewProps) {
     }
   }, []);
 
+  const addPlotSeries = useCallback(
+    (pane: IPaneApi<Time>, plot: IndicatorPlot): ISeriesApi<SeriesType> => {
+      if (plot.style === 'histogram') {
+        return pane.addSeries(HistogramSeries, { color: plot.color });
+      }
+      return pane.addSeries(LineSeries, { color: plot.color, lineWidth: 2 });
+    },
+    []
+  );
+
   useEffect(() => {
     return () => {
       if (chartRef.current) {
         chartRef.current.remove();
         chartRef.current = null;
         seriesRef.current = null;
+        indicatorSeriesRef.current = new Map();
       }
     };
   }, []);
@@ -157,13 +193,35 @@ export function ChartView({ assetId }: ChartViewProps) {
         chartRef.current.remove();
         chartRef.current = null;
         seriesRef.current = null;
+        indicatorSeriesRef.current = new Map();
       }
       return;
     }
 
     const resizeCleanup = createChartInstance(containerRef.current, state.selectedTimeframe);
     seriesRef.current = addSeries(state.chartType);
+    indicatorSeriesRef.current = new Map();
     hasFitContentRef.current = false;
+
+    const chart = chartRef.current;
+    if (chart) {
+      const pricePane = chart.panes()[0];
+      if (pricePane) pricePane.setStretchFactor(3);
+
+      for (const instance of state.activeIndicators) {
+        const definition = getDefinition(instance.indicatorId);
+        if (!definition) continue;
+        const pane =
+          definition.pane === 'separate' ? chart.addPane() : pricePane;
+        if (!pane) continue;
+
+        const entries: IndicatorSeriesRef[] = [];
+        for (const plot of compute(instance, [])) {
+          entries.push({ plotKey: plot.key, series: addPlotSeries(pane, plot) });
+        }
+        indicatorSeriesRef.current.set(instance.key, entries);
+      }
+    }
 
     return () => {
       resizeCleanup?.();
@@ -171,14 +229,25 @@ export function ChartView({ assetId }: ChartViewProps) {
         chartRef.current.remove();
         chartRef.current = null;
         seriesRef.current = null;
+        indicatorSeriesRef.current = new Map();
       }
     };
-  }, [assetId, state.chartType, createChartInstance, addSeries]);
+  }, [assetId, state.chartType, indicatorSignature, createChartInstance, addSeries, addPlotSeries]);
 
   useEffect(() => {
     if (!seriesRef.current || !data) return;
 
     seriesRef.current.setData(transformChartData(state.chartType, data) as any);
+
+    for (const [instanceKey, entries] of indicatorSeriesRef.current) {
+      const instance = state.activeIndicators.find(candidate => candidate.key === instanceKey);
+      if (!instance) continue;
+      const plots = compute(instance, data);
+      for (const { plotKey, series } of entries) {
+        const plot = plots.find(candidate => candidate.key === plotKey);
+        if (plot) series.setData(plot.data as any);
+      }
+    }
 
     if (!hasFitContentRef.current) {
       hasFitContentRef.current = true;
@@ -200,7 +269,7 @@ export function ChartView({ assetId }: ChartViewProps) {
         to: pending.to / 1000 as Time,
       });
     }
-  }, [data, state.chartType, getCurrentRange]);
+  }, [data, state.chartType, indicatorSignature, getCurrentRange]);
 
   useEffect(() => {
     if (!chartRef.current) return;
@@ -258,7 +327,7 @@ export function ChartView({ assetId }: ChartViewProps) {
       container.removeEventListener('pointerdown', onPointerDown, true);
       container.removeEventListener('pointerup', onPointerUp, true);
     };
-  }, [assetId, requestRange]);
+  }, [assetId, requestRange, hasCompleteData]);
 
   useEffect(() => {
     const handleThemeChange = () => {
@@ -291,6 +360,12 @@ export function ChartView({ assetId }: ChartViewProps) {
       <ChartTypeSelector
         value={state.chartType}
         onChange={changeChartType}
+        disabled={!data}
+      />
+      <IndicatorSelector
+        indicators={state.activeIndicators}
+        onAdd={addIndicator}
+        onRemove={removeIndicator}
         disabled={!data}
       />
       <div className="chart-container" ref={containerRef}>

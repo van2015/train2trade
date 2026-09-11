@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext, useCallback } from 'react';
 import { PresenterContext } from '../context/PresenterContext';
 import { Timeframe as TimeframeType } from '../timeframe/Timeframe';
+import { IndicatorId } from '../types/asset';
 import { Interval } from '../utils/Interval';
 
 export function useAppPresenter() {
@@ -38,6 +39,21 @@ export function useAppPresenter() {
 
   const changeTimeframe = useCallback(
     (tf: TimeframeType) => presenter.changeTimeframe(tf),
+    [presenter]
+  );
+
+  const addIndicator = useCallback(
+    (id: IndicatorId) => presenter.addIndicator(id),
+    [presenter]
+  );
+
+  const removeIndicator = useCallback(
+    (key: string) => presenter.removeIndicator(key),
+    [presenter]
+  );
+
+  const updateIndicator = useCallback(
+    (key: string, params: Record<string, number>) => presenter.updateIndicator(key, params),
     [presenter]
   );
 
@@ -79,6 +95,9 @@ export function useAppPresenter() {
     removeAsset,
     changeChartType,
     changeTimeframe,
+    addIndicator,
+    removeIndicator,
+    updateIndicator,
     priceSample,
     requestRange,
     getCurrentRange,
