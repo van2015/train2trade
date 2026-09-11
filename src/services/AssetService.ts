@@ -58,10 +58,22 @@ class AssetService {
     return this.repo.getSamplesRange(assetId, from, to);
   }
 
-  setWindow(assetId: string, samples: PriceData[]): Interval | null {
-    const range = this.intervalOf(samples);
-    this.windows.set(assetId, { range, samples });
+  addRangeData(assetId: string, samples: PriceData[]): Interval | null {
+    const existing = this.windows.get(assetId)?.samples ?? [];
+    const merged = this.mergeSamples(existing, samples);
+
+    const range = this.intervalOf(merged);
+    this.windows.set(assetId, { range, samples: merged });
     return range;
+  }
+
+  private mergeSamples(a: PriceData[], b: PriceData[]): PriceData[] {
+    const byTime = new Map<number, PriceData>();
+    for (const sample of a) byTime.set(this.timeOf(sample), sample);
+    for (const sample of b) byTime.set(this.timeOf(sample), sample);
+    return [...byTime.entries()]
+      .sort((x, y) => x[0] - y[0])
+      .map(([, sample]) => sample);
   }
 
   private intervalOf(samples: PriceData[]): Interval | null {

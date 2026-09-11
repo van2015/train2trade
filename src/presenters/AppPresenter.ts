@@ -217,7 +217,7 @@ class AppPresenter {
         from = Math.min(from, to);
       }
       const samples = await this.assetService.fetchSamples(assetId, from, to);
-      this.loadedRange = this.assetService.setWindow(assetId, samples);
+      this.loadedRange = this.assetService.addRangeData(assetId, samples);
       this.notify();
     } catch {
       this.error = 'Failed to load asset data';

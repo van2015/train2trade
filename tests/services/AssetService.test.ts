@@ -171,7 +171,7 @@ describe('AssetService', () => {
     it('returns original data for same timeframe', () => {
       const data = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
       repo.setData('asset1', data);
-      service.setWindow('asset1', data);
+      service.addRangeData('asset1', data);
       const result = service.priceSample('asset1', '1m', '1m');
       expect(result).toEqual(data);
     });
@@ -186,7 +186,7 @@ describe('AssetService', () => {
         .buildSeries();
 
       repo.setData('asset1', originalData);
-      service.setWindow('asset1', originalData);
+      service.addRangeData('asset1', originalData);
 
       const result1 = service.priceSample('asset1', '1m', '5m');
       const result2 = service.priceSample('asset1', '1m', '5m');
@@ -204,32 +204,57 @@ describe('AssetService', () => {
         .volume(1000)
         .buildSeries();
       repo.setData('asset1', data);
-      service.setWindow('asset1', data);
+      service.addRangeData('asset1', data);
       const result = service.priceSample('asset1', '1m', '5m');
       expect(result).toHaveLength(1);
       expect(result![0].open).toBe(100);
     });
   });
 
-  describe('setWindow', () => {
+  describe('addRangeData', () => {
     it('returns the interval spanning the samples', () => {
-      const interval = service.setWindow('asset1', buildSamples(3, 0));
+      const interval = service.addRangeData('asset1', buildSamples(3, 0));
       expect(interval).not.toBeNull();
       expect(interval!.from).toBe(0);
       expect(interval!.to).toBe(2 * 60000);
     });
 
     it('returns null for an empty window', () => {
-      expect(service.setWindow('asset1', [])).toBeNull();
+      expect(service.addRangeData('asset1', [])).toBeNull();
     });
 
-    it('replaces the previous window instead of accumulating', () => {
-      service.setWindow('asset1', buildSamples(3, 0));
-      service.setWindow('asset1', buildSamples(3, 10 * 60000));
+    it('accumulates fetched windows instead of replacing them', () => {
+      service.addRangeData('asset1', buildSamples(3, 0));
+      service.addRangeData('asset1', buildSamples(3, 10 * 60000));
 
       const result = service.priceSample('asset1', '1m', '1m');
-      expect(result).toHaveLength(3);
-      expect(result![0].date).toBe(new Date(10 * 60000).toISOString().replace('.000Z', 'Z'));
+      expect(result).toHaveLength(6);
+      expect(result![0].date).toBe(new Date(0).toISOString().replace('.000Z', 'Z'));
+      expect(result![5].date).toBe(new Date(12 * 60000).toISOString().replace('.000Z', 'Z'));
+    });
+
+    it('deduplicates overlapping samples by timestamp', () => {
+      service.addRangeData('asset1', buildSamples(3, 0));
+      service.addRangeData('asset1', buildSamples(3, 60000));
+
+      const result = service.priceSample('asset1', '1m', '1m');
+      expect(result).toHaveLength(4);
+      expect(result!.map(sample => new Date(sample.date).getTime())).toEqual([
+        0,
+        60000,
+        120000,
+        180000,
+      ]);
+    });
+
+    it('keeps accumulating fetched windows without dropping samples', () => {
+      service.addRangeData('asset1', buildSamples(10000, 0));
+      service.addRangeData('asset1', buildSamples(100, 10000 * 60000));
+
+      const result = service.priceSample('asset1', '1m', '1m')!;
+      expect(result).toHaveLength(10100);
+      expect(new Date(result[0].date).getTime()).toBe(0);
+      expect(new Date(result[result.length - 1].date).getTime()).toBe(10099 * 60000);
     });
   });
 
@@ -243,7 +268,7 @@ describe('AssetService', () => {
         .volume(1000)
         .buildSeries();
       repo.setData('asset1', data);
-      service.setWindow('asset1', data);
+      service.addRangeData('asset1', data);
       service.priceSample('asset1', '1m', '5m');
 
       service.clearCache();
@@ -269,8 +294,8 @@ describe('AssetService', () => {
 
       repo.setData('asset1', data1);
       repo.setData('asset2', data2);
-      service.setWindow('asset1', data1);
-      service.setWindow('asset2', data2);
+      service.addRangeData('asset1', data1);
+      service.addRangeData('asset2', data2);
       service.priceSample('asset1', '1m', '5m');
       service.priceSample('asset2', '1m', '5m');
 
@@ -315,7 +340,7 @@ describe('AssetService', () => {
         .buildSeries();
 
       const summary = await service.save('Test', data, '1m');
-      service.setWindow(summary.id, data);
+      service.addRangeData(summary.id, data);
       service.priceSample(summary.id, '1m', '1m');
 
       await service.delete(summary.id);

@@ -84,7 +84,6 @@ export function ChartView({ assetId }: ChartViewProps) {
   const indicatorSeriesRef = useRef<Map<string, IndicatorSeriesRef[]>>(new Map());
   const hasFitContentRef = useRef(false);
   const preRangeRef = useRef<Interval | null>(null);
-  const pendingRangeRef = useRef<Interval | null>(null);
 
   const data = assetId
     ? priceSample(assetId, state.selectedTimeframe)
@@ -115,6 +114,9 @@ export function ChartView({ assetId }: ChartViewProps) {
       grid: {
         vertLines: { color: colors.chartGrid },
         horzLines: { color: colors.chartGrid },
+      },
+      timeScale: {
+        shiftVisibleRangeOnNewBar: false,
       },
       width: container.clientWidth,
       height: container.clientHeight,
@@ -251,22 +253,16 @@ export function ChartView({ assetId }: ChartViewProps) {
 
     if (!hasFitContentRef.current) {
       hasFitContentRef.current = true;
+      const timeScale = chartRef.current?.timeScale();
       const range = getCurrentRange();
       if (range) {
-        chartRef.current?.timeScale().setVisibleRange({
+        timeScale?.setVisibleRange({
           from: range.from / 1000 as Time,
           to: range.to / 1000 as Time,
         });
       } else {
-        chartRef.current?.timeScale().fitContent();
+        timeScale?.fitContent();
       }
-    } else if (pendingRangeRef.current) {
-      const pending = pendingRangeRef.current;
-      pendingRangeRef.current = null;
-      chartRef.current?.timeScale().setVisibleRange({
-        from: pending.from / 1000 as Time,
-        to: pending.to / 1000 as Time,
-      });
     }
   }, [data, state.chartType, indicatorSignature, getCurrentRange]);
 
@@ -315,7 +311,6 @@ export function ChartView({ assetId }: ChartViewProps) {
       const post = new Interval(Math.floor(fromSec * 1000), Math.ceil(toSec * 1000));
       const next = pre.movedTo(post);
       if (!next || hasCompleteData(next)) return;
-      pendingRangeRef.current = next;
       requestRange(assetId, next);
     };
 

@@ -36,7 +36,7 @@ describe('AppPresenter', () => {
       (presenter as any).assets = [
         { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
       ];
-      (AssetService.getInstance() as any).setWindow('asset1', data);
+      (AssetService.getInstance() as any).addRangeData('asset1', data);
 
       const result = presenter.priceSample('asset1', '1m');
       expect(result).not.toBeNull();
@@ -61,7 +61,7 @@ describe('AppPresenter', () => {
       (presenter as any).assets = [
         { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
       ];
-      AssetService.getInstance().setWindow('asset1', data);
+      AssetService.getInstance().addRangeData('asset1', data);
 
       expect(presenter.priceSample('asset1', '1m')).toHaveLength(100);
       presenter.changeTimeframe('5m');
