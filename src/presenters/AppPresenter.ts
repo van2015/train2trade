@@ -39,6 +39,7 @@ class AppPresenter {
   private selectedAssetId: string | null = null;
   private currentRange: Interval | null = null;
   private loadedRange: Interval | null = null;
+  private lastSampleTime: number | null = null;
   private chartType: ChartType = 'line';
   private selectedTimeframe: TimeframeType = '1D';
   private activeIndicators: IndicatorInstance[] = [];
@@ -193,11 +194,14 @@ class AppPresenter {
     this.selectedAssetId = id;
     this.currentRange = null;
     this.loadedRange = null;
+    this.lastSampleTime = null;
     this.notify();
     const asset = this.assets.find(a => a.id === id);
     if (!asset) return;
     this.assetService.getInitialRange(id, asset.originalTimeframe).then(interval => {
-      if (interval) this.requestRange(id, interval);
+      if (!interval || this.selectedAssetId !== id) return;
+      this.lastSampleTime = interval.to;
+      this.requestRange(id, interval);
     });
   }
 
@@ -206,7 +210,13 @@ class AppPresenter {
       this.currentRange = interval;
       const warmupMs = maxLookback(this.activeIndicators, this.selectedTimeframe);
       const resolved = await this.strategy.getRange(assetId, interval, warmupMs);
-      const samples = await this.assetService.fetchSamples(assetId, resolved.from, resolved.to);
+      let from = resolved.from;
+      let to = resolved.to;
+      if (this.lastSampleTime !== null) {
+        to = Math.min(to, this.lastSampleTime);
+        from = Math.min(from, to);
+      }
+      const samples = await this.assetService.fetchSamples(assetId, from, to);
       this.loadedRange = this.assetService.setWindow(assetId, samples);
       this.notify();
     } catch {
@@ -223,6 +233,7 @@ class AppPresenter {
         this.selectedAssetId = null;
         this.currentRange = null;
         this.loadedRange = null;
+        this.lastSampleTime = null;
       }
       await this.loadAssets();
     } catch (err) {
@@ -302,8 +313,11 @@ class AppPresenter {
   hasCompleteData(interval: Interval): boolean {
     if (!this.loadedRange) return false;
     const warmupMs = maxLookback(this.activeIndicators, this.selectedTimeframe);
-    const required =
-      warmupMs > 0 ? new Interval(interval.from - warmupMs, interval.to) : interval;
+    const requiredTo =
+      this.lastSampleTime !== null
+        ? Math.min(interval.to, this.lastSampleTime)
+        : interval.to;
+    const required = new Interval(interval.from - warmupMs, requiredTo);
     return this.loadedRange.contains(required);
   }
 

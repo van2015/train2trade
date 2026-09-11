@@ -11,12 +11,14 @@ describe('AppPresenter', () => {
   beforeEach(() => {
     (globalThis as any).indexedDB = new IDBFactory();
     localStorage.clear();
+    vi.restoreAllMocks();
     presenter = AppPresenter.getInstance();
     AssetService.getInstance().clearCache();
     (presenter as any).assets = [];
     (presenter as any).selectedAssetId = null;
     (presenter as any).currentRange = null;
     (presenter as any).loadedRange = null;
+    (presenter as any).lastSampleTime = null;
     (presenter as any).activeIndicators = [];
   });
 
@@ -89,6 +91,34 @@ describe('AppPresenter', () => {
 
       expect(presenter.hasCompleteData(new Interval(1300000, 2000000))).toBe(false);
       expect(presenter.hasCompleteData(new Interval(1400000, 2000000))).toBe(true);
+    });
+
+    it('treats a viewport beyond the last sample as complete once the tail is loaded', () => {
+      (presenter as any).lastSampleTime = 1000;
+      (presenter as any).loadedRange = new Interval(0, 1000);
+
+      expect(presenter.hasCompleteData(new Interval(2000, 5000))).toBe(true);
+      expect(presenter.hasCompleteData(new Interval(500, 5000))).toBe(true);
+    });
+
+    it('clamps a fetch beyond the last sample to the available tail', async () => {
+      const lastSample = {
+        date: new Date(1000).toISOString(),
+        open: 1,
+        high: 1,
+        low: 1,
+        close: 1,
+        volume: 1,
+      };
+      const fetchSpy = vi
+        .spyOn(AssetService.getInstance(), 'fetchSamples')
+        .mockResolvedValue([lastSample]);
+      (presenter as any).lastSampleTime = 1000;
+
+      await presenter.requestRange('asset1', new Interval(2000, 5000));
+
+      expect(fetchSpy).toHaveBeenCalledWith('asset1', expect.any(Number), 1000);
+      expect((presenter as any).loadedRange).not.toBeNull();
     });
   });
 

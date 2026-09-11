@@ -260,7 +260,6 @@ export function ChartView({ assetId }: ChartViewProps) {
       } else {
         chartRef.current?.timeScale().fitContent();
       }
-      seriesRef.current.priceScale().applyOptions({ autoScale: false });
     } else if (pendingRangeRef.current) {
       const pending = pendingRangeRef.current;
       pendingRangeRef.current = null;
