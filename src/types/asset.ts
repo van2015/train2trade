@@ -47,11 +47,25 @@ export interface IndicatorPlot {
   data: IndicatorPlotPoint[];
 }
 
+export interface IndicatorSeries {
+  key: string;
+  values: (number | undefined)[];
+}
+
 export interface IndicatorParamSpec {
   key: string;
   label: string;
   default: number;
   min?: number;
+}
+
+export interface IndicatorSeriesSpec {
+  key: string;
+  label: (params: Record<string, number>) => string;
+  style: IndicatorPlotStyle;
+  color: string;
+  colorForValue?: (value: number, index: number, candle: PriceData) => string;
+  computeValues: (candles: PriceData[], params: Record<string, number>) => (number | undefined)[];
 }
 
 export interface IndicatorDefinition {
@@ -60,5 +74,5 @@ export interface IndicatorDefinition {
   pane: IndicatorPane;
   params: IndicatorParamSpec[];
   lookback: (params: Record<string, number>) => number;
-  compute: (candles: PriceData[], params: Record<string, number>) => IndicatorPlot[];
+  series: IndicatorSeriesSpec[];
 }

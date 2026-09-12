@@ -4,6 +4,7 @@ import {
   IndicatorInstance,
   IndicatorPlot,
   IndicatorPlotPoint,
+  IndicatorSeries,
   PriceData,
 } from '../types/asset';
 import { Timeframe } from '../timeframe/Timeframe';
@@ -170,18 +171,16 @@ const smaDefinition: IndicatorDefinition = {
   pane: 'overlay',
   params: [{ key: 'period', label: 'Period', default: 20, min: 1 }],
   lookback: params => params.period,
-  compute: (candles, params) => {
-    const values = candles.map(candle => candle.close);
-    return [
-      {
-        key: 'sma',
-        label: `SMA(${params.period})`,
-        style: 'line',
-        color: COLORS.sma,
-        data: toPlotPoints(candles, sma(values, params.period)),
-      },
-    ];
-  },
+  series: [
+    {
+      key: 'sma',
+      label: params => `SMA(${params.period})`,
+      style: 'line',
+      color: COLORS.sma,
+      computeValues: (candles, params) =>
+        sma(candles.map(candle => candle.close), params.period),
+    },
+  ],
 };
 
 const emaDefinition: IndicatorDefinition = {
@@ -190,18 +189,16 @@ const emaDefinition: IndicatorDefinition = {
   pane: 'overlay',
   params: [{ key: 'period', label: 'Period', default: 20, min: 1 }],
   lookback: params => params.period * 3,
-  compute: (candles, params) => {
-    const values = candles.map(candle => candle.close);
-    return [
-      {
-        key: 'ema',
-        label: `EMA(${params.period})`,
-        style: 'line',
-        color: COLORS.ema,
-        data: toPlotPoints(candles, ema(values, params.period)),
-      },
-    ];
-  },
+  series: [
+    {
+      key: 'ema',
+      label: params => `EMA(${params.period})`,
+      style: 'line',
+      color: COLORS.ema,
+      computeValues: (candles, params) =>
+        ema(candles.map(candle => candle.close), params.period),
+    },
+  ],
 };
 
 const bollingerDefinition: IndicatorDefinition = {
@@ -213,33 +210,44 @@ const bollingerDefinition: IndicatorDefinition = {
     { key: 'stdDev', label: 'Std Dev', default: 2, min: 0 },
   ],
   lookback: params => params.period,
-  compute: (candles, params) => {
-    const values = candles.map(candle => candle.close);
-    const { middle, upper, lower } = bollinger(values, params.period, params.stdDev);
-    return [
-      {
-        key: 'upper',
-        label: 'BB Upper',
-        style: 'line',
-        color: COLORS.bbBand,
-        data: toPlotPoints(candles, upper),
-      },
-      {
-        key: 'middle',
-        label: 'BB Middle',
-        style: 'line',
-        color: COLORS.bbMiddle,
-        data: toPlotPoints(candles, middle),
-      },
-      {
-        key: 'lower',
-        label: 'BB Lower',
-        style: 'line',
-        color: COLORS.bbBand,
-        data: toPlotPoints(candles, lower),
-      },
-    ];
-  },
+  series: [
+    {
+      key: 'upper',
+      label: () => 'BB Upper',
+      style: 'line',
+      color: COLORS.bbBand,
+      computeValues: (candles, params) =>
+        bollinger(
+          candles.map(candle => candle.close),
+          params.period,
+          params.stdDev
+        ).upper,
+    },
+    {
+      key: 'middle',
+      label: () => 'BB Middle',
+      style: 'line',
+      color: COLORS.bbMiddle,
+      computeValues: (candles, params) =>
+        bollinger(
+          candles.map(candle => candle.close),
+          params.period,
+          params.stdDev
+        ).middle,
+    },
+    {
+      key: 'lower',
+      label: () => 'BB Lower',
+      style: 'line',
+      color: COLORS.bbBand,
+      computeValues: (candles, params) =>
+        bollinger(
+          candles.map(candle => candle.close),
+          params.period,
+          params.stdDev
+        ).lower,
+    },
+  ],
 };
 
 const rsiDefinition: IndicatorDefinition = {
@@ -248,18 +256,16 @@ const rsiDefinition: IndicatorDefinition = {
   pane: 'separate',
   params: [{ key: 'period', label: 'Period', default: 14, min: 1 }],
   lookback: params => params.period + 1,
-  compute: (candles, params) => {
-    const values = candles.map(candle => candle.close);
-    return [
-      {
-        key: 'rsi',
-        label: `RSI(${params.period})`,
-        style: 'line',
-        color: COLORS.rsi,
-        data: toPlotPoints(candles, rsi(values, params.period)),
-      },
-    ];
-  },
+  series: [
+    {
+      key: 'rsi',
+      label: params => `RSI(${params.period})`,
+      style: 'line',
+      color: COLORS.rsi,
+      computeValues: (candles, params) =>
+        rsi(candles.map(candle => candle.close), params.period),
+    },
+  ],
 };
 
 const macdDefinition: IndicatorDefinition = {
@@ -272,40 +278,48 @@ const macdDefinition: IndicatorDefinition = {
     { key: 'signal', label: 'Signal', default: 9, min: 1 },
   ],
   lookback: params => params.slow + params.signal,
-  compute: (candles, params) => {
-    const values = candles.map(candle => candle.close);
-    const { macdLine, signalLine, histogram } = macd(
-      values,
-      params.fast,
-      params.slow,
-      params.signal
-    );
-    return [
-      {
-        key: 'macd',
-        label: 'MACD',
-        style: 'line',
-        color: COLORS.macd,
-        data: toPlotPoints(candles, macdLine),
-      },
-      {
-        key: 'signal',
-        label: 'Signal',
-        style: 'line',
-        color: COLORS.signal,
-        data: toPlotPoints(candles, signalLine),
-      },
-      {
-        key: 'histogram',
-        label: 'Histogram',
-        style: 'histogram',
-        color: COLORS.volume,
-        data: toPlotPoints(candles, histogram, value =>
-          value >= 0 ? COLORS.up : COLORS.down
-        ),
-      },
-    ];
-  },
+  series: [
+    {
+      key: 'macd',
+      label: () => 'MACD',
+      style: 'line',
+      color: COLORS.macd,
+      computeValues: (candles, params) =>
+        macd(
+          candles.map(candle => candle.close),
+          params.fast,
+          params.slow,
+          params.signal
+        ).macdLine,
+    },
+    {
+      key: 'signal',
+      label: () => 'Signal',
+      style: 'line',
+      color: COLORS.signal,
+      computeValues: (candles, params) =>
+        macd(
+          candles.map(candle => candle.close),
+          params.fast,
+          params.slow,
+          params.signal
+        ).signalLine,
+    },
+    {
+      key: 'histogram',
+      label: () => 'Histogram',
+      style: 'histogram',
+      color: COLORS.volume,
+      colorForValue: value => (value >= 0 ? COLORS.up : COLORS.down),
+      computeValues: (candles, params) =>
+        macd(
+          candles.map(candle => candle.close),
+          params.fast,
+          params.slow,
+          params.signal
+        ).histogram,
+    },
+  ],
 };
 
 const volumeDefinition: IndicatorDefinition = {
@@ -314,17 +328,15 @@ const volumeDefinition: IndicatorDefinition = {
   pane: 'separate',
   params: [],
   lookback: () => 0,
-  compute: candles => [
+  series: [
     {
       key: 'volume',
-      label: 'Volume',
+      label: () => 'Volume',
       style: 'histogram',
       color: COLORS.volume,
-      data: toPlotPoints(
-        candles,
-        candles.map(candle => candle.volume),
-        (_value, _index, candle) => (candle.close >= candle.open ? COLORS.up : COLORS.down)
-      ),
+      colorForValue: (_value, _index, candle) =>
+        candle.close >= candle.open ? COLORS.up : COLORS.down,
+      computeValues: candles => candles.map(candle => candle.volume),
     },
   ],
 };
@@ -389,7 +401,28 @@ export function getIndicatorGroups(): {
 export function compute(instance: IndicatorInstance, candles: PriceData[]): IndicatorPlot[] {
   const definition = getDefinition(instance.indicatorId);
   if (!definition) return [];
-  return definition.compute(candles, normalizeParams(definition, instance.params));
+  const params = normalizeParams(definition, instance.params);
+  const series = computeSeries(instance, candles);
+  return definition.series.map((spec, index) => ({
+    key: spec.key,
+    label: spec.label(params),
+    style: spec.style,
+    color: spec.color,
+    data: toPlotPoints(candles, series[index].values, spec.colorForValue),
+  }));
+}
+
+export function computeSeries(
+  instance: IndicatorInstance,
+  candles: PriceData[]
+): IndicatorSeries[] {
+  const definition = getDefinition(instance.indicatorId);
+  if (!definition) return [];
+  const params = normalizeParams(definition, instance.params);
+  return definition.series.map(spec => ({
+    key: spec.key,
+    values: spec.computeValues(candles, params),
+  }));
 }
 
 export function maxLookback(instances: IndicatorInstance[], timeframe: Timeframe): number {
