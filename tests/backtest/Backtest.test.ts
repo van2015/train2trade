@@ -49,7 +49,7 @@ describe('runBacktest', () => {
   it('fills a market order at the next sub-bar open', () => {
     register('market-once', '1m', ctx =>
       ctx.index === 0
-        ? [SignalBuilder.long().market().stopLoss(50).takeProfit(108).build()]
+        ? [new SignalBuilder().long().market().stopLoss(50).takeProfit(108).build()]
         : []
     );
 
@@ -70,7 +70,7 @@ describe('runBacktest', () => {
   it('fills a limit order intrabar at the limit price or better', () => {
     register('limit-once', '1m', ctx =>
       ctx.index === 0
-        ? [SignalBuilder.long().limit(100).stopLoss(50).takeProfit(105).build()]
+        ? [new SignalBuilder().long().limit(100).stopLoss(50).takeProfit(105).build()]
         : []
     );
 
@@ -89,7 +89,7 @@ describe('runBacktest', () => {
   it('does not open a position when the limit is never reached', () => {
     register('limit-never', '1m', ctx =>
       ctx.index === 0
-        ? [SignalBuilder.long().limit(90).stopLoss(50).build()]
+        ? [new SignalBuilder().long().limit(90).stopLoss(50).build()]
         : []
     );
 
@@ -107,7 +107,7 @@ describe('runBacktest', () => {
   it('closes at take profit and cancels the paired stop (OCO)', () => {
     register('oco', '1m', ctx =>
       ctx.index === 0
-        ? [SignalBuilder.long().market().stopLoss(95).takeProfit(105).build()]
+        ? [new SignalBuilder().long().market().stopLoss(95).takeProfit(105).build()]
         : []
     );
 
@@ -125,7 +125,7 @@ describe('runBacktest', () => {
   it('invalidates a trade on an ambiguous bar when no finer data exists', () => {
     register('ambiguous', '1h', ctx =>
       ctx.index === 0
-        ? [SignalBuilder.long().market().stopLoss(95).takeProfit(105).build()]
+        ? [new SignalBuilder().long().market().stopLoss(95).takeProfit(105).build()]
         : []
     );
 
@@ -145,7 +145,7 @@ describe('runBacktest', () => {
   it('resolves an ambiguous strategy bar using finer sub-bars', () => {
     register('finer', '5m', ctx =>
       ctx.index === 0
-        ? [SignalBuilder.long().market().stopLoss(95).takeProfit(105).build()]
+        ? [new SignalBuilder().long().market().stopLoss(95).takeProfit(105).build()]
         : []
     );
 
@@ -170,7 +170,7 @@ describe('runBacktest', () => {
   it('rejects an open whose risk-based size is below the minimum lot', () => {
     register('too-small', '1m', ctx =>
       ctx.index === 0
-        ? [SignalBuilder.long().market().stopLoss(50).risk(0.000001).build()]
+        ? [new SignalBuilder().long().market().stopLoss(50).risk(0.000001).build()]
         : []
     );
 
@@ -194,7 +194,7 @@ describe('runBacktest', () => {
   it('produces deterministic results across repeated runs', () => {
     register('deterministic', '1m', ctx =>
       ctx.index === 0
-        ? [SignalBuilder.long().market().stopLoss(50).takeProfit(108).build()]
+        ? [new SignalBuilder().long().market().stopLoss(50).takeProfit(108).build()]
         : []
     );
 

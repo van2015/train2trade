@@ -1,41 +1,44 @@
 import { OpenSignal, Signal } from '../../src/types/backtest';
 
 export class SignalBuilder {
-  private signal: Signal;
+  private signal?: Signal;
   private orderSpecified = false;
 
-  private constructor(signal: Signal) {
-    this.signal = signal;
-  }
-
-  static long(): SignalBuilder {
-    return new SignalBuilder({
+  long(): this {
+    this.signal = {
       kind: 'open',
       side: 'long',
       order: { type: 'market' },
       risk: { fraction: 0.01 },
-    });
+    };
+    this.orderSpecified = false;
+    return this;
   }
 
-  static short(): SignalBuilder {
-    return new SignalBuilder({
+  short(): this {
+    this.signal = {
       kind: 'open',
       side: 'short',
       order: { type: 'market' },
       risk: { fraction: 0.01 },
-    });
+    };
+    this.orderSpecified = false;
+    return this;
   }
 
-  static close(positionId: string): SignalBuilder {
-    return new SignalBuilder({ kind: 'close', positionId });
+  close(positionId: string): this {
+    this.signal = { kind: 'close', positionId };
+    return this;
   }
 
-  static moveStop(positionId: string, price: number): SignalBuilder {
-    return new SignalBuilder({ kind: 'moveStop', positionId, price });
+  moveStop(positionId: string, price: number): this {
+    this.signal = { kind: 'moveStop', positionId, price };
+    return this;
   }
 
-  static moveTarget(positionId: string, price: number): SignalBuilder {
-    return new SignalBuilder({ kind: 'moveTarget', positionId, price });
+  moveTarget(positionId: string, price: number): this {
+    this.signal = { kind: 'moveTarget', positionId, price };
+    return this;
   }
 
   market(): this {
@@ -73,12 +76,19 @@ export class SignalBuilder {
 
   portion(portion: number): this {
     const signal = this.signal;
-    if (signal.kind !== 'close') throw new Error('portion is only valid for close signals');
+    if (!signal || signal.kind !== 'close') {
+      throw new Error('portion is only valid for close signals');
+    }
     signal.portion = portion;
     return this;
   }
 
   build(): Signal {
+    if (!this.signal) {
+      throw new Error(
+        'Choose a signal kind with long(), short(), close(), moveStop() or moveTarget()'
+      );
+    }
     if (this.signal.kind === 'open' && !this.orderSpecified) {
       throw new Error('Specify an order type with market(), limit(price) or stop(price)');
     }
@@ -86,7 +96,7 @@ export class SignalBuilder {
   }
 
   private asOpen(): OpenSignal {
-    if (this.signal.kind !== 'open') {
+    if (!this.signal || this.signal.kind !== 'open') {
       throw new Error('This method is only valid for open signals');
     }
     return this.signal;

@@ -80,27 +80,27 @@ describe('strategy context', () => {
 });
 
 describe('signal validation', () => {
-  const validOpen: Signal = SignalBuilder.long().market().risk(0.01).stopLoss(90).build();
+  const validOpen: Signal = new SignalBuilder().long().market().risk(0.01).stopLoss(90).build();
 
   it('accepts well-formed signals', () => {
     expect(isValidSignal(validOpen)).toBe(true);
-    expect(isValidSignal(SignalBuilder.close('p1').build())).toBe(true);
-    expect(isValidSignal(SignalBuilder.moveStop('p1', 95).build())).toBe(true);
-    expect(isValidSignal(SignalBuilder.moveTarget('p1', 110).build())).toBe(true);
+    expect(isValidSignal(new SignalBuilder().close('p1').build())).toBe(true);
+    expect(isValidSignal(new SignalBuilder().moveStop('p1', 95).build())).toBe(true);
+    expect(isValidSignal(new SignalBuilder().moveTarget('p1', 110).build())).toBe(true);
   });
 
   it('rejects malformed signals', () => {
     expect(
-      isValidSignal(SignalBuilder.long().market().risk(0).stopLoss(90).build())
+      isValidSignal(new SignalBuilder().long().market().risk(0).stopLoss(90).build())
     ).toBe(false);
-    expect(isValidSignal(SignalBuilder.long().limit(NaN).build())).toBe(false);
-    expect(isValidSignal(SignalBuilder.close('').build())).toBe(false);
-    expect(isValidSignal(SignalBuilder.close('p1').portion(2).build())).toBe(false);
-    expect(isValidSignal(SignalBuilder.moveStop('p1', NaN).build())).toBe(false);
+    expect(isValidSignal(new SignalBuilder().long().limit(NaN).build())).toBe(false);
+    expect(isValidSignal(new SignalBuilder().close('').build())).toBe(false);
+    expect(isValidSignal(new SignalBuilder().close('p1').portion(2).build())).toBe(false);
+    expect(isValidSignal(new SignalBuilder().moveStop('p1', NaN).build())).toBe(false);
   });
 
   it('filters malformed signals without mutating the input', () => {
-    const input: Signal[] = [validOpen, SignalBuilder.close('').build()];
+    const input: Signal[] = [validOpen, new SignalBuilder().close('').build()];
 
     const filtered = validSignals(input);
 
@@ -111,8 +111,12 @@ describe('signal validation', () => {
 });
 
 describe('SignalBuilder', () => {
+  it('requires a signal kind', () => {
+    expect(() => new SignalBuilder().build()).toThrow();
+  });
+
   it('requires an explicit order type', () => {
-    expect(() => SignalBuilder.long().stopLoss(50).build()).toThrow();
-    expect(() => SignalBuilder.short().stopLoss(50).build()).toThrow();
+    expect(() => new SignalBuilder().long().stopLoss(50).build()).toThrow();
+    expect(() => new SignalBuilder().short().stopLoss(50).build()).toThrow();
   });
 });
