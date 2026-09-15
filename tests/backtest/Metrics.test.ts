@@ -1,28 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import { ClosedTrade, EquityPoint, InvalidatedTrade } from '../../src/types/backtest';
 import { computeMetrics } from '../../src/backtest/Metrics';
+import { ClosedTradeBuilder } from '../test-helpers/closedTradeBuilder';
+import { InvalidatedTradeBuilder } from '../test-helpers/invalidatedTradeBuilder';
+import { EquityPointBuilder } from '../test-helpers/equityPointBuilder';
 
-function trade(netPnl: number, fees = 0, rMultiple?: number): ClosedTrade {
-  return {
-    id: `t-${netPnl}-${fees}-${rMultiple}`,
-    side: 'long',
-    size: 1,
-    averageEntry: 100,
-    grossPnl: netPnl + fees,
-    fees,
-    netPnl,
-    rMultiple,
-    openedAt: 0,
-    closedAt: 1,
-  };
+function trade(netPnl: number, fees = 0, rMultiple?: number) {
+  const builder = new ClosedTradeBuilder().netPnl(netPnl).fees(fees);
+  if (rMultiple !== undefined) builder.rMultiple(rMultiple);
+  return builder.build();
 }
 
-function invalidated(id: string): InvalidatedTrade {
-  return { id, side: 'long', reason: 'ambiguous', at: 1 };
+function invalidated(id: string) {
+  return new InvalidatedTradeBuilder().id(id).build();
 }
 
-function curve(values: number[]): EquityPoint[] {
-  return values.map((equity, i) => ({ time: i, balance: equity, equity }));
+function curve(values: number[]) {
+  return EquityPointBuilder.series(values);
 }
 
 describe('computeMetrics', () => {

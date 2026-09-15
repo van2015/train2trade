@@ -1,51 +1,44 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { PriceData } from '../../src/types/asset';
-import { BacktestInput, PlatformConfig, Signal } from '../../src/types/backtest';
+import { BacktestInput, StrategyDefinition } from '../../src/types/backtest';
 import { clearStrategies, registerStrategy } from '../../src/backtest/Strategy';
 import { runBacktest } from '../../src/backtest/Backtest';
+import { PlatformConfigBuilder } from '../test-helpers/platformConfigBuilder';
+import { SignalBuilder } from '../test-helpers/signalBuilder';
+import { BacktestInputBuilder } from '../test-helpers/backtestInputBuilder';
+import { StrategyDefinitionBuilder } from '../test-helpers/strategyDefinitionBuilder';
+import { PriceSeriesBuilder } from '../test-helpers/priceSeriesBuilder';
 
-function candle(
-  date: string,
-  open: number,
-  high: number,
-  low: number,
-  close: number,
-  volume = 1
-): PriceData {
-  return { date, open, high, low, close, volume };
+function platformConfig(): PlatformConfigBuilder {
+  return new PlatformConfigBuilder()
+    .withContractSize(1)
+    .withMinLot(0.01)
+    .withLotStep(0.01)
+    .withTickSize(0.01)
+    .withLeverage(1000)
+    .withCommissionPerLot(0)
+    .withSpread(0)
+    .withSlippage(0)
+    .withStopOutLevel(0);
 }
 
-const basePlatform: PlatformConfig = {
-  contractSize: 1,
-  minLot: 0.01,
-  lotStep: 0.01,
-  tickSize: 0.01,
-  leverage: 1000,
-  commissionPerLot: 0,
-  spread: 0,
-  slippage: 0,
-  stopOutLevel: 0,
-};
-
-function openSignal(overrides: Partial<Signal> = {}): Signal {
-  return {
-    kind: 'open',
-    side: 'long',
-    order: { type: 'market' },
-    risk: { fraction: 0.01 },
-    stopLoss: 50,
-    takeProfit: 108,
-    ...overrides,
-  } as Signal;
+function register(
+  id: string,
+  timeframe: StrategyDefinition['timeframe'],
+  onBar: StrategyDefinition['onBar']
+): void {
+  registerStrategy(
+    new StrategyDefinitionBuilder().id(id).label(id).timeframe(timeframe).onBar(onBar).build()
+  );
 }
 
 function baseInput(dataset: PriceData[], strategyId: string): BacktestInput {
-  return {
-    dataset,
-    strategyId,
-    platform: basePlatform,
-    initialBalance: 10000,
-  };
+  return new BacktestInputBuilder()
+    .data(dataset)
+    .strategy(strategyId)
+    .platform(platformConfig().build())
+    .initialBalance(10000)
+    .build();
 }
 
 describe('runBacktest', () => {
@@ -54,19 +47,17 @@ describe('runBacktest', () => {
   });
 
   it('fills a market order at the next sub-bar open', () => {
-    registerStrategy({
-      id: 'market-once',
-      label: 'Market once',
-      timeframe: '1m',
-      params: [],
-      onBar: ctx => (ctx.index === 0 ? [openSignal()] : []),
-    });
+    register('market-once', '1m', ctx =>
+      ctx.index === 0
+        ? [SignalBuilder.long().market().stopLoss(50).takeProfit(108).build()]
+        : []
+    );
 
-    const dataset = [
-      candle('2024-01-01T00:00:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:01:00Z', 105, 106, 104, 105),
-      candle('2024-01-01T00:02:00Z', 105, 111, 104, 110),
-    ];
+    const dataset = new PriceSeriesBuilder()
+      .inert('2024-01-01T00:00:00Z')
+      .at('2024-01-01T00:01:00Z').open(105).high(106).low(104)
+      .at('2024-01-01T00:02:00Z').open(105).high(110).low(104)
+      .build();
 
     const result = runBacktest(baseInput(dataset, 'market-once'));
 
@@ -77,22 +68,17 @@ describe('runBacktest', () => {
   });
 
   it('fills a limit order intrabar at the limit price or better', () => {
-    registerStrategy({
-      id: 'limit-once',
-      label: 'Limit once',
-      timeframe: '1m',
-      params: [],
-      onBar: ctx =>
-        ctx.index === 0
-          ? [openSignal({ order: { type: 'limit', price: 100 }, takeProfit: 105 })]
-          : [],
-    });
+    register('limit-once', '1m', ctx =>
+      ctx.index === 0
+        ? [SignalBuilder.long().limit(100).stopLoss(50).takeProfit(105).build()]
+        : []
+    );
 
-    const dataset = [
-      candle('2024-01-01T00:00:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:01:00Z', 101, 102, 99, 101),
-      candle('2024-01-01T00:02:00Z', 101, 106, 100, 105),
-    ];
+    const dataset = new PriceSeriesBuilder()
+      .inert('2024-01-01T00:00:00Z')
+      .at('2024-01-01T00:01:00Z').open(101).high(102).low(99)
+      .at('2024-01-01T00:02:00Z').open(101).high(106)
+      .build();
 
     const result = runBacktest(baseInput(dataset, 'limit-once'));
 
@@ -101,20 +87,16 @@ describe('runBacktest', () => {
   });
 
   it('does not open a position when the limit is never reached', () => {
-    registerStrategy({
-      id: 'limit-never',
-      label: 'Limit never',
-      timeframe: '1m',
-      params: [],
-      onBar: ctx =>
-        ctx.index === 0 ? [openSignal({ order: { type: 'limit', price: 90 } })] : [],
-    });
+    register('limit-never', '1m', ctx =>
+      ctx.index === 0
+        ? [SignalBuilder.long().limit(90).stopLoss(50).build()]
+        : []
+    );
 
-    const dataset = [
-      candle('2024-01-01T00:00:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:01:00Z', 101, 102, 100, 101),
-      candle('2024-01-01T00:02:00Z', 101, 106, 100, 105),
-    ];
+    const dataset = new PriceSeriesBuilder()
+      .inert('2024-01-01T00:00:00Z')
+      .at('2024-01-01T00:01:00Z').open(101).high(102).low(100)
+      .build();
 
     const result = runBacktest(baseInput(dataset, 'limit-never'));
 
@@ -123,20 +105,16 @@ describe('runBacktest', () => {
   });
 
   it('closes at take profit and cancels the paired stop (OCO)', () => {
-    registerStrategy({
-      id: 'oco',
-      label: 'OCO',
-      timeframe: '1m',
-      params: [],
-      onBar: ctx =>
-        ctx.index === 0 ? [openSignal({ stopLoss: 95, takeProfit: 105 })] : [],
-    });
+    register('oco', '1m', ctx =>
+      ctx.index === 0
+        ? [SignalBuilder.long().market().stopLoss(95).takeProfit(105).build()]
+        : []
+    );
 
-    const dataset = [
-      candle('2024-01-01T00:00:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:01:00Z', 100, 106, 99, 105),
-      candle('2024-01-01T00:02:00Z', 105, 110, 100, 108),
-    ];
+    const dataset = new PriceSeriesBuilder()
+      .inert('2024-01-01T00:00:00Z')
+      .at('2024-01-01T00:01:00Z').open(100).high(106).low(99)
+      .build();
 
     const result = runBacktest(baseInput(dataset, 'oco'));
 
@@ -145,20 +123,16 @@ describe('runBacktest', () => {
   });
 
   it('invalidates a trade on an ambiguous bar when no finer data exists', () => {
-    registerStrategy({
-      id: 'ambiguous',
-      label: 'Ambiguous',
-      timeframe: '1h',
-      params: [],
-      onBar: ctx =>
-        ctx.index === 0 ? [openSignal({ stopLoss: 95, takeProfit: 105 })] : [],
-    });
+    register('ambiguous', '1h', ctx =>
+      ctx.index === 0
+        ? [SignalBuilder.long().market().stopLoss(95).takeProfit(105).build()]
+        : []
+    );
 
-    const dataset = [
-      candle('2024-01-01T00:00:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T01:00:00Z', 100, 110, 90, 100),
-      candle('2024-01-01T02:00:00Z', 100, 101, 99, 100),
-    ];
+    const dataset = new PriceSeriesBuilder()
+      .inert('2024-01-01T00:00:00Z')
+      .at('2024-01-01T01:00:00Z').open(100).high(110).low(90)
+      .build();
 
     const result = runBacktest(baseInput(dataset, 'ambiguous'));
 
@@ -169,27 +143,20 @@ describe('runBacktest', () => {
   });
 
   it('resolves an ambiguous strategy bar using finer sub-bars', () => {
-    registerStrategy({
-      id: 'finer',
-      label: 'Finer',
-      timeframe: '5m',
-      params: [],
-      onBar: ctx =>
-        ctx.index === 0 ? [openSignal({ stopLoss: 95, takeProfit: 105 })] : [],
-    });
+    register('finer', '5m', ctx =>
+      ctx.index === 0
+        ? [SignalBuilder.long().market().stopLoss(95).takeProfit(105).build()]
+        : []
+    );
 
-    const dataset = [
-      candle('2024-01-01T00:00:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:01:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:02:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:03:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:04:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:05:00Z', 100, 101, 90, 91),
-      candle('2024-01-01T00:06:00Z', 91, 106, 90, 105),
-      candle('2024-01-01T00:07:00Z', 105, 106, 104, 105),
-      candle('2024-01-01T00:08:00Z', 105, 106, 104, 105),
-      candle('2024-01-01T00:09:00Z', 105, 106, 104, 105),
-    ];
+    const dataset = new PriceSeriesBuilder()
+      .inert('2024-01-01T00:00:00Z')
+      .inert('2024-01-01T00:01:00Z')
+      .inert('2024-01-01T00:02:00Z')
+      .inert('2024-01-01T00:03:00Z')
+      .inert('2024-01-01T00:04:00Z')
+      .at('2024-01-01T00:05:00Z').open(100).high(101).low(90)
+      .build();
 
     const result = runBacktest(baseInput(dataset, 'finer'));
 
@@ -201,22 +168,23 @@ describe('runBacktest', () => {
   });
 
   it('rejects an open whose risk-based size is below the minimum lot', () => {
-    registerStrategy({
-      id: 'too-small',
-      label: 'Too small',
-      timeframe: '1m',
-      params: [],
-      onBar: ctx => (ctx.index === 0 ? [openSignal({ risk: { fraction: 0.000001 } })] : []),
-    });
+    register('too-small', '1m', ctx =>
+      ctx.index === 0
+        ? [SignalBuilder.long().market().stopLoss(50).risk(0.000001).build()]
+        : []
+    );
 
-    const dataset = [
-      candle('2024-01-01T00:00:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:01:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:02:00Z', 100, 101, 99, 100),
-    ];
+    const dataset = new PriceSeriesBuilder()
+      .inert('2024-01-01T00:00:00Z')
+      .inert('2024-01-01T00:01:00Z')
+      .build();
 
-    const input = baseInput(dataset, 'too-small');
-    input.platform = { ...basePlatform, minLot: 1, lotStep: 1 };
+    const input = new BacktestInputBuilder()
+      .data(dataset)
+      .strategy('too-small')
+      .platform(platformConfig().withMinLot(1).withLotStep(1).build())
+      .initialBalance(10000)
+      .build();
 
     const result = runBacktest(input);
 
@@ -224,19 +192,16 @@ describe('runBacktest', () => {
   });
 
   it('produces deterministic results across repeated runs', () => {
-    registerStrategy({
-      id: 'deterministic',
-      label: 'Deterministic',
-      timeframe: '1m',
-      params: [],
-      onBar: ctx => (ctx.index === 0 ? [openSignal()] : []),
-    });
+    register('deterministic', '1m', ctx =>
+      ctx.index === 0
+        ? [SignalBuilder.long().market().stopLoss(50).takeProfit(108).build()]
+        : []
+    );
 
-    const dataset = [
-      candle('2024-01-01T00:00:00Z', 100, 101, 99, 100),
-      candle('2024-01-01T00:01:00Z', 105, 106, 104, 105),
-      candle('2024-01-01T00:02:00Z', 105, 111, 104, 110),
-    ];
+    const dataset = new PriceSeriesBuilder()
+      .inert('2024-01-01T00:00:00Z')
+      .at('2024-01-01T00:01:00Z').open(100).high(110).low(99)
+      .build();
 
     const first = runBacktest(baseInput(dataset, 'deterministic'));
     const second = runBacktest(baseInput(dataset, 'deterministic'));

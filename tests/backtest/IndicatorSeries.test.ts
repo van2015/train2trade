@@ -1,39 +1,32 @@
 import { describe, it, expect } from 'vitest';
-import { PriceData, IndicatorInstance, IndicatorId } from '../../src/types/asset';
+import { PriceData, IndicatorId } from '../../src/types/asset';
 import { compute, computeSeries } from '../../src/services/IndicatorService';
+import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
+import { IndicatorInstanceBuilder } from '../test-helpers/indicatorInstanceBuilder';
 
-function candles(closes: number[], volumes?: number[], opens?: number[]): PriceData[] {
-  return closes.map((close, i) => {
-    const open = opens?.[i] ?? close;
-    return {
-      date: new Date(Date.UTC(2024, 0, 1, 0, i)).toISOString().replace('.000Z', 'Z'),
-      open,
-      high: Math.max(open, close),
-      low: Math.min(open, close),
-      close,
-      volume: volumes?.[i] ?? 1,
-    };
-  });
-}
-
-function instance(
-  indicatorId: IndicatorId,
-  params: Record<string, number>
-): IndicatorInstance {
-  return { key: `${indicatorId}-1`, indicatorId, params };
+function instance(indicatorId: IndicatorId, params: Record<string, number>) {
+  return new IndicatorInstanceBuilder().id(indicatorId).params(params).build();
 }
 
 const cases: { id: IndicatorId; params: Record<string, number>; candles: PriceData[] }[] = [
-  { id: 'sma', params: { period: 3 }, candles: candles([1, 2, 3, 4, 5]) },
-  { id: 'ema', params: { period: 3 }, candles: candles([1, 2, 3, 4, 10]) },
-  { id: 'bb', params: { period: 3, stdDev: 2 }, candles: candles([1, 2, 3, 4, 5]) },
-  { id: 'rsi', params: { period: 2 }, candles: candles([1, 2, 1, 2, 3]) },
+  { id: 'sma', params: { period: 3 }, candles: SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5]) },
+  { id: 'ema', params: { period: 3 }, candles: SamplePriceBuilder.fromCloses([1, 2, 3, 4, 10]) },
+  {
+    id: 'bb',
+    params: { period: 3, stdDev: 2 },
+    candles: SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5]),
+  },
+  { id: 'rsi', params: { period: 2 }, candles: SamplePriceBuilder.fromCloses([1, 2, 1, 2, 3]) },
   {
     id: 'macd',
     params: { fast: 2, slow: 3, signal: 2 },
-    candles: candles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+    candles: SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
   },
-  { id: 'volume', params: {}, candles: candles([10, 10], [100, 200], [10, 11]) },
+  {
+    id: 'volume',
+    params: {},
+    candles: SamplePriceBuilder.fromCloses([10, 10], { volumes: [100, 200], opens: [10, 11] }),
+  },
 ];
 
 describe('IndicatorService.computeSeries', () => {
@@ -61,21 +54,30 @@ describe('IndicatorService.computeSeries', () => {
   });
 
   it('omits warm-up values instead of zero-filling', () => {
-    const series = computeSeries(instance('sma', { period: 3 }), candles([1, 2, 3, 4, 5]));
+    const series = computeSeries(
+      instance('sma', { period: 3 }),
+      SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5])
+    );
 
     expect(series[0].values).toEqual([undefined, undefined, 2, 3, 4]);
   });
 
   it('preserves per-indicator expected values', () => {
-    const smaSeries = computeSeries(instance('sma', { period: 3 }), candles([1, 2, 3, 4, 5]));
+    const smaSeries = computeSeries(
+      instance('sma', { period: 3 }),
+      SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5])
+    );
     expect(smaSeries[0].values[2]).toBeCloseTo(2);
 
-    const rsiSeries = computeSeries(instance('rsi', { period: 2 }), candles([1, 2, 1, 2, 3]));
+    const rsiSeries = computeSeries(
+      instance('rsi', { period: 2 }),
+      SamplePriceBuilder.fromCloses([1, 2, 1, 2, 3])
+    );
     expect(rsiSeries[0].values[2]).toBeCloseTo(50);
 
     const macdSeries = computeSeries(
       instance('macd', { fast: 2, slow: 3, signal: 2 }),
-      candles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+      SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     );
     const histogram = macdSeries.find(entry => entry.key === 'histogram')!;
     expect(histogram.values[3]).toBeCloseTo(0);

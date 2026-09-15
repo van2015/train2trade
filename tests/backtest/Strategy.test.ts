@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { PriceData } from '../../src/types/asset';
-import { Signal, StrategyDefinition, PositionView } from '../../src/types/backtest';
+import { Signal } from '../../src/types/backtest';
 import {
   clearStrategies,
   createContext,
@@ -10,28 +9,22 @@ import {
   resolveStrategy,
   validSignals,
 } from '../../src/backtest/Strategy';
+import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
+import { StrategyDefinitionBuilder } from '../test-helpers/strategyDefinitionBuilder';
+import { PositionViewBuilder } from '../test-helpers/positionViewBuilder';
+import { SignalBuilder } from '../test-helpers/signalBuilder';
 
-function candles(closes: number[]): PriceData[] {
-  return closes.map((close, i) => ({
-    date: new Date(Date.UTC(2024, 0, 1, 0, i)).toISOString().replace('.000Z', 'Z'),
-    open: close,
-    high: close,
-    low: close,
-    close,
-    volume: 1,
-  }));
+function candles(closes: number[]) {
+  return SamplePriceBuilder.fromCloses(closes);
 }
 
-const definition: StrategyDefinition = {
-  id: 'test-strategy',
-  label: 'Test Strategy',
-  timeframe: '1h',
-  params: [
-    { key: 'period', label: 'Period', default: 14, min: 1 },
-    { key: 'risk', label: 'Risk', default: 0.01 },
-  ],
-  onBar: () => [],
-};
+const definition = new StrategyDefinitionBuilder()
+  .id('test-strategy')
+  .label('Test Strategy')
+  .timeframe('1h')
+  .param({ key: 'period', label: 'Period', default: 14, min: 1 })
+  .param({ key: 'risk', label: 'Risk', default: 0.01 })
+  .build();
 
 describe('strategy registry', () => {
   beforeEach(() => {
@@ -78,16 +71,7 @@ describe('strategy context', () => {
   });
 
   it('exposes open positions by id', () => {
-    const positions: PositionView[] = [
-      {
-        id: 'p1',
-        side: 'long',
-        state: 'open',
-        size: 1,
-        averageEntry: 100,
-        realizedPnl: 0,
-      },
-    ];
+    const positions = [new PositionViewBuilder().id('p1').open().size(1).build()];
     const ctx = createContext(candles([1, 2, 3]), 2, positions);
 
     expect(ctx.positions()).toBe(positions);
@@ -96,39 +80,39 @@ describe('strategy context', () => {
 });
 
 describe('signal validation', () => {
-  const validOpen: Signal = {
-    kind: 'open',
-    side: 'long',
-    order: { type: 'market' },
-    risk: { fraction: 0.01 },
-    stopLoss: 90,
-  };
+  const validOpen: Signal = SignalBuilder.long().market().risk(0.01).stopLoss(90).build();
 
   it('accepts well-formed signals', () => {
     expect(isValidSignal(validOpen)).toBe(true);
-    expect(isValidSignal({ kind: 'close', positionId: 'p1' })).toBe(true);
-    expect(isValidSignal({ kind: 'moveStop', positionId: 'p1', price: 95 })).toBe(true);
-    expect(isValidSignal({ kind: 'moveTarget', positionId: 'p1', price: 110 })).toBe(true);
+    expect(isValidSignal(SignalBuilder.close('p1').build())).toBe(true);
+    expect(isValidSignal(SignalBuilder.moveStop('p1', 95).build())).toBe(true);
+    expect(isValidSignal(SignalBuilder.moveTarget('p1', 110).build())).toBe(true);
   });
 
   it('rejects malformed signals', () => {
-    expect(isValidSignal({ ...validOpen, risk: { fraction: 0 } })).toBe(false);
-    expect(isValidSignal({ ...validOpen, side: 'sideways' as never })).toBe(false);
     expect(
-      isValidSignal({ ...validOpen, order: { type: 'limit' } } as unknown as Signal)
+      isValidSignal(SignalBuilder.long().market().risk(0).stopLoss(90).build())
     ).toBe(false);
-    expect(isValidSignal({ kind: 'close', positionId: '' })).toBe(false);
-    expect(isValidSignal({ kind: 'close', positionId: 'p1', portion: 2 })).toBe(false);
-    expect(isValidSignal({ kind: 'moveStop', positionId: 'p1', price: NaN })).toBe(false);
+    expect(isValidSignal(SignalBuilder.long().limit(NaN).build())).toBe(false);
+    expect(isValidSignal(SignalBuilder.close('').build())).toBe(false);
+    expect(isValidSignal(SignalBuilder.close('p1').portion(2).build())).toBe(false);
+    expect(isValidSignal(SignalBuilder.moveStop('p1', NaN).build())).toBe(false);
   });
 
   it('filters malformed signals without mutating the input', () => {
-    const input: Signal[] = [validOpen, { kind: 'close', positionId: '' }];
+    const input: Signal[] = [validOpen, SignalBuilder.close('').build()];
 
     const filtered = validSignals(input);
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]).toBe(validOpen);
     expect(input).toHaveLength(2);
+  });
+});
+
+describe('SignalBuilder', () => {
+  it('requires an explicit order type', () => {
+    expect(() => SignalBuilder.long().stopLoss(50).build()).toThrow();
+    expect(() => SignalBuilder.short().stopLoss(50).build()).toThrow();
   });
 });

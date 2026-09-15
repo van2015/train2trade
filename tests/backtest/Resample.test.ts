@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { PriceData } from '../../src/types/asset';
 import { resample } from '../../src/backtest/Resample';
+import { PriceSeriesBuilder } from '../test-helpers/priceSeriesBuilder';
 
 function bar(
   date: string,
@@ -10,19 +11,32 @@ function bar(
   close: number,
   volume: number
 ): PriceData {
-  return { date, open, high, low, close, volume };
+  return new PriceSeriesBuilder()
+    .at(date)
+    .open(open)
+    .high(high)
+    .low(low)
+    .close(close)
+    .volume(volume)
+    .build()[0];
 }
 
 function minuteSeries(count: number, startMinute = 0): PriceData[] {
-  const bars: PriceData[] = [];
+  const builder = new PriceSeriesBuilder();
   for (let i = 0; i < count; i++) {
     const minute = startMinute + i;
     const hh = String(Math.floor(minute / 60)).padStart(2, '0');
     const mm = String(minute % 60).padStart(2, '0');
     const price = 100 + i;
-    bars.push(bar(`2024-01-01T${hh}:${mm}:00Z`, price, price + 2, price - 1, price + 1, 10));
+    builder
+      .at(`2024-01-01T${hh}:${mm}:00Z`)
+      .open(price)
+      .high(price + 2)
+      .low(price - 1)
+      .close(price + 1)
+      .volume(10);
   }
-  return bars;
+  return builder.build();
 }
 
 describe('resample', () => {

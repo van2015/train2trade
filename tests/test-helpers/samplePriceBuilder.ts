@@ -18,6 +18,15 @@ interface SamplePriceConfig {
   close?: number;
 }
 
+interface CustomCandle {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
 export class SamplePriceBuilder {
   private config: SamplePriceConfig = {
     type: 'green',
@@ -29,7 +38,53 @@ export class SamplePriceBuilder {
     volume: 1000,
   };
 
+  private customCandles: CustomCandle[] = [];
+
   constructor() {}
+
+  static fromCloses(
+    closes: number[],
+    options: {
+      opens?: number[];
+      volumes?: number[];
+      startDate?: string;
+      timeframe?: Timeframe;
+    } = {}
+  ): PriceData[] {
+    const startDate = options.startDate ?? '2024-01-01T00:00:00Z';
+    const builder = new SamplePriceBuilder()
+      .timeframe(options.timeframe ?? '1m')
+      .startDate(startDate);
+    const timeframeMinutes = builder.getTimeframeMinutes();
+    const startTime = new Date(startDate).getTime();
+
+    closes.forEach((close, index) => {
+      const open = options.opens?.[index] ?? close;
+      const date = new Date(startTime + index * timeframeMinutes * 60 * 1000);
+      builder.add(
+        builder.formatDate(date),
+        open,
+        Math.max(open, close),
+        Math.min(open, close),
+        close,
+        options.volumes?.[index] ?? 1
+      );
+    });
+
+    return builder.buildSeries();
+  }
+
+  add(
+    date: string,
+    open: number,
+    high: number,
+    low: number,
+    close: number,
+    volume?: number
+  ): this {
+    this.customCandles.push({ date, open, high, low, close, volume });
+    return this;
+  }
 
   green(percent: number = 2): this {
     this.config.type = 'green';
@@ -117,6 +172,17 @@ export class SamplePriceBuilder {
   }
 
   buildSeries(): PriceData[] {
+    if (this.customCandles.length > 0) {
+      return this.customCandles.map(candle => ({
+        date: candle.date,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: candle.volume ?? this.config.volume,
+      }));
+    }
+
     const tfMinutes = this.getTimeframeMinutes();
     const startTime = new Date(this.config.startDate).getTime();
     const candles: PriceData[] = [];

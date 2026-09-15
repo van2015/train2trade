@@ -1,18 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { PlatformConfig } from '../../src/types/backtest';
 import { Broker } from '../../src/backtest/Broker';
+import { PlatformConfigBuilder } from '../test-helpers/platformConfigBuilder';
 
-const config: PlatformConfig = {
-  contractSize: 1,
-  minLot: 0.1,
-  lotStep: 0.1,
-  tickSize: 0.1,
-  leverage: 100,
-  commissionPerLot: 5,
-  spread: 0.2,
-  slippage: 0.1,
-  stopOutLevel: 0.5,
-};
+const config = new PlatformConfigBuilder()
+  .withContractSize(1)
+  .withMinLot(0.1)
+  .withLotStep(0.1)
+  .withTickSize(0.1)
+  .withLeverage(100)
+  .withCommissionPerLot(5)
+  .withSpread(0.2)
+  .withSlippage(0.1)
+  .withStopOutLevel(0.5)
+  .build();
 
 function broker(): Broker {
   return new Broker(config, 10000);
