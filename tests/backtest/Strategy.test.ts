@@ -1,18 +1,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Signal } from '../../src/types/backtest';
+import { TradeSpec } from '../../src/types/backtest';
 import {
   clearStrategies,
   createContext,
   getStrategy,
-  isValidSignal,
+  isValidTradeSpec,
   registerStrategy,
   resolveStrategy,
-  validSignals,
+  validTradeSpecs,
 } from '../../src/backtest/Strategy';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 import { StrategyDefinitionBuilder } from '../test-helpers/strategyDefinitionBuilder';
-import { PositionViewBuilder } from '../test-helpers/positionViewBuilder';
-import { SignalBuilder } from '../test-helpers/signalBuilder';
+import { TradeViewBuilder } from '../test-helpers/tradeViewBuilder';
+import { TradeBuilder } from '../test-helpers/tradeBuilder';
 
 function candles(closes: number[]) {
   return SamplePriceBuilder.fromCloses(closes);
@@ -70,53 +70,82 @@ describe('strategy context', () => {
     expect(sma.values).toEqual([undefined, 1.5, 2.5]);
   });
 
-  it('exposes open positions by id', () => {
-    const positions = [new PositionViewBuilder().id('p1').open().size(1).build()];
-    const ctx = createContext(candles([1, 2, 3]), 2, positions);
+  it('exposes open trades by id', () => {
+    const trades = [new TradeViewBuilder().id('p1').open().size(1).build()];
+    const ctx = createContext(candles([1, 2, 3]), 2, trades);
 
-    expect(ctx.positions()).toBe(positions);
-    expect(ctx.positions()[0].id).toBe('p1');
+    expect(ctx.trades()).toBe(trades);
+    expect(ctx.trades()[0].id).toBe('p1');
   });
 });
 
-describe('signal validation', () => {
-  const validOpen: Signal = new SignalBuilder().long().market().risk(0.01).stopLoss(90).build();
+describe('trade spec validation', () => {
+  const validLong: TradeSpec = new TradeBuilder().long().market().risk(0.01).stopLoss(90).build();
 
-  it('accepts well-formed signals', () => {
-    expect(isValidSignal(validOpen)).toBe(true);
-    expect(isValidSignal(new SignalBuilder().close('p1').build())).toBe(true);
-    expect(isValidSignal(new SignalBuilder().moveStop('p1', 95).build())).toBe(true);
-    expect(isValidSignal(new SignalBuilder().moveTarget('p1', 110).build())).toBe(true);
-  });
-
-  it('rejects malformed signals', () => {
+  it('accepts well-formed trade specs', () => {
+    expect(isValidTradeSpec(validLong)).toBe(true);
+    expect(isValidTradeSpec(new TradeBuilder().short().limit(100).risk(0.02).build())).toBe(true);
     expect(
-      isValidSignal(new SignalBuilder().long().market().risk(0).stopLoss(90).build())
-    ).toBe(false);
-    expect(isValidSignal(new SignalBuilder().long().limit(NaN).build())).toBe(false);
-    expect(isValidSignal(new SignalBuilder().close('').build())).toBe(false);
-    expect(isValidSignal(new SignalBuilder().close('p1').portion(2).build())).toBe(false);
-    expect(isValidSignal(new SignalBuilder().moveStop('p1', NaN).build())).toBe(false);
+      isValidTradeSpec(
+        new TradeBuilder()
+          .long()
+          .market()
+          .stopLoss(90)
+          .trailingStop(20)
+          .breakEvenAtR(1)
+          .partialTakeProfit(0.5, 1.5)
+          .closeWhen(() => true)
+          .build()
+      )
+    ).toBe(true);
   });
 
-  it('filters malformed signals without mutating the input', () => {
-    const input: Signal[] = [validOpen, new SignalBuilder().close('').build()];
+  it('rejects a trade spec with a non-positive risk', () => {
+    expect(
+      isValidTradeSpec(new TradeBuilder().long().market().risk(0).stopLoss(90).build())
+    ).toBe(false);
+  });
 
-    const filtered = validSignals(input);
+  it('rejects a limit order without a price', () => {
+    expect(isValidTradeSpec(new TradeBuilder().short().limit(NaN).build())).toBe(false);
+  });
+
+  it('rejects a trailing stop with a non-positive distance', () => {
+    expect(
+      isValidTradeSpec(new TradeBuilder().long().market().trailingStop(0).build())
+    ).toBe(false);
+  });
+
+  it('rejects a partial take profit with an out-of-range portion', () => {
+    expect(
+      isValidTradeSpec(new TradeBuilder().long().market().partialTakeProfit(2, 1).build())
+    ).toBe(false);
+  });
+
+  it('rejects a close rule without a predicate', () => {
+    const spec = new TradeBuilder().long().market().build();
+    const malformed = { ...spec, rules: [{ kind: 'closeWhen' }] } as unknown as TradeSpec;
+
+    expect(isValidTradeSpec(malformed)).toBe(false);
+  });
+
+  it('filters malformed trade specs without mutating the input', () => {
+    const input: TradeSpec[] = [validLong, new TradeBuilder().long().market().risk(0).build()];
+
+    const filtered = validTradeSpecs(input);
 
     expect(filtered).toHaveLength(1);
-    expect(filtered[0]).toBe(validOpen);
+    expect(filtered[0]).toBe(validLong);
     expect(input).toHaveLength(2);
   });
 });
 
-describe('SignalBuilder', () => {
-  it('requires a signal kind', () => {
-    expect(() => new SignalBuilder().build()).toThrow();
+describe('TradeBuilder', () => {
+  it('requires a side', () => {
+    expect(() => new TradeBuilder().market().build()).toThrow();
   });
 
-  it('requires an explicit order type', () => {
-    expect(() => new SignalBuilder().long().stopLoss(50).build()).toThrow();
-    expect(() => new SignalBuilder().short().stopLoss(50).build()).toThrow();
+  it('requires an order type', () => {
+    expect(() => new TradeBuilder().long().build()).toThrow();
   });
 });

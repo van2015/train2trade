@@ -1,8 +1,8 @@
 import {
-  Signal,
   StrategyContext,
   StrategyDefinition,
   StrategyParameterSpec,
+  TradeSpec,
 } from '../../src/types/backtest';
 import { Timeframe } from '../../src/timeframe/Timeframe';
 
@@ -35,7 +35,7 @@ export class StrategyDefinitionBuilder {
     return this;
   }
 
-  onBar(handler: (ctx: StrategyContext, params: Record<string, number>) => Signal[]): this {
+  onBar(handler: (ctx: StrategyContext, params: Record<string, number>) => TradeSpec[]): this {
     this.config.onBar = handler;
     return this;
   }

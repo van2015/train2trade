@@ -1,15 +1,12 @@
 import { IndicatorId, PriceData } from '../types/asset';
 import {
-  CloseSignal,
-  MoveStopSignal,
-  MoveTargetSignal,
-  OpenSignal,
   PriceSeriesName,
-  PositionView,
   ResolvedStrategy,
-  Signal,
   StrategyContext,
   StrategyDefinition,
+  TradeRule,
+  TradeSpec,
+  TradeView,
 } from '../types/backtest';
 import { computeSeries } from '../services/IndicatorService';
 
@@ -56,7 +53,7 @@ export function resolveStrategy(
 export function createContext(
   candles: PriceData[],
   index: number,
-  positions: readonly PositionView[] = []
+  trades: readonly TradeView[] = []
 ): StrategyContext {
   const upTo = candles.slice(0, index + 1);
   return {
@@ -66,7 +63,7 @@ export function createContext(
     series: (name: PriceSeriesName) => upTo.map(candle => candle[name]),
     indicator: (indicatorId: IndicatorId, params: Record<string, number> = {}) =>
       computeSeries({ key: 'ctx', indicatorId, params }, upTo),
-    positions: () => positions,
+    trades: () => trades,
   };
 }
 
@@ -74,58 +71,48 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-export function isValidSignal(signal: Signal): boolean {
-  if (!signal || typeof signal !== 'object') return false;
+function isValidRule(rule: TradeRule): boolean {
+  if (!rule || typeof rule !== 'object') return false;
 
-  switch (signal.kind) {
-    case 'open': {
-      const candidate = signal as OpenSignal;
-      if (candidate.side !== 'long' && candidate.side !== 'short') return false;
-      if (
-        !candidate.order ||
-        (candidate.order.type !== 'market' &&
-          candidate.order.type !== 'limit' &&
-          candidate.order.type !== 'stop')
-      ) {
-        return false;
-      }
-      if (candidate.order.type !== 'market' && !isFiniteNumber(candidate.order.price)) {
-        return false;
-      }
-      if (!candidate.risk || !isFiniteNumber(candidate.risk.fraction) || candidate.risk.fraction <= 0) {
-        return false;
-      }
-      if (candidate.stopLoss !== undefined && !isFiniteNumber(candidate.stopLoss)) return false;
-      if (candidate.takeProfit !== undefined && !isFiniteNumber(candidate.takeProfit)) return false;
-      return true;
-    }
-    case 'close': {
-      const candidate = signal as CloseSignal;
-      if (typeof candidate.positionId !== 'string' || candidate.positionId.length === 0) {
-        return false;
-      }
-      if (
-        candidate.portion !== undefined &&
-        (!isFiniteNumber(candidate.portion) || candidate.portion <= 0 || candidate.portion > 1)
-      ) {
-        return false;
-      }
-      return true;
-    }
-    case 'moveStop':
-    case 'moveTarget': {
-      const candidate = signal as MoveStopSignal | MoveTargetSignal;
-      if (typeof candidate.positionId !== 'string' || candidate.positionId.length === 0) {
-        return false;
-      }
-      if (!isFiniteNumber(candidate.price)) return false;
-      return true;
-    }
+  switch (rule.kind) {
+    case 'trailingStop':
+      return isFiniteNumber(rule.distance) && rule.distance > 0;
+    case 'breakEvenAtR':
+      return isFiniteNumber(rule.rMultiple) && rule.rMultiple > 0;
+    case 'partialTakeProfit':
+      return (
+        isFiniteNumber(rule.portion) &&
+        rule.portion > 0 &&
+        rule.portion <= 1 &&
+        isFiniteNumber(rule.rMultiple) &&
+        rule.rMultiple > 0
+      );
+    case 'closeWhen':
+      return typeof rule.predicate === 'function';
     default:
       return false;
   }
 }
 
-export function validSignals(signals: Signal[]): Signal[] {
-  return signals.filter(isValidSignal);
+export function isValidTradeSpec(spec: TradeSpec): boolean {
+  if (!spec || typeof spec !== 'object') return false;
+  if (spec.side !== 'long' && spec.side !== 'short') return false;
+  if (
+    !spec.order ||
+    (spec.order.type !== 'market' &&
+      spec.order.type !== 'limit' &&
+      spec.order.type !== 'stop')
+  ) {
+    return false;
+  }
+  if (spec.order.type !== 'market' && !isFiniteNumber(spec.order.price)) return false;
+  if (!spec.risk || !isFiniteNumber(spec.risk.fraction) || spec.risk.fraction <= 0) return false;
+  if (spec.stopLoss !== undefined && !isFiniteNumber(spec.stopLoss)) return false;
+  if (spec.takeProfit !== undefined && !isFiniteNumber(spec.takeProfit)) return false;
+  if (!Array.isArray(spec.rules) || !spec.rules.every(isValidRule)) return false;
+  return true;
+}
+
+export function validTradeSpecs(specs: TradeSpec[]): TradeSpec[] {
+  return specs.filter(isValidTradeSpec);
 }

@@ -21,7 +21,7 @@ export interface ResampleResult {
 
 export type Side = 'long' | 'short';
 
-export type PositionState = 'pending' | 'open' | 'closed';
+export type TradeState = 'pending' | 'open' | 'closed';
 
 export interface Fill {
   size: number;
@@ -29,10 +29,10 @@ export interface Fill {
   time?: number;
 }
 
-export interface PositionView {
+export interface TradeView {
   id: string;
   side: Side;
-  state: PositionState;
+  state: TradeState;
   size: number;
   averageEntry: number;
   stopLoss?: number;
@@ -54,35 +54,21 @@ export interface RiskSpec {
   fraction: number;
 }
 
-export interface OpenSignal {
-  kind: 'open';
+export type TradeRule =
+  | { kind: 'trailingStop'; distance: number }
+  | { kind: 'breakEvenAtR'; rMultiple: number }
+  | { kind: 'partialTakeProfit'; portion: number; rMultiple: number }
+  | { kind: 'closeWhen'; predicate: TradePredicate };
+
+export interface TradeSpec {
   side: Side;
   order: OrderSpec;
   risk: RiskSpec;
   stopLoss?: number;
   takeProfit?: number;
   tag?: string;
+  rules: TradeRule[];
 }
-
-export interface CloseSignal {
-  kind: 'close';
-  positionId: string;
-  portion?: number;
-}
-
-export interface MoveStopSignal {
-  kind: 'moveStop';
-  positionId: string;
-  price: number;
-}
-
-export interface MoveTargetSignal {
-  kind: 'moveTarget';
-  positionId: string;
-  price: number;
-}
-
-export type Signal = OpenSignal | CloseSignal | MoveStopSignal | MoveTargetSignal;
 
 export interface StrategyContext {
   readonly index: number;
@@ -90,8 +76,10 @@ export interface StrategyContext {
   candle(): PriceData;
   series(name: PriceSeriesName): (number | undefined)[];
   indicator(indicatorId: IndicatorId, params?: Record<string, number>): IndicatorSeries[];
-  positions(): readonly PositionView[];
+  trades(): readonly TradeView[];
 }
+
+export type TradePredicate = (trade: TradeView, ctx: StrategyContext) => boolean;
 
 export interface StrategyParameterSpec {
   key: string;
@@ -105,7 +93,7 @@ export interface StrategyDefinition {
   label: string;
   timeframe: Timeframe;
   params: StrategyParameterSpec[];
-  onBar: (ctx: StrategyContext, params: Record<string, number>) => Signal[];
+  onBar: (ctx: StrategyContext, params: Record<string, number>) => TradeSpec[];
 }
 
 export interface ResolvedStrategy {

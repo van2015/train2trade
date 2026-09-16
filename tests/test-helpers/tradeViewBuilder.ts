@@ -1,8 +1,8 @@
-import { PositionState, PositionView, Side } from '../../src/types/backtest';
+import { TradeState, TradeView, Side } from '../../src/types/backtest';
 
-export class PositionViewBuilder {
-  private config: PositionView = {
-    id: 'position-1',
+export class TradeViewBuilder {
+  private config: TradeView = {
+    id: 'trade-1',
     side: 'long',
     state: 'open',
     size: 1,
@@ -20,7 +20,7 @@ export class PositionViewBuilder {
     return this;
   }
 
-  state(state: PositionState): this {
+  state(state: TradeState): this {
     this.config.state = state;
     return this;
   }
@@ -67,7 +67,7 @@ export class PositionViewBuilder {
     return this;
   }
 
-  build(): PositionView {
+  build(): TradeView {
     return { ...this.config };
   }
 }

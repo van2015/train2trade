@@ -1,14 +1,14 @@
-import { Fill, PositionState, PositionView, Side } from '../types/backtest';
+import { Fill, TradeState, TradeView, Side } from '../types/backtest';
 
 function directionFactor(side: Side): number {
   return side === 'long' ? 1 : -1;
 }
 
-export class Position {
+export class Trade {
   readonly id: string;
   readonly side: Side;
 
-  private _state: PositionState = 'pending';
+  private _state: TradeState = 'pending';
   private _size = 0;
   private _averageEntry = 0;
   private _stopLoss?: number;
@@ -24,7 +24,7 @@ export class Position {
     this.side = side;
   }
 
-  get state(): PositionState {
+  get state(): TradeState {
     return this._state;
   }
 
@@ -56,15 +56,22 @@ export class Position {
     return this._fills;
   }
 
-  get rMultiple(): number | undefined {
-    if (this._initialStopLoss === undefined || this._initialAverageEntry === undefined) {
-      return undefined;
-    }
-    if (this._initialSize === undefined || this._initialSize === 0) {
+  get riskAmount(): number | undefined {
+    if (
+      this._initialStopLoss === undefined ||
+      this._initialAverageEntry === undefined ||
+      this._initialSize === undefined ||
+      this._initialSize === 0
+    ) {
       return undefined;
     }
     const risk = Math.abs(this._initialAverageEntry - this._initialStopLoss) * this._initialSize;
-    if (risk === 0) return undefined;
+    return risk === 0 ? undefined : risk;
+  }
+
+  get rMultiple(): number | undefined {
+    const risk = this.riskAmount;
+    if (risk === undefined) return undefined;
     return this._realizedPnl / risk;
   }
 
@@ -124,7 +131,7 @@ export class Position {
     this._state = 'closed';
   }
 
-  toView(): PositionView {
+  toView(): TradeView {
     return {
       id: this.id,
       side: this.side,
@@ -144,7 +151,7 @@ export class Position {
 
   private assertNotClosed(): void {
     if (this._state === 'closed') {
-      throw new Error(`Position ${this.id} is closed and cannot be modified`);
+      throw new Error(`Trade ${this.id} is closed and cannot be modified`);
     }
   }
 }
