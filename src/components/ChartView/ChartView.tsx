@@ -1,15 +1,14 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAppPresenter } from '../../hooks/useAppPresenter';
-import { ChartType } from '../../types/asset';
-import { IndicatorPlot, PriceData } from '../../types/asset';
+import { ChartType, IndicatorPlot, PriceData } from '../../shared/types/asset';
 import { ChartTypeSelector } from '../ChartTypeSelector/ChartTypeSelector';
 import { TimeframeSelector } from '../TimeframeSelector/TimeframeSelector';
 import { IndicatorSelector } from '../IndicatorSelector/IndicatorSelector';
-import { getChartThemeColors } from '../../utils/chartTheme';
-import { compute, getDefinition } from '../../services/IndicatorService';
-import { Interval } from '../../utils/Interval';
-import { createTimeLabelFormatter } from '../../utils/timeLabel';
-import { Timeframe as TimeframeType } from '../../timeframe/Timeframe';
+import { getChartThemeColors } from '../../shared/utils/chartTheme';
+import { compute, getDefinition } from '../../shared/indicators/IndicatorService';
+import { Interval } from '../../shared/utils/Interval';
+import { createTimeLabelFormatter } from '../../shared/utils/timeLabel';
+import { Timeframe as TimeframeType } from '../../shared/timeframe/Timeframe';
 import { createChart, IChartApi, IPaneApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData, LineSeries, CandlestickSeries, BarSeries, HistogramSeries } from 'lightweight-charts';
 
 function parseTime(dateStr: string): Time {

@@ -1,27 +1,19 @@
 import {
   AssetSummary,
   ChartType,
-  IndicatorId,
   IndicatorInstance,
   PriceData,
-} from '../types/asset';
-import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
-import { validateAndParse } from '../services/ValidationService';
-import { AssetService } from '../services/AssetService';
+  Timeframe as TimeframeType,
+} from '../shared/types/asset';
+import { validateAndParse } from '../shared/services/ValidationService';
+import { AssetService } from '../shared/services/AssetService';
 import { PriceRetrievalStrategy, RangeStrategy } from '../services/PriceRetrievalStrategy';
-import {
-  createIndicatorInstance,
-  getDefinition,
-  maxLookback,
-  normalizeParams,
-} from '../services/IndicatorService';
-import { Interval } from '../utils/Interval';
-
-const TIMEFRAME_STORAGE_KEY = 'selectedTimeframe';
-const INDICATORS_STORAGE_KEY = 'activeIndicators';
+import { Interval } from '../shared/utils/Interval';
+import { ChartPresenter, ChartState } from '../chart/presenters/ChartPresenter';
 
 export interface AppState {
   selectedAssetId: string | null;
+  chartState: ChartState;
   chartType: ChartType;
   selectedTimeframe: TimeframeType;
   activeIndicators: IndicatorInstance[];
@@ -34,23 +26,44 @@ class AppPresenter {
 
   private assetService = AssetService.getInstance();
   private strategy: PriceRetrievalStrategy = new RangeStrategy(1.0);
+  private chartPresenter: ChartPresenter;
   private initPromise: Promise<void>;
   private assets: AssetSummary[] = [];
   private selectedAssetId: string | null = null;
   private currentRange: Interval | null = null;
   private loadedRange: Interval | null = null;
   private lastSampleTime: number | null = null;
-  private chartType: ChartType = 'line';
-  private selectedTimeframe: TimeframeType = '1D';
-  private activeIndicators: IndicatorInstance[] = [];
   private error: string | null = null;
   private warnings: string[] = [];
   private listeners: Set<(state: AppState) => void> = new Set();
 
+  get activeIndicators(): IndicatorInstance[] {
+    return this.chartPresenter.getActiveIndicators();
+  }
+
+  set activeIndicators(value: IndicatorInstance[]) {
+    this.chartPresenter.setActiveIndicators(value);
+  }
+
+  get selectedTimeframe(): TimeframeType {
+    return this.chartPresenter.getState().selectedTimeframe;
+  }
+
+  set selectedTimeframe(value: TimeframeType) {
+    this.chartPresenter.changeTimeframe(value);
+  }
+
+  loadIndicatorsFromStorage(): void {
+    this.chartPresenter = new ChartPresenter({
+      onStateChange: () => this.notify(),
+    });
+  }
+
   private constructor() {
     this.initPromise = this.assetService.init();
-    this.loadTimeframeFromStorage();
-    this.loadIndicatorsFromStorage();
+    this.chartPresenter = new ChartPresenter({
+      onStateChange: () => this.notify(),
+    });
   }
 
   static getInstance(): AppPresenter {
@@ -58,64 +71,6 @@ class AppPresenter {
       AppPresenter.instance = new AppPresenter();
     }
     return AppPresenter.instance;
-  }
-
-  private loadTimeframeFromStorage(): void {
-    try {
-      const stored = localStorage.getItem(TIMEFRAME_STORAGE_KEY);
-      if (stored && Timeframe.isValid(stored)) {
-        this.selectedTimeframe = stored as TimeframeType;
-      }
-    } catch {
-      this.selectedTimeframe = '1D';
-    }
-  }
-
-  private saveTimeframeToStorage(): void {
-    try {
-      localStorage.setItem(TIMEFRAME_STORAGE_KEY, this.selectedTimeframe);
-    } catch {
-    }
-  }
-
-  private loadIndicatorsFromStorage(): void {
-    try {
-      const stored = localStorage.getItem(INDICATORS_STORAGE_KEY);
-      if (!stored) return;
-      const parsed = JSON.parse(stored);
-      if (!Array.isArray(parsed)) return;
-      this.activeIndicators = parsed
-        .map(raw => this.sanitizeIndicator(raw))
-        .filter((indicator): indicator is IndicatorInstance => indicator !== null);
-    } catch {
-      this.activeIndicators = [];
-    }
-  }
-
-  private sanitizeIndicator(raw: unknown): IndicatorInstance | null {
-    if (!raw || typeof raw !== 'object') return null;
-    const candidate = raw as Partial<IndicatorInstance>;
-    if (typeof candidate.key !== 'string' || candidate.key.length === 0) return null;
-    if (typeof candidate.indicatorId !== 'string') return null;
-    const definition = getDefinition(candidate.indicatorId as IndicatorId);
-    if (!definition) return null;
-    const params = normalizeParams(
-      definition,
-      (candidate.params ?? {}) as Record<string, number>
-    );
-    return {
-      key: candidate.key,
-      indicatorId: definition.id,
-      params,
-      color: typeof candidate.color === 'string' ? candidate.color : undefined,
-    };
-  }
-
-  private saveIndicatorsToStorage(): void {
-    try {
-      localStorage.setItem(INDICATORS_STORAGE_KEY, JSON.stringify(this.activeIndicators));
-    } catch {
-    }
   }
 
   subscribe(fn: (state: AppState) => void): () => void {
@@ -132,11 +87,13 @@ class AppPresenter {
   }
 
   getState(): AppState {
+    const chartState = this.chartPresenter.getState();
     return {
       selectedAssetId: this.selectedAssetId,
-      chartType: this.chartType,
-      selectedTimeframe: this.selectedTimeframe,
-      activeIndicators: this.activeIndicators,
+      chartState,
+      chartType: chartState.chartType,
+      selectedTimeframe: chartState.selectedTimeframe,
+      activeIndicators: chartState.activeIndicators,
       error: this.error,
       warnings: this.warnings,
     };
@@ -144,6 +101,10 @@ class AppPresenter {
 
   getAssetList(): AssetSummary[] {
     return this.assets;
+  }
+
+  getChartPresenter(): ChartPresenter {
+    return this.chartPresenter;
   }
 
   async init(): Promise<void> {
@@ -208,7 +169,7 @@ class AppPresenter {
   async requestRange(assetId: string, interval: Interval): Promise<void> {
     try {
       this.currentRange = interval;
-      const warmupMs = maxLookback(this.activeIndicators, this.selectedTimeframe);
+      const warmupMs = this.chartPresenter.getMaxLookback();
       const resolved = await this.strategy.getRange(assetId, interval, warmupMs);
       let from = resolved.from;
       let to = resolved.to;
@@ -243,61 +204,37 @@ class AppPresenter {
     }
   }
 
-  changeChartType(type: ChartType): void {
-    this.chartType = type;
-    this.notify();
+  changeChartType(type: import('../shared/types/asset').ChartType): void {
+    this.chartPresenter.changeChartType(type);
   }
 
   changeTimeframe(tf: TimeframeType): void {
-    this.selectedTimeframe = tf;
-    this.saveTimeframeToStorage();
-    this.notify();
+    this.chartPresenter.changeTimeframe(tf);
     if (
       this.selectedAssetId &&
       this.currentRange &&
-      !this.hasCompleteData(this.currentRange)
+      !this.chartPresenter.hasCompleteData(this.loadedRange, this.currentRange, this.lastSampleTime)
     ) {
       void this.requestRange(this.selectedAssetId, this.currentRange);
     }
   }
 
-  getActiveIndicators(): IndicatorInstance[] {
-    return this.activeIndicators;
+  getActiveIndicators(): import('../shared/types/asset').IndicatorInstance[] {
+    return this.chartPresenter.getActiveIndicators();
   }
 
-  addIndicator(id: IndicatorId): Promise<void> {
-    const instance = createIndicatorInstance(id);
-    if (!instance) return Promise.resolve();
-    this.activeIndicators = [...this.activeIndicators, instance];
-    this.saveIndicatorsToStorage();
-    this.notify();
+  addIndicator(id: import('../shared/types/asset').IndicatorId): Promise<void> {
+    this.chartPresenter.addIndicator(id);
     return this.refreshRange();
   }
 
   removeIndicator(key: string): Promise<void> {
-    const next = this.activeIndicators.filter(indicator => indicator.key !== key);
-    if (next.length === this.activeIndicators.length) return Promise.resolve();
-    this.activeIndicators = next;
-    this.saveIndicatorsToStorage();
-    this.notify();
+    this.chartPresenter.removeIndicator(key);
     return this.refreshRange();
   }
 
   updateIndicator(key: string, params: Record<string, number>): Promise<void> {
-    let changed = false;
-    this.activeIndicators = this.activeIndicators.map(indicator => {
-      if (indicator.key !== key) return indicator;
-      const definition = getDefinition(indicator.indicatorId);
-      if (!definition) return indicator;
-      changed = true;
-      return {
-        ...indicator,
-        params: normalizeParams(definition, { ...indicator.params, ...params }),
-      };
-    });
-    if (!changed) return Promise.resolve();
-    this.saveIndicatorsToStorage();
-    this.notify();
+    this.chartPresenter.updateIndicator(key, params);
     return this.refreshRange();
   }
 
@@ -311,14 +248,7 @@ class AppPresenter {
   }
 
   hasCompleteData(interval: Interval): boolean {
-    if (!this.loadedRange) return false;
-    const warmupMs = maxLookback(this.activeIndicators, this.selectedTimeframe);
-    const requiredTo =
-      this.lastSampleTime !== null
-        ? Math.min(interval.to, this.lastSampleTime)
-        : interval.to;
-    const required = new Interval(interval.from - warmupMs, requiredTo);
-    return this.loadedRange.contains(required);
+    return this.chartPresenter.hasCompleteData(this.loadedRange, interval, this.lastSampleTime);
   }
 
   priceSample(assetId: string, timeframe: TimeframeType): PriceData[] | null {
