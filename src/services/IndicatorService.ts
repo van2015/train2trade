@@ -24,145 +24,147 @@ const COLORS = {
   volume: '#90A4AE',
 };
 
-function toTime(date: string): number {
-  return Math.floor(new Date(date).getTime() / 1000);
-}
-
-function sma(values: number[], period: number): Values {
-  const result: Values = new Array(values.length).fill(undefined);
-  if (period <= 0) return result;
-
-  let sum = 0;
-  for (let i = 0; i < values.length; i++) {
-    sum += values[i];
-    if (i >= period) sum -= values[i - period];
-    if (i >= period - 1) result[i] = sum / period;
+export class IndicatorCalculator {
+  private toTime(date: string): number {
+    return Math.floor(new Date(date).getTime() / 1000);
   }
-  return result;
-}
 
-function ema(values: number[], period: number): Values {
-  const result: Values = new Array(values.length).fill(undefined);
-  if (period <= 0 || values.length < period) return result;
+  sma(values: number[], period: number): Values {
+    const result: Values = new Array(values.length).fill(undefined);
+    if (period <= 0) return result;
 
-  const alpha = 2 / (period + 1);
-  let previous = 0;
-  for (let i = 0; i < period; i++) previous += values[i];
-  previous /= period;
-  result[period - 1] = previous;
-
-  for (let i = period; i < values.length; i++) {
-    previous = values[i] * alpha + previous * (1 - alpha);
-    result[i] = previous;
-  }
-  return result;
-}
-
-function bollinger(
-  values: number[],
-  period: number,
-  stdDev: number
-): { middle: Values; upper: Values; lower: Values } {
-  const middle = sma(values, period);
-  const upper: Values = new Array(values.length).fill(undefined);
-  const lower: Values = new Array(values.length).fill(undefined);
-
-  if (period <= 0) return { middle, upper, lower };
-
-  for (let i = period - 1; i < values.length; i++) {
-    const mean = middle[i];
-    if (mean === undefined) continue;
-    let sumSquares = 0;
-    for (let j = i - period + 1; j <= i; j++) {
-      sumSquares += (values[j] - mean) ** 2;
+    let sum = 0;
+    for (let i = 0; i < values.length; i++) {
+      sum += values[i];
+      if (i >= period) sum -= values[i - period];
+      if (i >= period - 1) result[i] = sum / period;
     }
-    const deviation = Math.sqrt(sumSquares / period);
-    upper[i] = mean + stdDev * deviation;
-    lower[i] = mean - stdDev * deviation;
+    return result;
   }
 
-  return { middle, upper, lower };
-}
+  ema(values: number[], period: number): Values {
+    const result: Values = new Array(values.length).fill(undefined);
+    if (period <= 0 || values.length < period) return result;
 
-function rsiValue(avgGain: number, avgLoss: number): number {
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  return 100 - 100 / (1 + rs);
-}
+    const alpha = 2 / (period + 1);
+    let previous = 0;
+    for (let i = 0; i < period; i++) previous += values[i];
+    previous /= period;
+    result[period - 1] = previous;
 
-function rsi(values: number[], period: number): Values {
-  const result: Values = new Array(values.length).fill(undefined);
-  if (period <= 0 || values.length <= period) return result;
-
-  let gain = 0;
-  let loss = 0;
-  for (let i = 1; i <= period; i++) {
-    const change = values[i] - values[i - 1];
-    if (change >= 0) gain += change;
-    else loss -= change;
-  }
-
-  let avgGain = gain / period;
-  let avgLoss = loss / period;
-  result[period] = rsiValue(avgGain, avgLoss);
-
-  for (let i = period + 1; i < values.length; i++) {
-    const change = values[i] - values[i - 1];
-    const currentGain = change > 0 ? change : 0;
-    const currentLoss = change < 0 ? -change : 0;
-    avgGain = (avgGain * (period - 1) + currentGain) / period;
-    avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
-    result[i] = rsiValue(avgGain, avgLoss);
-  }
-
-  return result;
-}
-
-function macd(
-  values: number[],
-  fast: number,
-  slow: number,
-  signal: number
-): { macdLine: Values; signalLine: Values; histogram: Values } {
-  const fastEma = ema(values, fast);
-  const slowEma = ema(values, slow);
-
-  const macdLine: Values = values.map((_, i) =>
-    fastEma[i] !== undefined && slowEma[i] !== undefined
-      ? (fastEma[i] as number) - (slowEma[i] as number)
-      : undefined
-  );
-
-  const signalLine: Values = new Array(values.length).fill(undefined);
-  const histogram: Values = new Array(values.length).fill(undefined);
-
-  const firstIndex = macdLine.findIndex(value => value !== undefined);
-  if (firstIndex >= 0) {
-    const defined = macdLine.slice(firstIndex) as number[];
-    const signalEma = ema(defined, signal);
-    for (let i = 0; i < signalEma.length; i++) {
-      const value = signalEma[i];
-      if (value === undefined) continue;
-      signalLine[firstIndex + i] = value;
-      histogram[firstIndex + i] = defined[i] - value;
+    for (let i = period; i < values.length; i++) {
+      previous = values[i] * alpha + previous * (1 - alpha);
+      result[i] = previous;
     }
+    return result;
   }
 
-  return { macdLine, signalLine, histogram };
-}
+  bollinger(
+    values: number[],
+    period: number,
+    stdDev: number
+  ): { middle: Values; upper: Values; lower: Values } {
+    const middle = this.sma(values, period);
+    const upper: Values = new Array(values.length).fill(undefined);
+    const lower: Values = new Array(values.length).fill(undefined);
 
-function toPlotPoints(
-  candles: PriceData[],
-  values: Values,
-  colorForPoint?: (value: number, index: number, candle: PriceData) => string
-): IndicatorPlotPoint[] {
-  return candles.map((candle, index) => {
-    const time = toTime(candle.date);
-    const value = values[index];
-    if (value === undefined) return { time };
-    if (colorForPoint) return { time, value, color: colorForPoint(value, index, candle) };
-    return { time, value };
-  });
+    if (period <= 0) return { middle, upper, lower };
+
+    for (let i = period - 1; i < values.length; i++) {
+      const mean = middle[i];
+      if (mean === undefined) continue;
+      let sumSquares = 0;
+      for (let j = i - period + 1; j <= i; j++) {
+        sumSquares += (values[j] - mean) ** 2;
+      }
+      const deviation = Math.sqrt(sumSquares / period);
+      upper[i] = mean + stdDev * deviation;
+      lower[i] = mean - stdDev * deviation;
+    }
+
+    return { middle, upper, lower };
+  }
+
+  rsi(values: number[], period: number): Values {
+    const result: Values = new Array(values.length).fill(undefined);
+    if (period <= 0 || values.length <= period) return result;
+
+    let gain = 0;
+    let loss = 0;
+    for (let i = 1; i <= period; i++) {
+      const change = values[i] - values[i - 1];
+      if (change >= 0) gain += change;
+      else loss -= change;
+    }
+
+    let avgGain = gain / period;
+    let avgLoss = loss / period;
+    result[period] = this.rsiValue(avgGain, avgLoss);
+
+    for (let i = period + 1; i < values.length; i++) {
+      const change = values[i] - values[i - 1];
+      const currentGain = change > 0 ? change : 0;
+      const currentLoss = change < 0 ? -change : 0;
+      avgGain = (avgGain * (period - 1) + currentGain) / period;
+      avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
+      result[i] = this.rsiValue(avgGain, avgLoss);
+    }
+
+    return result;
+  }
+
+  private rsiValue(avgGain: number, avgLoss: number): number {
+    if (avgLoss === 0) return 100;
+    const rs = avgGain / avgLoss;
+    return 100 - 100 / (1 + rs);
+  }
+
+  macd(
+    values: number[],
+    fast: number,
+    slow: number,
+    signal: number
+  ): { macdLine: Values; signalLine: Values; histogram: Values } {
+    const fastEma = this.ema(values, fast);
+    const slowEma = this.ema(values, slow);
+
+    const macdLine: Values = values.map((_, i) =>
+      fastEma[i] !== undefined && slowEma[i] !== undefined
+        ? (fastEma[i] as number) - (slowEma[i] as number)
+        : undefined
+    );
+
+    const signalLine: Values = new Array(values.length).fill(undefined);
+    const histogram: Values = new Array(values.length).fill(undefined);
+
+    const firstIndex = macdLine.findIndex(value => value !== undefined);
+    if (firstIndex >= 0) {
+      const defined = macdLine.slice(firstIndex) as number[];
+      const signalEma = this.ema(defined, signal);
+      for (let i = 0; i < signalEma.length; i++) {
+        const value = signalEma[i];
+        if (value === undefined) continue;
+        signalLine[firstIndex + i] = value;
+        histogram[firstIndex + i] = defined[i] - value;
+      }
+    }
+
+    return { macdLine, signalLine, histogram };
+  }
+
+  toPlotPoints(
+    candles: PriceData[],
+    values: Values,
+    colorForPoint?: (value: number, index: number, candle: PriceData) => string
+  ): IndicatorPlotPoint[] {
+    return candles.map((candle, index) => {
+      const time = this.toTime(candle.date);
+      const value = values[index];
+      if (value === undefined) return { time };
+      if (colorForPoint) return { time, value, color: colorForPoint(value, index, candle) };
+      return { time, value };
+    });
+  }
 }
 
 const smaDefinition: IndicatorDefinition = {
@@ -178,7 +180,7 @@ const smaDefinition: IndicatorDefinition = {
       style: 'line',
       color: COLORS.sma,
       computeValues: (candles, params) =>
-        sma(candles.map(candle => candle.close), params.period),
+        new IndicatorCalculator().sma(candles.map(candle => candle.close), params.period),
     },
   ],
 };
@@ -196,7 +198,7 @@ const emaDefinition: IndicatorDefinition = {
       style: 'line',
       color: COLORS.ema,
       computeValues: (candles, params) =>
-        ema(candles.map(candle => candle.close), params.period),
+        new IndicatorCalculator().ema(candles.map(candle => candle.close), params.period),
     },
   ],
 };
@@ -217,7 +219,7 @@ const bollingerDefinition: IndicatorDefinition = {
       style: 'line',
       color: COLORS.bbBand,
       computeValues: (candles, params) =>
-        bollinger(
+        new IndicatorCalculator().bollinger(
           candles.map(candle => candle.close),
           params.period,
           params.stdDev
@@ -229,7 +231,7 @@ const bollingerDefinition: IndicatorDefinition = {
       style: 'line',
       color: COLORS.bbMiddle,
       computeValues: (candles, params) =>
-        bollinger(
+        new IndicatorCalculator().bollinger(
           candles.map(candle => candle.close),
           params.period,
           params.stdDev
@@ -241,7 +243,7 @@ const bollingerDefinition: IndicatorDefinition = {
       style: 'line',
       color: COLORS.bbBand,
       computeValues: (candles, params) =>
-        bollinger(
+        new IndicatorCalculator().bollinger(
           candles.map(candle => candle.close),
           params.period,
           params.stdDev
@@ -263,7 +265,7 @@ const rsiDefinition: IndicatorDefinition = {
       style: 'line',
       color: COLORS.rsi,
       computeValues: (candles, params) =>
-        rsi(candles.map(candle => candle.close), params.period),
+        new IndicatorCalculator().rsi(candles.map(candle => candle.close), params.period),
     },
   ],
 };
@@ -285,7 +287,7 @@ const macdDefinition: IndicatorDefinition = {
       style: 'line',
       color: COLORS.macd,
       computeValues: (candles, params) =>
-        macd(
+        new IndicatorCalculator().macd(
           candles.map(candle => candle.close),
           params.fast,
           params.slow,
@@ -298,7 +300,7 @@ const macdDefinition: IndicatorDefinition = {
       style: 'line',
       color: COLORS.signal,
       computeValues: (candles, params) =>
-        macd(
+        new IndicatorCalculator().macd(
           candles.map(candle => candle.close),
           params.fast,
           params.slow,
@@ -312,7 +314,7 @@ const macdDefinition: IndicatorDefinition = {
       color: COLORS.volume,
       colorForValue: value => (value >= 0 ? COLORS.up : COLORS.down),
       computeValues: (candles, params) =>
-        macd(
+        new IndicatorCalculator().macd(
           candles.map(candle => candle.close),
           params.fast,
           params.slow,
@@ -350,25 +352,37 @@ export const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
   volumeDefinition,
 ];
 
-const DEFINITIONS_BY_ID = new Map<IndicatorId, IndicatorDefinition>(
-  INDICATOR_DEFINITIONS.map(definition => [definition.id, definition])
-);
+export class IndicatorDefinitionRegistry {
+  private definitionsById = new Map<IndicatorId, IndicatorDefinition>(
+    INDICATOR_DEFINITIONS.map(definition => [definition.id, definition])
+  );
 
-export function getDefinition(id: IndicatorId): IndicatorDefinition | undefined {
-  return DEFINITIONS_BY_ID.get(id);
-}
-
-export function normalizeParams(
-  definition: IndicatorDefinition,
-  params: Record<string, number>
-): Record<string, number> {
-  const normalized: Record<string, number> = {};
-  for (const spec of definition.params) {
-    const value = params?.[spec.key];
-    const numeric = typeof value === 'number' && Number.isFinite(value) ? value : spec.default;
-    normalized[spec.key] = spec.min !== undefined ? Math.max(spec.min, numeric) : numeric;
+  getDefinition(id: IndicatorId): IndicatorDefinition | undefined {
+    return this.definitionsById.get(id);
   }
-  return normalized;
+
+  normalizeParams(
+    definition: IndicatorDefinition,
+    params: Record<string, number>
+  ): Record<string, number> {
+    const normalized: Record<string, number> = {};
+    for (const spec of definition.params) {
+      const value = params?.[spec.key];
+      const numeric = typeof value === 'number' && Number.isFinite(value) ? value : spec.default;
+      normalized[spec.key] = spec.min !== undefined ? Math.max(spec.min, numeric) : numeric;
+    }
+    return normalized;
+  }
+
+  getIndicatorGroups(): {
+    overlays: IndicatorDefinition[];
+    oscillators: IndicatorDefinition[];
+  } {
+    return {
+      overlays: INDICATOR_DEFINITIONS.filter(definition => definition.pane === 'overlay'),
+      oscillators: INDICATOR_DEFINITIONS.filter(definition => definition.pane === 'separate'),
+    };
+  }
 }
 
 function newInstanceKey(): string {
@@ -378,63 +392,91 @@ function newInstanceKey(): string {
   return `indicator-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+export class IndicatorEngine {
+  private registry = new IndicatorDefinitionRegistry();
+  private calculator = new IndicatorCalculator();
+
+  createIndicatorInstance(id: IndicatorId): IndicatorInstance | null {
+    const definition = this.registry.getDefinition(id);
+    if (!definition) return null;
+    return {
+      key: newInstanceKey(),
+      indicatorId: definition.id,
+      params: this.registry.normalizeParams(definition, {}),
+    };
+  }
+
+  compute(instance: IndicatorInstance, candles: PriceData[]): IndicatorPlot[] {
+    const definition = this.registry.getDefinition(instance.indicatorId);
+    if (!definition) return [];
+    const params = this.registry.normalizeParams(definition, instance.params);
+    const series = this.computeSeries(instance, candles);
+    return definition.series.map((spec, index) => ({
+      key: spec.key,
+      label: spec.label(params),
+      style: spec.style,
+      color: spec.color,
+      data: this.calculator.toPlotPoints(candles, series[index].values, spec.colorForValue),
+    }));
+  }
+
+  computeSeries(instance: IndicatorInstance, candles: PriceData[]): IndicatorSeries[] {
+    const definition = this.registry.getDefinition(instance.indicatorId);
+    if (!definition) return [];
+    const params = this.registry.normalizeParams(definition, instance.params);
+    return definition.series.map(spec => ({
+      key: spec.key,
+      values: spec.computeValues(candles, params),
+    }));
+  }
+
+  maxLookback(instances: IndicatorInstance[], timeframe: Timeframe): number {
+    let candles = 0;
+    for (const instance of instances) {
+      const definition = this.registry.getDefinition(instance.indicatorId);
+      if (!definition) continue;
+      const lookback = definition.lookback(this.registry.normalizeParams(definition, instance.params));
+      if (lookback > candles) candles = lookback;
+    }
+    if (candles <= 0) return 0;
+
+    const margin = 2;
+    return (candles + margin) * Timeframe.getMinutes(timeframe) * 60 * 1000;
+  }
+}
+
+const globalEngine = new IndicatorEngine();
+
+export function getDefinition(id: IndicatorId): IndicatorDefinition | undefined {
+  return globalEngine['registry'].getDefinition(id);
+}
+
+export function normalizeParams(
+  definition: IndicatorDefinition,
+  params: Record<string, number>
+): Record<string, number> {
+  return globalEngine['registry'].normalizeParams(definition, params);
+}
+
 export function createIndicatorInstance(id: IndicatorId): IndicatorInstance | null {
-  const definition = getDefinition(id);
-  if (!definition) return null;
-  return {
-    key: newInstanceKey(),
-    indicatorId: definition.id,
-    params: normalizeParams(definition, {}),
-  };
+  return globalEngine.createIndicatorInstance(id);
 }
 
 export function getIndicatorGroups(): {
   overlays: IndicatorDefinition[];
   oscillators: IndicatorDefinition[];
 } {
-  return {
-    overlays: INDICATOR_DEFINITIONS.filter(definition => definition.pane === 'overlay'),
-    oscillators: INDICATOR_DEFINITIONS.filter(definition => definition.pane === 'separate'),
-  };
+  return globalEngine['registry'].getIndicatorGroups();
 }
 
 export function compute(instance: IndicatorInstance, candles: PriceData[]): IndicatorPlot[] {
-  const definition = getDefinition(instance.indicatorId);
-  if (!definition) return [];
-  const params = normalizeParams(definition, instance.params);
-  const series = computeSeries(instance, candles);
-  return definition.series.map((spec, index) => ({
-    key: spec.key,
-    label: spec.label(params),
-    style: spec.style,
-    color: spec.color,
-    data: toPlotPoints(candles, series[index].values, spec.colorForValue),
-  }));
+  return globalEngine.compute(instance, candles);
 }
 
-export function computeSeries(
-  instance: IndicatorInstance,
-  candles: PriceData[]
-): IndicatorSeries[] {
-  const definition = getDefinition(instance.indicatorId);
-  if (!definition) return [];
-  const params = normalizeParams(definition, instance.params);
-  return definition.series.map(spec => ({
-    key: spec.key,
-    values: spec.computeValues(candles, params),
-  }));
+export function computeSeries(instance: IndicatorInstance, candles: PriceData[]): IndicatorSeries[] {
+  return globalEngine.computeSeries(instance, candles);
 }
 
 export function maxLookback(instances: IndicatorInstance[], timeframe: Timeframe): number {
-  let candles = 0;
-  for (const instance of instances) {
-    const definition = getDefinition(instance.indicatorId);
-    if (!definition) continue;
-    const lookback = definition.lookback(normalizeParams(definition, instance.params));
-    if (lookback > candles) candles = lookback;
-  }
-  if (candles <= 0) return 0;
-
-  const margin = 2;
-  return (candles + margin) * Timeframe.getMinutes(timeframe) * 60 * 1000;
+  return globalEngine.maxLookback(instances, timeframe);
 }

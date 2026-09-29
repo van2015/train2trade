@@ -1,10 +1,9 @@
 import { Fill, TradeState, TradeView, Side } from '../types/backtest';
 
-function directionFactor(side: Side): number {
-  return side === 'long' ? 1 : -1;
-}
-
 export class Trade {
+  private static directionFactor(side: Side): number {
+    return side === 'long' ? 1 : -1;
+  }
   readonly id: string;
   readonly side: Side;
 
@@ -146,7 +145,7 @@ export class Trade {
   }
 
   private pnlFor(size: number, price: number): number {
-    return (price - this._averageEntry) * size * directionFactor(this.side);
+    return (price - this._averageEntry) * size * Trade.directionFactor(this.side);
   }
 
   private assertNotClosed(): void {

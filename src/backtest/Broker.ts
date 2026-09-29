@@ -5,13 +5,12 @@ import {
   PlatformConfig,
 } from '../types/backtest';
 
-function roundToStep(value: number, step: number): number {
-  if (step <= 0) return value;
-  const steps = Math.floor(value / step + 1e-9);
-  return Number((steps * step).toFixed(10));
-}
-
 export class Broker {
+  private static roundToStep(value: number, step: number): number {
+    if (step <= 0) return value;
+    const steps = Math.floor(value / step + 1e-9);
+    return Number((steps * step).toFixed(10));
+  }
   private readonly config: PlatformConfig;
   private _balance: number;
   private _margin = 0;
@@ -48,7 +47,7 @@ export class Broker {
     }
     const perLotRisk = distance * this.config.contractSize;
     const rawLots = (riskFraction * equity) / perLotRisk;
-    const lots = roundToStep(rawLots, this.config.lotStep);
+    const lots = Broker.roundToStep(rawLots, this.config.lotStep);
     if (lots < this.config.minLot) return 0;
     return lots;
   }
@@ -71,7 +70,7 @@ export class Broker {
   }
 
   alignSize(size: number): number {
-    return roundToStep(size, this.config.lotStep);
+    return Broker.roundToStep(size, this.config.lotStep);
   }
 
   validateOrder(input: OrderValidationInput): OrderValidation {
