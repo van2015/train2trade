@@ -44,3 +44,6 @@ openspec/changes/
 
 # opencode
 .opencode/
+
+# Documentation
+docs/
