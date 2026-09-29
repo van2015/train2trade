@@ -12,6 +12,7 @@ import { Trade } from './Trade';
 import { Broker } from './Broker';
 import { DataResampler } from './Resample';
 import { StrategyManager } from './Strategy';
+import { AggregatedBar } from '../types/backtest';
 
 interface PendingEntry {
   spec: TradeSpec;
@@ -47,6 +48,7 @@ export class BacktestEngine {
   private pendingExits: PendingExit[] = [];
   private tradeCounter = 0;
   private hasFinerData = false;
+  private allBars: AggregatedBar[] = [];
 
   private toTime(date: string): number {
     return new Date(date).getTime();
@@ -74,6 +76,7 @@ export class BacktestEngine {
     const resampler = new DataResampler();
     const { bars, hasFinerData } = resampler.resample(input.dataset, strategyTimeframe);
     this.hasFinerData = hasFinerData;
+    this.allBars = bars;
 
     this.closedTrades = [];
     this.invalidated = [];
@@ -84,6 +87,16 @@ export class BacktestEngine {
     }
 
     this.broker = new Broker(input.platform, input.initialBalance);
+    this.initializeState();
+
+    for (let s = 0; s < bars.length; s++) {
+      this.processBar(bars[s], s, bars.length, resolved, strategyManager);
+    }
+
+    return { trades: this.closedTrades, invalidated: this.invalidated, equityCurve: this.equityCurve, hasFinerData };
+  }
+
+  private initializeState(): void {
     this.trades.clear();
     this.tradeSpecs.clear();
     this.tradeFees.clear();
@@ -92,64 +105,101 @@ export class BacktestEngine {
     this.pendingEntries = [];
     this.pendingExits = [];
     this.tradeCounter = 0;
+  }
 
-    for (let s = 0; s < bars.length; s++) {
-      const bar = bars[s];
-      const subBars = bar.subBars.length > 0 ? bar.subBars : [bar];
+  private processBar(
+    bar: AggregatedBar,
+    index: number,
+    totalBars: number,
+    resolved: { definition: { onBar: (ctx: StrategyContext, params: Record<string, number>) => TradeSpec[] }; params: Record<string, number> },
+    strategyManager: StrategyManager
+  ): void {
+    const subBars = bar.subBars.length > 0 ? bar.subBars : [bar];
 
-      for (const sub of subBars) {
-        const time = this.toTime(sub.date);
-
-        for (const exit of this.pendingExits.splice(0)) {
-          const trade = this.trades.get(exit.tradeId);
-          if (!trade) continue;
-          const side = trade.side === 'long' ? 'sell' : 'buy';
-          const price = this.broker.alignToTick(this.broker.fillPrice(side, sub.open, true));
-          if (exit.portion >= 1) {
-            this.closeTrade(trade, price, time);
-          } else {
-            this.reduceTrade(trade, exit.portion, price, time);
-          }
-        }
-
-        for (const entry of [...this.pendingEntries]) {
-          if (this.fillEntry(entry, sub, time)) {
-            this.pendingEntries.splice(this.pendingEntries.indexOf(entry), 1);
-          }
-        }
-
-        for (const trade of [...this.trades.values()]) {
-          const spec = this.tradeSpecs.get(trade.id);
-          if (spec) this.evaluatePriceRules(trade, spec, sub, time);
-        }
-
-        for (const trade of [...this.trades.values()]) {
-          if (!this.trades.has(trade.id)) continue;
-          this.evaluateProtective(trade, sub, time);
-        }
-
-        if (this.broker.isStopOut(this.equity(sub.close))) {
-          for (const trade of [...this.trades.values()]) {
-            this.closeTrade(trade, sub.close, time);
-          }
-        }
-      }
-
-      if (s < bars.length - 1) {
-        const ctx = strategyManager.createContext(bars, s, this.openTradeViews());
-        this.evaluateContextRules(ctx);
-        const specs = strategyManager.validTradeSpecs(resolved.definition.onBar(ctx, resolved.params));
-        for (const spec of specs) this.pendingEntries.push({ spec });
-      }
-
-      this.equityCurve.push({
-        time: this.toTime(bar.date),
-        balance: this.broker.balance,
-        equity: this.equity(bar.close),
-      });
+    for (const sub of subBars) {
+      const time = this.toTime(sub.date);
+      this.processPendingExits(time, sub);
+      this.processPendingEntries(sub, time);
+      this.evaluateTradeRules(sub, time);
+      this.evaluateProtectiveTrades(sub, time);
+      this.checkStopOut(sub.close, time);
     }
 
-    return { trades: this.closedTrades, invalidated: this.invalidated, equityCurve: this.equityCurve, hasFinerData };
+    if (index < totalBars - 1) {
+      this.generateNewSignals(bar, index, resolved, strategyManager);
+    }
+
+    this.updateEquityCurve(bar);
+  }
+
+  private processPendingExits(time: number, sub: PriceData): void {
+    for (const exit of this.pendingExits.splice(0)) {
+      const trade = this.trades.get(exit.tradeId);
+      if (!trade) continue;
+      const side = trade.side === 'long' ? 'sell' : 'buy';
+      const price = this.broker.alignToTick(this.broker.fillPrice(side, sub.open, true));
+      if (exit.portion >= 1) {
+        this.closeTrade(trade, price, time);
+      } else {
+        this.reduceTrade(trade, exit.portion, price, time);
+      }
+    }
+  }
+
+  private processPendingEntries(sub: PriceData, time: number): void {
+    for (const entry of [...this.pendingEntries]) {
+      if (this.fillEntry(entry, sub, time)) {
+        this.pendingEntries.splice(this.pendingEntries.indexOf(entry), 1);
+      }
+    }
+  }
+
+  private evaluateTradeRules(sub: PriceData, time: number): void {
+    for (const trade of [...this.trades.values()]) {
+      const spec = this.tradeSpecs.get(trade.id);
+      if (spec) this.evaluatePriceRules(trade, spec, sub, time);
+    }
+
+    for (const trade of [...this.trades.values()]) {
+      if (!this.trades.has(trade.id)) continue;
+      this.evaluateProtective(trade, sub, time);
+    }
+  }
+
+  private evaluateProtectiveTrades(sub: PriceData, time: number): void {
+  }
+
+  private checkStopOut(closePrice: number, time: number): void {
+    if (this.broker.isStopOut(this.equity(closePrice))) {
+      for (const trade of [...this.trades.values()]) {
+        this.closeTrade(trade, closePrice, time);
+      }
+    }
+  }
+
+  private generateNewSignals(
+    bar: AggregatedBar,
+    index: number,
+    resolved: { definition: { onBar: (ctx: StrategyContext, params: Record<string, number>) => TradeSpec[] }; params: Record<string, number> },
+    strategyManager: StrategyManager
+  ): void {
+    const bars = this.collectBarsUpToIndex(bar, index);
+    const ctx = strategyManager.createContext(bars, index, this.openTradeViews());
+    this.evaluateContextRules(ctx);
+    const specs = strategyManager.validTradeSpecs(resolved.definition.onBar(ctx, resolved.params));
+    for (const spec of specs) this.pendingEntries.push({ spec });
+  }
+
+  private collectBarsUpToIndex(currentBar: AggregatedBar, index: number): PriceData[] {
+    return this.allBars.slice(0, index + 1);
+  }
+
+  private updateEquityCurve(bar: AggregatedBar): void {
+    this.equityCurve.push({
+      time: this.toTime(bar.date),
+      balance: this.broker.balance,
+      equity: this.equity(bar.close),
+    });
   }
 
   private unrealized(price: number): number {
@@ -266,24 +316,42 @@ export class BacktestEngine {
       this.broker.fillPrice(side, reference, entry.spec.order.type === 'market')
     );
 
-    let size: number;
-    try {
-      size = this.broker.sizeFromRisk(entry.spec.risk.fraction, price, entry.spec.stopLoss, this.equity(price));
-    } catch {
-      return true;
-    }
-    if (size <= 0) return true;
+    const sizeResult = this.calculatePositionSize(entry, price);
+    if (sizeResult.skip) return true;
+    if (sizeResult.size === undefined) return true;
+    const size = sizeResult.size;
+
     if (!this.broker.validateOrder({ price, size }).valid) return true;
 
+    const { id, trade } = this.createTradeFromSpec(entry, size, price, time);
+    this.initializeTradeState(id, entry, size, time);
+    this.broker.addMargin(size, price);
+    return true;
+  }
+
+  private calculatePositionSize(entry: PendingEntry, price: number): { size?: number; skip: boolean } {
+    try {
+      const size = this.broker.sizeFromRisk(entry.spec.risk.fraction, price, entry.spec.stopLoss, this.equity(price));
+      if (size <= 0) return { skip: true };
+      return { size, skip: false };
+    } catch {
+      return { skip: true };
+    }
+  }
+
+  private createTradeFromSpec(entry: PendingEntry, size: number, price: number, time: number): { id: string; trade: Trade } {
     this.tradeCounter += 1;
     const id = `trade-${this.tradeCounter}`;
     const trade = new Trade(id, entry.spec.side);
     trade.addFill(size, price, time);
     if (entry.spec.stopLoss !== undefined) trade.setStopLoss(entry.spec.stopLoss);
     if (entry.spec.takeProfit !== undefined) trade.setTakeProfit(entry.spec.takeProfit);
-
-    const entryFee = this.broker.commission(size);
     this.trades.set(id, trade);
+    return { id, trade };
+  }
+
+  private initializeTradeState(id: string, entry: PendingEntry, size: number, time: number): void {
+    const entryFee = this.broker.commission(size);
     this.tradeSpecs.set(id, entry.spec);
     this.tradeFees.set(id, { entryTotal: entryFee, entryRemaining: entryFee, exitTotal: 0 });
     this.tradeOpenedAt.set(id, time);
@@ -291,8 +359,6 @@ export class BacktestEngine {
       breakEvenDone: false,
       partialsTriggered: entry.spec.rules.map(() => false),
     });
-    this.broker.addMargin(size, price);
-    return true;
   }
 
   private unrealizedPnl(trade: Trade, price: number): number {
@@ -316,39 +382,59 @@ export class BacktestEngine {
 
       switch (rule.kind) {
         case 'trailingStop': {
-          const next = trade.side === 'long' ? price - rule.distance : price + rule.distance;
-          const current = trade.stopLoss;
-          if (trade.side === 'long') {
-            if (current === undefined || next > current) trade.setStopLoss(next);
-          } else if (current === undefined || next < current) {
-            trade.setStopLoss(next);
-          }
+          this.evaluateTrailingStop(trade, price, rule.distance);
           break;
         }
         case 'breakEvenAtR': {
-          if (state.breakEvenDone) break;
-          const risk = trade.riskAmount;
-          if (risk === undefined) break;
-          if (this.unrealizedPnl(trade, price) >= rule.rMultiple * risk) {
-            trade.setStopLoss(trade.averageEntry);
-            state.breakEvenDone = true;
-          }
+          this.evaluateBreakEvenAtR(trade, price, rule.rMultiple, state);
           break;
         }
         case 'partialTakeProfit': {
-          if (state.partialsTriggered[index]) break;
-          const risk = trade.riskAmount;
-          if (risk === undefined) break;
-          if (this.unrealizedPnl(trade, price) >= rule.rMultiple * risk) {
-            this.reduceTrade(trade, rule.portion, price, time);
-            state.partialsTriggered[index] = true;
-          }
+          this.evaluatePartialTakeProfit(trade, price, rule.portion, rule.rMultiple, index, state, time);
           break;
         }
         case 'closeWhen':
           break;
       }
     });
+  }
+
+  private evaluateTrailingStop(trade: Trade, price: number, distance: number): void {
+    const next = trade.side === 'long' ? price - distance : price + distance;
+    const current = trade.stopLoss;
+    if (trade.side === 'long') {
+      if (current === undefined || next > current) trade.setStopLoss(next);
+    } else if (current === undefined || next < current) {
+      trade.setStopLoss(next);
+    }
+  }
+
+  private evaluateBreakEvenAtR(trade: Trade, price: number, rMultiple: number, state: RuleState): void {
+    if (state.breakEvenDone) return;
+    const risk = trade.riskAmount;
+    if (risk === undefined) return;
+    if (this.unrealizedPnl(trade, price) >= rMultiple * risk) {
+      trade.setStopLoss(trade.averageEntry);
+      state.breakEvenDone = true;
+    }
+  }
+
+  private evaluatePartialTakeProfit(
+    trade: Trade,
+    price: number,
+    portion: number,
+    rMultiple: number,
+    index: number,
+    state: RuleState,
+    time: number
+  ): void {
+    if (state.partialsTriggered[index]) return;
+    const risk = trade.riskAmount;
+    if (risk === undefined) return;
+    if (this.unrealizedPnl(trade, price) >= rMultiple * risk) {
+      this.reduceTrade(trade, portion, price, time);
+      state.partialsTriggered[index] = true;
+    }
   }
 
   private evaluateProtective(trade: Trade, bar: PriceData, time: number): void {

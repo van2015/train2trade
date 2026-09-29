@@ -34,15 +34,29 @@ export class DataValidator {
   }
 
   private validateCandle(candle: PriceData): { valid: boolean; error?: string } {
-    if (
-      candle.open < 0 ||
-      candle.high < 0 ||
-      candle.low < 0 ||
-      candle.close < 0
-    ) {
+    const negativeError = this.checkForNegativePrices(candle);
+    if (negativeError) return negativeError;
+
+    const invalidNumberError = this.checkForInvalidNumbers(candle);
+    if (invalidNumberError) return invalidNumberError;
+
+    const volumeError = this.checkForInvalidVolume(candle);
+    if (volumeError) return volumeError;
+
+    const highLowError = this.checkHighLowConsistency(candle);
+    if (highLowError) return highLowError;
+
+    return { valid: true };
+  }
+
+  private checkForNegativePrices(candle: PriceData): { valid: boolean; error?: string } | undefined {
+    if (candle.open < 0 || candle.high < 0 || candle.low < 0 || candle.close < 0) {
       return { valid: false, error: 'Negative price value' };
     }
+    return undefined;
+  }
 
+  private checkForInvalidNumbers(candle: PriceData): { valid: boolean; error?: string } | undefined {
     if (
       isNaN(candle.open) ||
       isNaN(candle.high) ||
@@ -55,20 +69,54 @@ export class DataValidator {
     ) {
       return { valid: false, error: 'Invalid number (NaN or Infinity)' };
     }
+    return undefined;
+  }
 
+  private checkForInvalidVolume(candle: PriceData): { valid: boolean; error?: string } | undefined {
     if (isNaN(candle.volume) || !isFinite(candle.volume)) {
       return { valid: false, error: 'Invalid volume' };
     }
+    return undefined;
+  }
 
+  private checkHighLowConsistency(candle: PriceData): { valid: boolean; error?: string } | undefined {
     if (candle.high < candle.low) {
       return { valid: false, error: 'High is less than Low' };
     }
-
-    return { valid: true };
+    return undefined;
   }
 
   private parseCSV(content: string): { data?: PriceData[]; error?: ValidationError } {
     const lines = content.trim().split('\n');
+
+    const headerError = this.validateHeaderExists(lines);
+    if (headerError) return headerError;
+
+    const headerResult = this.parseHeaderIndices(lines[0]);
+    if (headerResult.error) {
+      return { error: headerResult.error };
+    }
+    const headerIndices = headerResult.indices;
+
+    if (!headerIndices) {
+      return {
+        error: {
+          type: 'INVALID_VALUES',
+          message: 'Header indices not found',
+          details: {},
+        },
+      };
+    }
+
+    const dataResult = this.parseDataRows(lines, headerIndices);
+    if (dataResult.error) {
+      return { error: dataResult.error };
+    }
+
+    return { data: dataResult.data };
+  }
+
+  private validateHeaderExists(lines: string[]): { error?: ValidationError } | undefined {
     if (lines.length < 2) {
       return {
         error: {
@@ -78,8 +126,11 @@ export class DataValidator {
         },
       };
     }
+    return undefined;
+  }
 
-    const header = lines[0].toLowerCase().split(',').map(h => h.trim());
+  private parseHeaderIndices(headerLine: string): { indices?: Record<string, number>; error?: ValidationError } {
+    const header = headerLine.toLowerCase().split(',').map(h => h.trim());
     const requiredFields = ['date', 'open', 'high', 'low', 'close', 'volume'];
     const headerIndices: Record<string, number> = {};
 
@@ -97,11 +148,15 @@ export class DataValidator {
       headerIndices[field] = index;
     }
 
+    return { indices: headerIndices };
+  }
+
+  private parseDataRows(lines: string[], headerIndices: Record<string, number>): { data?: PriceData[]; error?: ValidationError } {
     const data: PriceData[] = [];
 
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',').map(v => v.trim());
-      if (values.length !== header.length) continue;
+      if (values.length !== lines[0].split(',').length) continue;
 
       data.push({
         date: values[headerIndices['date']],
@@ -127,9 +182,27 @@ export class DataValidator {
   }
 
   private parseJSON(content: string): { data?: PriceData[]; error?: ValidationError } {
-    let parsed: unknown;
+    const parsedResult = this.parseJSONContent(content);
+    if (parsedResult.error) {
+      return { error: parsedResult.error };
+    }
+
+    const arrayResult = this.validateJSONStructure(parsedResult.parsed);
+    if (arrayResult.error) {
+      return { error: arrayResult.error };
+    }
+
+    const itemsResult = this.validateEachItem(parsedResult.parsed);
+    if (itemsResult.error) {
+      return { error: itemsResult.error };
+    }
+
+    return { data: parsedResult.parsed as PriceData[] };
+  }
+
+  private parseJSONContent(content: string): { parsed?: unknown; error?: ValidationError } {
     try {
-      parsed = JSON.parse(content);
+      return { parsed: JSON.parse(content) };
     } catch {
       return {
         error: {
@@ -139,7 +212,9 @@ export class DataValidator {
         },
       };
     }
+  }
 
+  private validateJSONStructure(parsed: unknown): { error?: ValidationError } {
     if (!Array.isArray(parsed)) {
       return {
         error: {
@@ -149,8 +224,11 @@ export class DataValidator {
         },
       };
     }
+    return {};
+  }
 
-    for (const item of parsed) {
+  private validateEachItem(parsed: unknown): { error?: ValidationError } {
+    for (const item of parsed as unknown[]) {
       if (
         typeof item !== 'object' ||
         item === null ||
@@ -170,28 +248,48 @@ export class DataValidator {
         };
       }
     }
-
-    return { data: parsed as PriceData[] };
+    return {};
   }
 
   validateAndParse(content: string, filename: string): ParseResult {
-    let data: PriceData[];
+    const parseResult = this.parseByFormat(content, filename);
+    if (parseResult.error) {
+      return { success: false, error: parseResult.error };
+    }
+    const data = parseResult.data!;
 
+    const duplicatesResult = this.checkForDuplicates(data);
+    if (duplicatesResult.error) {
+      return { success: false, error: duplicatesResult.error };
+    }
+
+    const invalidResult = this.validateAllCandles(data);
+    if (invalidResult.error) {
+      return { success: false, error: invalidResult.error };
+    }
+
+    const orderingResult = this.checkOrdering(data);
+    if (orderingResult.error) {
+      return { success: false, error: orderingResult.error };
+    }
+
+    const warningsResult = this.detectTimeframeAndGaps(data);
+
+    return {
+      success: true,
+      data,
+      warnings: warningsResult.warnings,
+      detectedTimeframe: warningsResult.detectedTimeframe,
+    };
+  }
+
+  private parseByFormat(content: string, filename: string): { data?: PriceData[]; error?: ValidationError } {
     if (filename.endsWith('.csv')) {
-      const result = this.parseCSV(content);
-      if (result.error) {
-        return { success: false, error: result.error };
-      }
-      data = result.data!;
+      return this.parseCSV(content);
     } else if (filename.endsWith('.json')) {
-      const result = this.parseJSON(content);
-      if (result.error) {
-        return { success: false, error: result.error };
-      }
-      data = result.data!;
+      return this.parseJSON(content);
     } else {
       return {
-        success: false,
         error: {
           type: 'INVALID_VALUES',
           message: 'Unsupported file format. Use CSV or JSON.',
@@ -199,11 +297,12 @@ export class DataValidator {
         },
       };
     }
+  }
 
+  private checkForDuplicates(data: PriceData[]): { error?: ValidationError } {
     const duplicates = this.checkDuplicates(data);
     if (duplicates.length > 0) {
       return {
-        success: false,
         error: {
           type: 'DUPLICATE_TIMESTAMP',
           message: `Duplicate timestamps found: ${duplicates.slice(0, 5).join(', ')}${duplicates.length > 5 ? '...' : ''}`,
@@ -211,7 +310,10 @@ export class DataValidator {
         },
       };
     }
+    return {};
+  }
 
+  private validateAllCandles(data: PriceData[]): { error?: ValidationError } {
     const invalidRows: { row: number; error: string }[] = [];
     for (let i = 0; i < data.length; i++) {
       const validation = this.validateCandle(data[i]);
@@ -223,7 +325,6 @@ export class DataValidator {
     if (invalidRows.length > 0) {
       const firstFew = invalidRows.slice(0, 3);
       return {
-        success: false,
         error: {
           type: 'INVALID_VALUES',
           message: `Invalid data at row ${firstFew[0].row}: ${firstFew[0].error}${invalidRows.length > 1 ? ` (+${invalidRows.length - 1} more)` : ''}`,
@@ -234,13 +335,15 @@ export class DataValidator {
         },
       };
     }
+    return {};
+  }
 
+  private checkOrdering(data: PriceData[]): { error?: ValidationError } {
     for (let i = 1; i < data.length; i++) {
       const prevTime = new Date(data[i - 1].date).getTime();
       const currTime = new Date(data[i].date).getTime();
       if (currTime < prevTime) {
         return {
-          success: false,
           error: {
             type: 'UNORDERED',
             message: `Data is not ordered by date. Found row ${i + 1} with timestamp before row ${i}.`,
@@ -249,7 +352,10 @@ export class DataValidator {
         };
       }
     }
+    return {};
+  }
 
+  private detectTimeframeAndGaps(data: PriceData[]): { warnings: string[]; detectedTimeframe?: TimeframeType } {
     const gaps = Timeframe.detectGaps(data);
     const warnings: string[] = [];
     if (gaps.length > 0) {
@@ -265,12 +371,7 @@ export class DataValidator {
       );
     }
 
-    return {
-      success: true,
-      data,
-      warnings,
-      detectedTimeframe: tf,
-    };
+    return { warnings, detectedTimeframe: tf };
   }
 }
 

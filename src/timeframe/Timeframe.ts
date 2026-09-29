@@ -67,19 +67,35 @@ class TimeframeManager {
       return { tf: '1D', confidence: 0 };
     }
 
+    const gaps = this.calculateGaps(data);
+    const histogram = this.buildGapHistogram(gaps);
+    const mostCommonGap = this.findMostCommonGap(histogram);
+    const tf = this.mapGapToTimeframe(mostCommonGap);
+    const confidence = histogram[mostCommonGap] ? histogram[mostCommonGap] / gaps.length : 0;
+
+    return { tf, confidence };
+  }
+
+  private calculateGaps(data: PriceData[]): number[] {
     const gaps: number[] = [];
     for (let i = 1; i < data.length; i++) {
       const prev = new Date(data[i - 1].date).getTime();
       const curr = new Date(data[i].date).getTime();
       gaps.push((curr - prev) / 60000);
     }
+    return gaps;
+  }
 
+  private buildGapHistogram(gaps: number[]): Record<number, number> {
     const histogram: Record<number, number> = {};
     for (const gap of gaps) {
       const rounded = Math.round(gap);
       histogram[rounded] = (histogram[rounded] || 0) + 1;
     }
+    return histogram;
+  }
 
+  private findMostCommonGap(histogram: Record<number, number>): number {
     let mostCommonGap = 1;
     let maxCount = 0;
     for (const [gap, count] of Object.entries(histogram)) {
@@ -88,19 +104,17 @@ class TimeframeManager {
         mostCommonGap = parseInt(gap, 10);
       }
     }
+    return mostCommonGap;
+  }
 
-    let tf: Timeframe;
-    if (mostCommonGap <= 2) tf = '1m';
-    else if (mostCommonGap <= 7) tf = '5m';
-    else if (mostCommonGap <= 20) tf = '15m';
-    else if (mostCommonGap <= 75) tf = '1h';
-    else if (mostCommonGap <= 300) tf = '4h';
-    else if (mostCommonGap <= 1500) tf = '1D';
-    else tf = '1W';
-
-    const confidence = maxCount / gaps.length;
-
-    return { tf, confidence };
+  private mapGapToTimeframe(gap: number): Timeframe {
+    if (gap <= 2) return '1m';
+    if (gap <= 7) return '5m';
+    if (gap <= 20) return '15m';
+    if (gap <= 75) return '1h';
+    if (gap <= 300) return '4h';
+    if (gap <= 1500) return '1D';
+    return '1W';
   }
 
   detectGaps(data: PriceData[]): { startRow: number; endRow: number }[] {

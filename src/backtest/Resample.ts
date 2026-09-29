@@ -18,32 +18,56 @@ export class DataResampler {
     const targetMinutes = Timeframe.getMinutes(strategyTimeframe);
 
     if (dataset.length === 0) {
-      return {
-        strategyTimeframe,
-        sourceTimeframe,
-        bars: [],
-        subBars: [],
-        hasFinerData: false,
-      };
+      return this.createEmptyResult(strategyTimeframe, sourceTimeframe);
     }
 
-    if (targetMinutes < sourceMinutes) {
-      throw new Error(
-        `Cannot resample ${sourceTimeframe} data to a finer timeframe ${strategyTimeframe}`
-      );
-    }
+    this.validateTimeframeCombination(sourceTimeframe, sourceMinutes, targetMinutes);
 
     if (targetMinutes === sourceMinutes) {
-      const bars: AggregatedBar[] = dataset.map(candle => ({ ...candle, subBars: [candle] }));
-      return {
-        strategyTimeframe,
-        sourceTimeframe,
-        bars,
-        subBars: dataset,
-        hasFinerData: false,
-      };
+      return this.createSingleTimeframeResult(dataset, strategyTimeframe, sourceTimeframe);
     }
 
+    const bars = this.buildAggregatedBars(dataset, targetMinutes);
+
+    return {
+      strategyTimeframe,
+      sourceTimeframe,
+      bars,
+      subBars: dataset,
+      hasFinerData: true,
+    };
+  }
+
+  private createEmptyResult(strategyTimeframe: Timeframe, sourceTimeframe: Timeframe): ResampleResult {
+    return {
+      strategyTimeframe,
+      sourceTimeframe,
+      bars: [],
+      subBars: [],
+      hasFinerData: false,
+    };
+  }
+
+  private validateTimeframeCombination(sourceTimeframe: Timeframe, sourceMinutes: number, targetMinutes: number): void {
+    if (targetMinutes < sourceMinutes) {
+      throw new Error(
+        `Cannot resample ${sourceTimeframe} data to a finer timeframe ${sourceTimeframe}`
+      );
+    }
+  }
+
+  private createSingleTimeframeResult(dataset: PriceData[], strategyTimeframe: Timeframe, sourceTimeframe: Timeframe): ResampleResult {
+    const bars: AggregatedBar[] = dataset.map(candle => ({ ...candle, subBars: [candle] }));
+    return {
+      strategyTimeframe,
+      sourceTimeframe,
+      bars,
+      subBars: dataset,
+      hasFinerData: false,
+    };
+  }
+
+  private buildAggregatedBars(dataset: PriceData[], targetMinutes: number): AggregatedBar[] {
     const targetSpan = targetMinutes * 60 * 1000;
     const gapEnds = new Set(Timeframe.detectGaps(dataset).map(gap => gap.endRow));
     const bars: AggregatedBar[] = [];
@@ -59,15 +83,7 @@ export class DataResampler {
         bars.length > 0 ? new Date(bars[bars.length - 1].date).getTime() + targetSpan : boundary;
       const date = Math.max(boundary, previousEnd);
 
-      bars.push({
-        date: this.formatDate(date),
-        open: first.open,
-        high: Math.max(...current.map(candle => candle.high)),
-        low: Math.min(...current.map(candle => candle.low)),
-        close: last.close,
-        volume: current.reduce((sum, candle) => sum + candle.volume, 0),
-        subBars: current,
-      });
+      bars.push(this.createAggregatedBar(current, date));
       current = [];
     };
 
@@ -85,13 +101,20 @@ export class DataResampler {
     }
 
     flush();
+    return bars;
+  }
 
+  private createAggregatedBar(current: PriceData[], date: number): AggregatedBar {
+    const first = current[0];
+    const last = current[current.length - 1];
     return {
-      strategyTimeframe,
-      sourceTimeframe,
-      bars,
-      subBars: dataset,
-      hasFinerData: true,
+      date: this.formatDate(date),
+      open: first.open,
+      high: Math.max(...current.map(candle => candle.high)),
+      low: Math.min(...current.map(candle => candle.low)),
+      close: last.close,
+      volume: current.reduce((sum, candle) => sum + candle.volume, 0),
+      subBars: current,
     };
   }
 }

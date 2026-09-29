@@ -116,7 +116,15 @@ class AssetService {
       return data;
     }
 
-    const bucketSpanMs = Timeframe.getMinutes(targetTF) * 60 * 1000;
+    const targetMinutes = Timeframe.getMinutes(targetTF);
+    const buckets = this.createTimeBuckets(data, targetMinutes);
+    const sortedStarts = this.sortBucketsChronologically(buckets);
+
+    return this.buildAggregatedResult(buckets, sortedStarts);
+  }
+
+  private createTimeBuckets(data: PriceData[], targetMinutes: number): Map<number, PriceData[]> {
+    const bucketSpanMs = targetMinutes * 60 * 1000;
     const buckets = new Map<number, PriceData[]>();
 
     for (const sample of data) {
@@ -130,32 +138,43 @@ class AssetService {
       bucket.push(sample);
     }
 
+    return buckets;
+  }
+
+  private sortBucketsChronologically(buckets: Map<number, PriceData[]>): number[] {
+    return [...buckets.keys()].sort((a, b) => a - b);
+  }
+
+  private buildAggregatedResult(buckets: Map<number, PriceData[]>, starts: number[]): PriceData[] {
     const result: PriceData[] = [];
-    const starts = [...buckets.keys()].sort((a, b) => a - b);
 
     for (const start of starts) {
       const bucket = buckets.get(start)!;
-      let high = -Infinity;
-      let low = Infinity;
-      let volume = 0;
-
-      for (const candle of bucket) {
-        if (candle.high > high) high = candle.high;
-        if (candle.low < low) low = candle.low;
-        volume += candle.volume;
-      }
-
-      result.push({
-        date: new Date(start).toISOString().replace('.000Z', 'Z'),
-        open: bucket[0].open,
-        high,
-        low,
-        close: bucket[bucket.length - 1].close,
-        volume,
-      });
+      result.push(this.aggregateBucket(bucket, start));
     }
 
     return result;
+  }
+
+  private aggregateBucket(bucket: PriceData[], start: number): PriceData {
+    let high = -Infinity;
+    let low = Infinity;
+    let volume = 0;
+
+    for (const candle of bucket) {
+      if (candle.high > high) high = candle.high;
+      if (candle.low < low) low = candle.low;
+      volume += candle.volume;
+    }
+
+    return {
+      date: new Date(start).toISOString().replace('.000Z', 'Z'),
+      open: bucket[0].open,
+      high,
+      low,
+      close: bucket[bucket.length - 1].close,
+      volume,
+    };
   }
 
   clearCache(assetId?: string): void {

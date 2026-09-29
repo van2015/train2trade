@@ -5,14 +5,32 @@ import {
   PerformanceMetrics,
 } from '../types/backtest';
 
+interface TradeStats {
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  netPnl: number;
+  grossProfit: number;
+  grossLoss: number;
+  costs: number;
+  rSum: number;
+  rCount: number;
+}
+
 export class MetricsCalculator {
   compute(
     trades: ClosedTrade[],
     invalidated: InvalidatedTrade[],
     equityCurve: EquityPoint[]
   ): PerformanceMetrics {
-    const totalTrades = trades.length;
+    const tradeStats = this.calculateTradeStats(trades);
+    const maxDrawdown = this.calculateMaxDrawdown(equityCurve);
 
+    return this.buildMetricsResult(tradeStats, invalidated, maxDrawdown);
+  }
+
+  private calculateTradeStats(trades: ClosedTrade[]): TradeStats {
     let wins = 0;
     let losses = 0;
     let breakeven = 0;
@@ -43,11 +61,10 @@ export class MetricsCalculator {
       }
     }
 
-    const winRate = totalTrades > 0 ? wins / totalTrades : 0;
-    const profitFactor =
-      grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
-    const expectancy = totalTrades > 0 ? netPnl / totalTrades : 0;
+    return { totalTrades: trades.length, wins, losses, breakeven, netPnl, grossProfit, grossLoss, costs, rSum, rCount };
+  }
 
+  private calculateMaxDrawdown(equityCurve: EquityPoint[]): number {
     let peak = -Infinity;
     let maxDrawdown = 0;
     for (const point of equityCurve) {
@@ -55,6 +72,20 @@ export class MetricsCalculator {
       const drawdown = peak - point.equity;
       if (drawdown > maxDrawdown) maxDrawdown = drawdown;
     }
+    return maxDrawdown;
+  }
+
+  private buildMetricsResult(
+    stats: TradeStats,
+    invalidated: InvalidatedTrade[],
+    maxDrawdown: number
+  ): PerformanceMetrics {
+    const { totalTrades, wins, losses, breakeven, netPnl, grossProfit, grossLoss, costs, rSum, rCount } = stats;
+
+    const winRate = totalTrades > 0 ? wins / totalTrades : 0;
+    const profitFactor =
+      grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0;
+    const expectancy = totalTrades > 0 ? netPnl / totalTrades : 0;
 
     const invalidatedCount = invalidated.length;
     const allTrades = totalTrades + invalidatedCount;
