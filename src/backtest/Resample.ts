@@ -1,16 +1,10 @@
 import { PriceData } from '../types/asset';
-import { AggregatedBar, ResampleResult } from '../types/backtest';
+import { ResampleResult } from '../types/backtest';
 import { Timeframe } from '../timeframe/Timeframe';
+import { TimeframeAggregator } from '../timeframe/TimeframeAggregator';
 
 export class DataResampler {
-  private floorToBoundary(time: number, tfMinutes: number): number {
-    const span = tfMinutes * 60 * 1000;
-    return Math.floor(time / span) * span;
-  }
-
-  private formatDate(time: number): string {
-    return new Date(time).toISOString().replace('.000Z', 'Z');
-  }
+  private aggregator = new TimeframeAggregator();
 
   resample(dataset: PriceData[], strategyTimeframe: Timeframe): ResampleResult {
     const sourceTimeframe = Timeframe.detect(dataset).tf;
@@ -27,14 +21,14 @@ export class DataResampler {
       return this.createSingleTimeframeResult(dataset, strategyTimeframe, sourceTimeframe);
     }
 
-    const bars = this.buildAggregatedBars(dataset, targetMinutes);
+    const result = this.aggregator.aggregateWithGaps(dataset, strategyTimeframe);
 
     return {
       strategyTimeframe,
       sourceTimeframe,
-      bars,
-      subBars: dataset,
-      hasFinerData: true,
+      bars: result.bars,
+      subBars: result.subBars,
+      hasFinerData: result.hasFinerData,
     };
   }
 
@@ -57,64 +51,22 @@ export class DataResampler {
   }
 
   private createSingleTimeframeResult(dataset: PriceData[], strategyTimeframe: Timeframe, sourceTimeframe: Timeframe): ResampleResult {
-    const bars: AggregatedBar[] = dataset.map(candle => ({ ...candle, subBars: [candle] }));
+    const bars = dataset.map(candle => ({
+      date: candle.date,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+      subBars: [candle],
+    }));
+
     return {
       strategyTimeframe,
       sourceTimeframe,
       bars,
       subBars: dataset,
       hasFinerData: false,
-    };
-  }
-
-  private buildAggregatedBars(dataset: PriceData[], targetMinutes: number): AggregatedBar[] {
-    const targetSpan = targetMinutes * 60 * 1000;
-    const gapEnds = new Set(Timeframe.detectGaps(dataset).map(gap => gap.endRow));
-    const bars: AggregatedBar[] = [];
-    let current: PriceData[] = [];
-    let currentBoundary = -Infinity;
-
-    const flush = () => {
-      if (current.length === 0) return;
-      const first = current[0];
-      const last = current[current.length - 1];
-      const boundary = this.floorToBoundary(new Date(first.date).getTime(), targetMinutes);
-      const previousEnd =
-        bars.length > 0 ? new Date(bars[bars.length - 1].date).getTime() + targetSpan : boundary;
-      const date = Math.max(boundary, previousEnd);
-
-      bars.push(this.createAggregatedBar(current, date));
-      current = [];
-    };
-
-    for (let i = 0; i < dataset.length; i++) {
-      const candle = dataset[i];
-      const boundary = this.floorToBoundary(new Date(candle.date).getTime(), targetMinutes);
-      const startsNewGroup = current.length === 0 || boundary !== currentBoundary || gapEnds.has(i);
-
-      if (startsNewGroup) {
-        flush();
-        currentBoundary = boundary;
-      }
-
-      current.push(candle);
-    }
-
-    flush();
-    return bars;
-  }
-
-  private createAggregatedBar(current: PriceData[], date: number): AggregatedBar {
-    const first = current[0];
-    const last = current[current.length - 1];
-    return {
-      date: this.formatDate(date),
-      open: first.open,
-      high: Math.max(...current.map(candle => candle.high)),
-      low: Math.min(...current.map(candle => candle.low)),
-      close: last.close,
-      volume: current.reduce((sum, candle) => sum + candle.volume, 0),
-      subBars: current,
     };
   }
 }

@@ -1,5 +1,6 @@
 import { AssetSummary, PriceData } from '../types/asset';
-import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
+import { Timeframe } from '../timeframe/Timeframe';
+import { TimeframeAggregator } from '../timeframe/TimeframeAggregator';
 import { AssetChartRepository } from './AssetChartRepository';
 import { IndexedDbAssetChartRepository } from './IndexedDbAssetChartRepository';
 import { Interval } from '../utils/Interval';
@@ -13,6 +14,7 @@ interface RangeWindow {
 
 class AssetService {
   private static instance: AssetService;
+  private aggregator = new TimeframeAggregator();
 
   private windows = new Map<string, RangeWindow>();
 
@@ -87,8 +89,8 @@ class AssetService {
 
   priceSample(
     assetId: string,
-    originalTimeframe: TimeframeType,
-    targetTimeframe: TimeframeType
+    originalTimeframe: Timeframe,
+    targetTimeframe: Timeframe
   ): PriceData[] | null {
     const window = this.windows.get(assetId);
     if (!window) return null;
@@ -96,15 +98,10 @@ class AssetService {
     return this.aggregate(window.samples, targetTimeframe, originalTimeframe);
   }
 
-  private getTimeframeFactor(original: TimeframeType, target: TimeframeType): number {
-    if (original === target) return 1;
-    return Timeframe.getMinutes(target) / Timeframe.getMinutes(original);
-  }
-
   aggregate(
     data: PriceData[],
-    targetTF: TimeframeType,
-    originalTF: TimeframeType
+    targetTF: Timeframe,
+    originalTF: Timeframe
   ): PriceData[] {
     if (targetTF === originalTF) {
       return data;
@@ -116,65 +113,20 @@ class AssetService {
       return data;
     }
 
-    const targetMinutes = Timeframe.getMinutes(targetTF);
-    const buckets = this.createTimeBuckets(data, targetMinutes);
-    const sortedStarts = this.sortBucketsChronologically(buckets);
-
-    return this.buildAggregatedResult(buckets, sortedStarts);
+    const aggregatedBars = this.aggregator.aggregate(data, targetTF);
+    return aggregatedBars.map(bar => ({
+      date: bar.date,
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close,
+      volume: bar.volume,
+    }));
   }
 
-  private createTimeBuckets(data: PriceData[], targetMinutes: number): Map<number, PriceData[]> {
-    const bucketSpanMs = targetMinutes * 60 * 1000;
-    const buckets = new Map<number, PriceData[]>();
-
-    for (const sample of data) {
-      const timestamp = new Date(sample.date).getTime();
-      const bucketStart = Math.floor(timestamp / bucketSpanMs) * bucketSpanMs;
-      let bucket = buckets.get(bucketStart);
-      if (!bucket) {
-        bucket = [];
-        buckets.set(bucketStart, bucket);
-      }
-      bucket.push(sample);
-    }
-
-    return buckets;
-  }
-
-  private sortBucketsChronologically(buckets: Map<number, PriceData[]>): number[] {
-    return [...buckets.keys()].sort((a, b) => a - b);
-  }
-
-  private buildAggregatedResult(buckets: Map<number, PriceData[]>, starts: number[]): PriceData[] {
-    const result: PriceData[] = [];
-
-    for (const start of starts) {
-      const bucket = buckets.get(start)!;
-      result.push(this.aggregateBucket(bucket, start));
-    }
-
-    return result;
-  }
-
-  private aggregateBucket(bucket: PriceData[], start: number): PriceData {
-    let high = -Infinity;
-    let low = Infinity;
-    let volume = 0;
-
-    for (const candle of bucket) {
-      if (candle.high > high) high = candle.high;
-      if (candle.low < low) low = candle.low;
-      volume += candle.volume;
-    }
-
-    return {
-      date: new Date(start).toISOString().replace('.000Z', 'Z'),
-      open: bucket[0].open,
-      high,
-      low,
-      close: bucket[bucket.length - 1].close,
-      volume,
-    };
+  private getTimeframeFactor(original: Timeframe, target: Timeframe): number {
+    if (original === target) return 1;
+    return Timeframe.getMinutes(target) / Timeframe.getMinutes(original);
   }
 
   clearCache(assetId?: string): void {
