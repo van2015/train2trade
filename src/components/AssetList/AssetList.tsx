@@ -1,4 +1,4 @@
-import { useAppPresenter } from '../../chart/hooks/useAppPresenter';
+import { useAppPresenter } from '../../app/hooks/useAppPresenter';
 
 interface AssetListProps {
   selectedId: string | null;

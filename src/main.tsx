@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { PresenterContext } from './chart/context/PresenterContext';
+import { PresenterContext } from './app/context/PresenterContext';
 import AppPresenter from './chart/presenters/AppPresenter';
 import './index.css';
 
