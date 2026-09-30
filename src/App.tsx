@@ -4,7 +4,7 @@ import { useToast } from './shared/hooks/useToast';
 import { FileImport } from './components/FileImport/FileImport';
 import { TestDataGenerator } from './components/TestDataGenerator/TestDataGenerator';
 import { AssetList } from './components/AssetList/AssetList';
-import { ChartView } from './components/ChartView/ChartView';
+import { ChartView } from './chart/components/ChartView';
 import { Toast } from './components/Toast/Toast';
 import { ThemeToggle, initTheme } from './components/ThemeToggle/ThemeToggle';
 

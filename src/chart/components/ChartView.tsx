@@ -1,9 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useAppPresenter } from '../../chart/hooks/useAppPresenter';
+import { useAppPresenter } from '../hooks/useAppPresenter';
 import { ChartType, IndicatorPlot, PriceData } from '../../shared/types/asset';
-import { ChartTypeSelector } from '../ChartTypeSelector/ChartTypeSelector';
-import { TimeframeSelector } from '../TimeframeSelector/TimeframeSelector';
-import { IndicatorSelector } from '../IndicatorSelector/IndicatorSelector';
+import { ChartTypeSelector } from './ChartTypeSelector';
+import { TimeframeSelector } from './TimeframeSelector';
+import { IndicatorSelector } from './IndicatorSelector';
 import { getChartThemeColors } from '../../shared/utils/chartTheme';
 import { compute, getDefinition } from '../../shared/indicators/IndicatorService';
 import { Interval } from '../../shared/utils/Interval';
