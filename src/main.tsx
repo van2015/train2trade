@@ -1,8 +1,8 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { PresenterContext } from './context/PresenterContext';
-import AppPresenter from './presenters/AppPresenter';
+import { PresenterContext } from './chart/context/PresenterContext';
+import AppPresenter from './chart/presenters/AppPresenter';
 import './index.css';
 
 const presenter = AppPresenter.getInstance();

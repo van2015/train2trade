@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { useAppPresenter } from '../../hooks/useAppPresenter';
+import { useAppPresenter } from '../../chart/hooks/useAppPresenter';
 import { ChartType, IndicatorPlot, PriceData } from '../../shared/types/asset';
 import { ChartTypeSelector } from '../ChartTypeSelector/ChartTypeSelector';
 import { TimeframeSelector } from '../TimeframeSelector/TimeframeSelector';

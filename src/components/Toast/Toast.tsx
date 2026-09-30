@@ -1,4 +1,4 @@
-import { Toast as ToastType } from '../../hooks/useToast';
+import { Toast as ToastType } from '../../shared/hooks/useToast';
 
 interface ToastProps {
   toasts: ToastType[];
