@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { PriceData } from '../../src/shared/types/asset';
 import { BacktestInput, StrategyDefinition } from '../../src/shared/types/backtest';
-import { clearStrategies, registerStrategy } from '../../src/backtest/Strategy';
-import { runBacktest } from '../../src/backtest/Backtest';
+import { clearStrategies, registerStrategy } from '../../src/backtest/services/StrategyManager';
+import { runBacktest } from '../../src/backtest/engine/BacktestEngine';
 import { PlatformConfigBuilder } from '../test-helpers/platformConfigBuilder';
 import { TradeBuilder } from '../test-helpers/tradeBuilder';
 import { BacktestInputBuilder } from '../test-helpers/backtestInputBuilder';

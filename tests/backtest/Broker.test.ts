@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Broker } from '../../src/backtest/Broker';
+import { Broker } from '../../src/backtest/services/Broker';
 import { PlatformConfigBuilder } from '../test-helpers/platformConfigBuilder';
 
 const config = new PlatformConfigBuilder()

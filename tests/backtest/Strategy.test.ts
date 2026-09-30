@@ -8,7 +8,7 @@ import {
   registerStrategy,
   resolveStrategy,
   validTradeSpecs,
-} from '../../src/backtest/Strategy';
+} from '../../src/backtest/services/StrategyManager';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 import { StrategyDefinitionBuilder } from '../test-helpers/strategyDefinitionBuilder';
 import { TradeViewBuilder } from '../test-helpers/tradeViewBuilder';

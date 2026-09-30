@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Trade } from '../../src/backtest/Trade';
+import { Trade } from '../../src/backtest/models/Trade';
 
 describe('Trade', () => {
   it('starts pending and opens on its first fill', () => {

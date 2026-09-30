@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeMetrics } from '../../src/backtest/Metrics';
+import { computeMetrics } from '../../src/backtest/services/MetricsCalculator';
 import { ClosedTradeBuilder } from '../test-helpers/closedTradeBuilder';
 import { InvalidatedTradeBuilder } from '../test-helpers/invalidatedTradeBuilder';
 import { EquityPointBuilder } from '../test-helpers/equityPointBuilder';
