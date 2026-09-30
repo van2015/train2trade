@@ -1,6 +1,6 @@
-import { PriceData } from '../../src/types/asset';
-import { BacktestInput, PlatformConfig } from '../../src/types/backtest';
-import { Timeframe } from '../../src/timeframe/Timeframe';
+import { PriceData } from '../../src/shared/types/asset';
+import { BacktestInput, PlatformConfig } from '../../src/shared/types/backtest';
+import { Timeframe } from '../../src/shared/timeframe/Timeframe';
 
 export class BacktestInputBuilder {
   private config: Partial<BacktestInput> = {};

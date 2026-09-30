@@ -1,4 +1,4 @@
-import { TradeState, TradeView, Side } from '../../src/types/backtest';
+import { TradeState, TradeView, Side } from '../../src/shared/types/backtest';
 
 export class TradeViewBuilder {
   private config: TradeView = {

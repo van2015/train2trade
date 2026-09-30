@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { PriceData } from '../../src/types/asset';
-import { IndexedDbAssetChartRepository } from '../../src/services/IndexedDbAssetChartRepository';
-import { openDatabase, CHUNK_META_STORE, CHUNK_STORE } from '../../src/services/db';
+import { PriceData } from '../../src/shared/types/asset';
+import { IndexedDbAssetChartRepository } from '../../src/shared/services/repositories/IndexedDbAssetChartRepository';
+import { openDatabase, CHUNK_META_STORE, CHUNK_STORE } from '../../src/shared/services/db';
 
 const START = Date.parse('2024-01-01T00:00:00Z');
 const MINUTE = 60 * 1000;

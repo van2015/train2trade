@@ -1,4 +1,4 @@
-import { IndicatorId, IndicatorInstance } from '../../src/types/asset';
+import { IndicatorId, IndicatorInstance } from '../../src/shared/types/asset';
 
 export class IndicatorInstanceBuilder {
   private config: IndicatorInstance = {

@@ -1,4 +1,4 @@
-import { PriceData } from '../../src/types/asset';
+import { PriceData } from '../../src/shared/types/asset';
 import { SamplePriceBuilder } from './samplePriceBuilder';
 
 interface CandleDraft {

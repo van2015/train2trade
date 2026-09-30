@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PriceData } from '../../src/types/asset';
+import { PriceData } from '../../src/shared/types/asset';
 import { resample } from '../../src/backtest/Resample';
 import { PriceSeriesBuilder } from '../test-helpers/priceSeriesBuilder';
 

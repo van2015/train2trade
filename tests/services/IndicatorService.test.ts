@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PriceData, IndicatorInstance } from '../../src/types/asset';
+import { PriceData, IndicatorInstance } from '../../src/shared/types/asset';
 import {
   compute,
   createIndicatorInstance,
@@ -7,7 +7,7 @@ import {
   getIndicatorGroups,
   maxLookback,
   normalizeParams,
-} from '../../src/services/IndicatorService';
+} from '../../src/shared/indicators/IndicatorService';
 
 function candles(closes: number[], volumes?: number[], opens?: number[]): PriceData[] {
   return closes.map((close, i) => {

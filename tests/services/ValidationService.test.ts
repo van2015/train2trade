@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateAndParse } from '../../src/services/ValidationService';
+import { validateAndParse } from '../../src/shared/services/ValidationService';
 
 describe('ValidationService', () => {
   describe('CSV parsing', () => {

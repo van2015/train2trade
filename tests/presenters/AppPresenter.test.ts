@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import AppPresenter from '../../src/presenters/AppPresenter';
-import { AssetService } from '../../src/services/AssetService';
-import { Interval } from '../../src/utils/Interval';
+import { AssetService } from '../../src/shared/services/AssetService';
+import { Interval } from '../../src/shared/utils/Interval';
 
 describe('AppPresenter', () => {
   let presenter: AppPresenter;

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { TradeSpec } from '../../src/types/backtest';
+import { TradeSpec } from '../../src/shared/types/backtest';
 import {
   clearStrategies,
   createContext,

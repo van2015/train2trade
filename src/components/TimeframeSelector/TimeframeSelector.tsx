@@ -1,4 +1,4 @@
-import { Timeframe, Timeframe as TimeframeType } from '../../timeframe/Timeframe';
+import { Timeframe, Timeframe as TimeframeType } from '../../shared/timeframe/Timeframe';
 
 interface TimeframeSelectorProps {
   value: TimeframeType;

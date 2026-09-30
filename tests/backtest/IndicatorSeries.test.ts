@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { PriceData, IndicatorId } from '../../src/types/asset';
-import { compute, computeSeries } from '../../src/services/IndicatorService';
+import { PriceData, IndicatorId } from '../../src/shared/types/asset';
+import { compute, computeSeries } from '../../src/shared/indicators/IndicatorService';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 import { IndicatorInstanceBuilder } from '../test-helpers/indicatorInstanceBuilder';
 

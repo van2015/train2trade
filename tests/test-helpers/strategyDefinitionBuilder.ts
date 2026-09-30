@@ -3,8 +3,8 @@ import {
   StrategyDefinition,
   StrategyParameterSpec,
   TradeSpec,
-} from '../../src/types/backtest';
-import { Timeframe } from '../../src/timeframe/Timeframe';
+} from '../../src/shared/types/backtest';
+import { Timeframe } from '../../src/shared/timeframe/Timeframe';
 
 export class StrategyDefinitionBuilder {
   private config: StrategyDefinition = {

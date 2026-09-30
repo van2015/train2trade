@@ -1,5 +1,5 @@
-import { PriceData } from '../../src/types/asset';
-import { Timeframe } from '../../src/timeframe/Timeframe';
+import { PriceData } from '../../src/shared/types/asset';
+import { Timeframe } from '../../src/shared/timeframe/Timeframe';
 
 type CandleType = 'green' | 'red' | 'doji' | 'custom';
 

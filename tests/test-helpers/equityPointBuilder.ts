@@ -1,4 +1,4 @@
-import { EquityPoint } from '../../src/types/backtest';
+import { EquityPoint } from '../../src/shared/types/backtest';
 
 export class EquityPointBuilder {
   private points: EquityPoint[] = [];

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { PriceData, AssetSummary } from '../../src/types/asset';
-import { Timeframe } from '../../src/timeframe/Timeframe';
-import { AssetChartRepository } from '../../src/services/AssetChartRepository';
-import { AssetService } from '../../src/services/AssetService';
+import { PriceData, AssetSummary } from '../../src/shared/types/asset';
+import { Timeframe } from '../../src/shared/timeframe/Timeframe';
+import { AssetChartRepository } from '../../src/shared/services/repositories/AssetChartRepository';
+import { AssetService } from '../../src/shared/services/AssetService';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 
 class FakeRepository implements AssetChartRepository {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Interval } from '../../src/utils/Interval';
+import { Interval } from '../../src/shared/utils/Interval';
 
 describe('Interval', () => {
   it('span returns the length', () => {

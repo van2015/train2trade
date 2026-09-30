@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Timeframe, Timeframe as TimeframeType } from '../../timeframe/Timeframe';
+import { Timeframe, Timeframe as TimeframeType } from '../../shared/timeframe/Timeframe';
 import { generateCSV, validateParams, TestDataParams } from '../../services/TestDataService';
 
 interface TestDataGeneratorProps {

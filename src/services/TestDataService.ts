@@ -1,5 +1,5 @@
-import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
-import { PriceData } from '../types/asset';
+import { Timeframe, Timeframe as TimeframeType } from '../shared/timeframe/Timeframe';
+import { PriceData } from '../shared/types/asset';
 
 export interface TestDataParams {
   assetName: string;

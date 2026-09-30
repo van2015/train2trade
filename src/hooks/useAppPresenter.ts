@@ -1,8 +1,8 @@
 import { useState, useEffect, useContext, useCallback } from 'react';
 import { PresenterContext } from '../context/PresenterContext';
-import { Timeframe as TimeframeType } from '../timeframe/Timeframe';
-import { IndicatorId } from '../types/asset';
-import { Interval } from '../utils/Interval';
+import { Timeframe as TimeframeType } from '../shared/timeframe/Timeframe';
+import { IndicatorId } from '../shared/types/asset';
+import { Interval } from '../shared/utils/Interval';
 
 export function useAppPresenter() {
   const presenter = useContext(PresenterContext);

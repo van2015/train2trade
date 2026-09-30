@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Timeframe } from '../../src/timeframe/Timeframe';
+import { Timeframe } from '../../src/shared/timeframe/Timeframe';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 
 describe('Timeframe.detect', () => {

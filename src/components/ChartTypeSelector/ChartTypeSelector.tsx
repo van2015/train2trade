@@ -1,4 +1,4 @@
-import { ChartType } from '../../types/asset';
+import { ChartType } from '../../shared/types/asset';
 
 interface ChartTypeSelectorProps {
   value: ChartType;

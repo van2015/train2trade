@@ -1,4 +1,4 @@
-import { TradePredicate, TradeSpec } from '../../src/types/backtest';
+import { TradePredicate, TradeSpec } from '../../src/shared/types/backtest';
 
 export class TradeBuilder {
   private spec: TradeSpec = {
