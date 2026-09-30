@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAppPresenter } from './app/hooks/useAppPresenter';
-import { useToast } from './shared/hooks/useToast';
+import { useToast } from './app/hooks/useToast';
 import { FileImport } from './components/FileImport/FileImport';
 import { TestDataGenerator } from './components/TestDataGenerator/TestDataGenerator';
 import { AssetList } from './components/AssetList/AssetList';
