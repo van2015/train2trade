@@ -2,13 +2,11 @@ import { Fill, TradeView } from '../types/backtest';
 import { TradeState, Side } from '../types/TradeEnums';
 
 export class Trade {
-  private static directionFactor(side: Side): number {
-    return side === Side.Long ? 1 : -1;
-  }
+
   readonly id: string;
   readonly side: Side;
 
-  private _state: TradeState = TradeState.Pending;
+  private _state: TradeState;
   private _size = 0;
   private _averageEntry = 0;
   private _stopLoss?: number;
@@ -20,6 +18,7 @@ export class Trade {
   private readonly _fills: Fill[] = [];
 
   constructor(id: string, side: Side) {
+    this._state = TradeState.Pending;
     this.id = id;
     this.side = side;
   }
@@ -143,6 +142,10 @@ export class Trade {
       realizedPnl: this._realizedPnl,
       rMultiple: this.rMultiple,
     };
+  }
+
+  private static directionFactor(side: Side): number {
+    return side === Side.Long ? 1 : -1;
   }
 
   private pnlFor(size: number, price: number): number {
