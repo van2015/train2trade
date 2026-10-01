@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import AppPresenter from '../../src/chart/presenters/AppPresenter';
 import { AssetService } from '../../src/shared/services/AssetService';
-import { Interval } from '../../src/backtest/utils/Interval';
+import { Interval } from '../../src/shared/utils/Interval';
 
 describe('AppPresenter', () => {
   let presenter: AppPresenter;

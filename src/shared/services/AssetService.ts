@@ -3,7 +3,7 @@ import { Timeframe } from '../../backtest/timeframe/Timeframe';
 import { TimeframeAggregator } from '../../backtest/timeframe/TimeframeAggregator';
 import { AssetChartRepository } from './repositories/AssetChartRepository';
 import { IndexedDbAssetChartRepository } from './repositories/IndexedDbAssetChartRepository';
-import { Interval } from '../../backtest/utils/Interval';
+import { Interval } from '../../shared/utils/Interval';
 
 const DEFAULT_INITIAL_CANDLES = 500;
 

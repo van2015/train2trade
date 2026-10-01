@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { RangeStrategy } from '../../src/services/PriceRetrievalStrategy';
-import { Interval } from '../../src/backtest/utils/Interval';
+import { Interval } from '../../src/shared/utils/Interval';
 
 describe('RangeStrategy', () => {
   it('returns the requested range plus the default 20% buffer', async () => {

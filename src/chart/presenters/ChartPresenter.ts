@@ -4,7 +4,7 @@ import {
   IndicatorInstance,
 } from '../../shared/types/asset';
 import { Timeframe } from '../../backtest/timeframe/Timeframe';
-import { Interval } from '../../backtest/utils/Interval';
+import { Interval } from '../../shared/utils/Interval';
 import {
   createIndicatorInstance,
   getDefinition,

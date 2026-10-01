@@ -4,10 +4,10 @@ import { ChartType, IndicatorPlot, PriceData } from '../../shared/types/asset';
 import { ChartTypeSelector } from './ChartTypeSelector';
 import { TimeframeSelector } from './TimeframeSelector';
 import { IndicatorSelector } from './IndicatorSelector';
-import { getChartThemeColors } from '../../chart/utils/chartTheme';
+import { getChartThemeColors } from '../utils/chartTheme';
 import { compute, getDefinition } from '../../backtest/indicators/IndicatorService';
-import { Interval } from '../../backtest/utils/Interval';
-import { createTimeLabelFormatter } from '../../chart/utils/timeLabel';
+import { Interval } from '../../shared/utils/Interval';
+import { createTimeLabelFormatter } from '../utils/timeLabel';
 import { Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
 import { createChart, IChartApi, IPaneApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData, LineSeries, CandlestickSeries, BarSeries, HistogramSeries } from 'lightweight-charts';
 
