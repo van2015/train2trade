@@ -7,7 +7,7 @@ import {
   getIndicatorGroups,
   maxLookback,
   normalizeParams,
-} from '../../src/shared/indicators/IndicatorService';
+} from '../../src/backtest/indicators/IndicatorService';
 
 function candles(closes: number[], volumes?: number[], opens?: number[]): PriceData[] {
   return closes.map((close, i) => {

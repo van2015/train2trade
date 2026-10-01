@@ -3,14 +3,14 @@ import {
   IndicatorId,
   IndicatorInstance,
 } from '../../shared/types/asset';
-import { Timeframe } from '../../shared/timeframe/Timeframe';
-import { Interval } from '../../shared/utils/Interval';
+import { Timeframe } from '../../backtest/timeframe/Timeframe';
+import { Interval } from '../../backtest/utils/Interval';
 import {
   createIndicatorInstance,
   getDefinition,
   maxLookback,
   normalizeParams,
-} from '../../shared/indicators/IndicatorService';
+} from '../../backtest/indicators/IndicatorService';
 
 const TIMEFRAME_STORAGE_KEY = 'selectedTimeframe';
 const INDICATORS_STORAGE_KEY = 'activeIndicators';

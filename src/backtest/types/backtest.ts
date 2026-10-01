@@ -1,4 +1,4 @@
-import { PriceData, IndicatorId, IndicatorSeries } from './asset';
+import { PriceData, IndicatorId, IndicatorSeries } from '../../shared/types/asset';
 import { Timeframe } from '../timeframe/Timeframe';
 
 export interface AggregatedBar {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { IndicatorId, IndicatorInstance } from '../../shared/types/asset';
-import { getDefinition, getIndicatorGroups } from '../../shared/indicators/IndicatorService';
+import { getDefinition, getIndicatorGroups } from '../../backtest/indicators/IndicatorService';
 
 interface IndicatorSelectorProps {
   indicators: IndicatorInstance[];

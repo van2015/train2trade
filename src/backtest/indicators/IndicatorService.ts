@@ -6,7 +6,7 @@ import {
   IndicatorPlotPoint,
   IndicatorSeries,
   PriceData,
-} from '../types/asset';
+} from '../../shared/types/asset';
 import { Timeframe } from '../timeframe/Timeframe';
 
 type Values = (number | undefined)[];

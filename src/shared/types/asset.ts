@@ -1,4 +1,4 @@
-import { Timeframe } from '../timeframe/Timeframe';
+import { Timeframe } from '../../backtest/timeframe/Timeframe';
 
 export type { Timeframe };
 

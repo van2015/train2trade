@@ -7,12 +7,12 @@ import {
   InvalidatedTrade,
   StrategyContext,
   TradeSpec,
-} from '../../shared/types/backtest';
+} from '../../backtest/types/backtest';
 import { Trade } from '../models/Trade';
 import { Broker } from '../services/Broker';
 import { DataResampler } from './Resampler';
 import { StrategyManager } from '../services/StrategyManager';
-import { AggregatedBar } from '../../shared/types/backtest';
+import { AggregatedBar } from '../../backtest/types/backtest';
 
 interface PendingEntry {
   spec: TradeSpec;

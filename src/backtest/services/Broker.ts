@@ -3,7 +3,7 @@ import {
   OrderValidation,
   OrderValidationInput,
   PlatformConfig,
-} from '../../shared/types/backtest';
+} from '../../backtest/types/backtest';
 
 export class Broker {
   private static roundToStep(value: number, step: number): number {

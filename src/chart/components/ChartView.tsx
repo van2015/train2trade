@@ -4,11 +4,11 @@ import { ChartType, IndicatorPlot, PriceData } from '../../shared/types/asset';
 import { ChartTypeSelector } from './ChartTypeSelector';
 import { TimeframeSelector } from './TimeframeSelector';
 import { IndicatorSelector } from './IndicatorSelector';
-import { getChartThemeColors } from '../../shared/utils/chartTheme';
-import { compute, getDefinition } from '../../shared/indicators/IndicatorService';
-import { Interval } from '../../shared/utils/Interval';
-import { createTimeLabelFormatter } from '../../shared/utils/timeLabel';
-import { Timeframe as TimeframeType } from '../../shared/timeframe/Timeframe';
+import { getChartThemeColors } from '../../chart/utils/chartTheme';
+import { compute, getDefinition } from '../../backtest/indicators/IndicatorService';
+import { Interval } from '../../backtest/utils/Interval';
+import { createTimeLabelFormatter } from '../../chart/utils/timeLabel';
+import { Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
 import { createChart, IChartApi, IPaneApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData, LineSeries, CandlestickSeries, BarSeries, HistogramSeries } from 'lightweight-charts';
 
 function parseTime(dateStr: string): Time {

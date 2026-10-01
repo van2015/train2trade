@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createTimeLabelFormatter } from '../../src/shared/utils/timeLabel';
-import { Timeframe } from '../../src/shared/timeframe/Timeframe';
+import { createTimeLabelFormatter } from '../../src/chart/utils/timeLabel';
+import { Timeframe } from '../../src/backtest/timeframe/Timeframe';
 
 const T = Date.UTC(2024, 0, 1, 10, 30) / 1000;
 

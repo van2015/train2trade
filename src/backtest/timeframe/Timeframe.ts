@@ -1,4 +1,4 @@
-import { PriceData } from '../types/asset';
+import { PriceData } from '../../shared/types/asset';
 
 export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1D' | '1W';
 

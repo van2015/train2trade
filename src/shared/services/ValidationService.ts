@@ -1,5 +1,5 @@
 import { PriceData } from '../types/asset';
-import { Timeframe, Timeframe as TimeframeType } from '../timeframe/Timeframe';
+import { Timeframe, Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
 
 export interface ValidationError {
   type: 'DUPLICATE_TIMESTAMP' | 'INVALID_VALUES' | 'UNORDERED';

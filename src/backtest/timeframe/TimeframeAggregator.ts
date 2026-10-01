@@ -1,4 +1,4 @@
-import { PriceData } from '../types/asset';
+import { PriceData } from '../../shared/types/asset';
 import { Timeframe } from './Timeframe';
 import { AggregatedBar } from '../types/backtest';
 

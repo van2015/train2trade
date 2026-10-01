@@ -7,8 +7,8 @@ import {
   TradeRule,
   TradeSpec,
   TradeView,
-} from '../../shared/types/backtest';
-import { computeSeries } from '../../shared/indicators/IndicatorService';
+} from '../../backtest/types/backtest';
+import { computeSeries } from '../../backtest/indicators/IndicatorService';
 
 export class StrategyManager {
   private static instance: StrategyManager;

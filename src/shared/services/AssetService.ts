@@ -1,9 +1,9 @@
 import { AssetSummary, PriceData } from '../types/asset';
-import { Timeframe } from '../timeframe/Timeframe';
-import { TimeframeAggregator } from '../timeframe/TimeframeAggregator';
+import { Timeframe } from '../../backtest/timeframe/Timeframe';
+import { TimeframeAggregator } from '../../backtest/timeframe/TimeframeAggregator';
 import { AssetChartRepository } from './repositories/AssetChartRepository';
 import { IndexedDbAssetChartRepository } from './repositories/IndexedDbAssetChartRepository';
-import { Interval } from '../utils/Interval';
+import { Interval } from '../../backtest/utils/Interval';
 
 const DEFAULT_INITIAL_CANDLES = 500;
 

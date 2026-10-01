@@ -1,4 +1,4 @@
-import { Interval } from '../shared/utils/Interval';
+import { Interval } from '../backtest/utils/Interval';
 
 export interface PriceRetrievalStrategy {
   getRange(assetId: string, range: Interval, warmupMs?: number): Promise<Interval>;

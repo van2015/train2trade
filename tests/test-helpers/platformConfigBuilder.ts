@@ -1,4 +1,4 @@
-import { PlatformConfig } from '../../src/shared/types/backtest';
+import { PlatformConfig } from '../../src/backtest/types/backtest';
 
 export class PlatformConfigBuilder {
   private config: PlatformConfig = {

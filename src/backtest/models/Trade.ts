@@ -1,4 +1,4 @@
-import { Fill, TradeState, TradeView, Side } from '../../shared/types/backtest';
+import { Fill, TradeState, TradeView, Side } from '../../backtest/types/backtest';
 
 export class Trade {
   private static directionFactor(side: Side): number {

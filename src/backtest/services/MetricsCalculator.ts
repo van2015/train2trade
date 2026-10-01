@@ -3,7 +3,7 @@ import {
   EquityPoint,
   InvalidatedTrade,
   PerformanceMetrics,
-} from '../../shared/types/backtest';
+} from '../../backtest/types/backtest';
 
 interface TradeStats {
   totalTrades: number;

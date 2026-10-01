@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { PriceData, AssetSummary } from '../../src/shared/types/asset';
-import { Timeframe } from '../../src/shared/timeframe/Timeframe';
+import { Timeframe } from '../../src/backtest/timeframe/Timeframe';
 import { AssetChartRepository } from '../../src/shared/services/repositories/AssetChartRepository';
 import { AssetService } from '../../src/shared/services/AssetService';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';

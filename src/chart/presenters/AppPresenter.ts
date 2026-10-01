@@ -8,7 +8,7 @@ import {
 import { validateAndParse } from '../../shared/services/ValidationService';
 import { AssetService } from '../../shared/services/AssetService';
 import { PriceRetrievalStrategy, RangeStrategy } from '../../services/PriceRetrievalStrategy';
-import { Interval } from '../../shared/utils/Interval';
+import { Interval } from '../../backtest/utils/Interval';
 import { ChartPresenter, ChartState } from './ChartPresenter';
 
 export interface AppState {

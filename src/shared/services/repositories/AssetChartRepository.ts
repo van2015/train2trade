@@ -1,5 +1,5 @@
 import { AssetSummary, PriceData } from '../../types/asset';
-import { Timeframe } from '../../timeframe/Timeframe';
+import { Timeframe } from '../../../backtest/timeframe/Timeframe';
 
 export interface AssetChartRepository {
   init(): Promise<void>;
