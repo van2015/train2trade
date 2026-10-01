@@ -1,13 +1,14 @@
-import { Fill, TradeState, TradeView, Side } from '../../backtest/types/backtest';
+import { Fill, TradeView } from '../types/backtest';
+import { TradeState, Side } from '../types/TradeEnums';
 
 export class Trade {
   private static directionFactor(side: Side): number {
-    return side === 'long' ? 1 : -1;
+    return side === Side.Long ? 1 : -1;
   }
   readonly id: string;
   readonly side: Side;
 
-  private _state: TradeState = 'pending';
+  private _state: TradeState = TradeState.Pending;
   private _size = 0;
   private _averageEntry = 0;
   private _stopLoss?: number;
@@ -92,7 +93,7 @@ export class Trade {
       if (this._initialStopLoss === undefined && this._stopLoss !== undefined) {
         this._initialStopLoss = this._stopLoss;
       }
-      this._state = 'open';
+      this._state = TradeState.Open;
     }
   }
 
@@ -103,7 +104,7 @@ export class Trade {
     this._realizedPnl += this.pnlFor(size, price);
     this._size -= size;
     if (this._size === 0) {
-      this._state = 'closed';
+      this._state = TradeState.Closed;
     }
     return true;
   }
@@ -127,7 +128,7 @@ export class Trade {
       this._realizedPnl += this.pnlFor(this._size, price);
     }
     this._size = 0;
-    this._state = 'closed';
+    this._state = TradeState.Closed;
   }
 
   toView(): TradeView {
@@ -149,7 +150,7 @@ export class Trade {
   }
 
   private assertNotClosed(): void {
-    if (this._state === 'closed') {
+    if (this._state === TradeState.Closed) {
       throw new Error(`Trade ${this.id} is closed and cannot be modified`);
     }
   }

@@ -1,5 +1,7 @@
 import { PriceData, IndicatorId, IndicatorSeries } from '../../shared/types/asset';
 import { Timeframe } from '../timeframe/Timeframe';
+import { TradeState, Side } from './TradeEnums';
+export { TradeState, Side };
 
 export interface AggregatedBar {
   date: string;
@@ -18,10 +20,6 @@ export interface ResampleResult {
   subBars: PriceData[];
   hasFinerData: boolean;
 }
-
-export type Side = 'long' | 'short';
-
-export type TradeState = 'pending' | 'open' | 'closed';
 
 export interface Fill {
   size: number;

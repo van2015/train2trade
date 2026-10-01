@@ -13,6 +13,7 @@ import { Broker } from '../services/Broker';
 import { DataResampler } from './Resampler';
 import { StrategyManager } from '../services/StrategyManager';
 import { AggregatedBar } from '../../backtest/types/backtest';
+import { TradeState, Side } from '../types/TradeEnums';
 
 interface PendingEntry {
   spec: TradeSpec;
@@ -61,11 +62,11 @@ export class BacktestEngine {
     if (order.price === undefined) return undefined;
 
     if (order.type === 'limit') {
-      if (side === 'long') return bar.low <= order.price ? Math.min(bar.open, order.price) : undefined;
+      if (side === Side.Long) return bar.low <= order.price ? Math.min(bar.open, order.price) : undefined;
       return bar.high >= order.price ? Math.max(bar.open, order.price) : undefined;
     }
 
-    if (side === 'long') return bar.high >= order.price ? Math.max(bar.open, order.price) : undefined;
+    if (side === Side.Long) return bar.high >= order.price ? Math.max(bar.open, order.price) : undefined;
     return bar.low <= order.price ? Math.min(bar.open, order.price) : undefined;
   }
 
@@ -136,7 +137,7 @@ export class BacktestEngine {
     for (const exit of this.pendingExits.splice(0)) {
       const trade = this.trades.get(exit.tradeId);
       if (!trade) continue;
-      const side = trade.side === 'long' ? 'sell' : 'buy';
+      const side = trade.side === Side.Long ? 'sell' : 'buy';
       const price = this.broker.alignToTick(this.broker.fillPrice(side, sub.open, true));
       if (exit.portion >= 1) {
         this.closeTrade(trade, price, time);
@@ -205,7 +206,7 @@ export class BacktestEngine {
   private unrealized(price: number): number {
     let total = 0;
     for (const trade of this.trades.values()) {
-      const factor = trade.side === 'long' ? 1 : -1;
+      const factor = trade.side === Side.Long ? 1 : -1;
       total += (price - trade.averageEntry) * trade.size * factor;
     }
     return total;
@@ -292,7 +293,7 @@ export class BacktestEngine {
     this.broker.releaseMargin(reduceSize, trade.averageEntry);
     this.broker.applyRealizedPnl(trade.realizedPnl - before - entryPortion - exitFee);
 
-    if (trade.state === 'closed') {
+    if (trade.state === TradeState.Closed) {
       this.finalizeTrade(trade, time);
     }
   }
@@ -311,7 +312,7 @@ export class BacktestEngine {
     const reference = this.entryFillReference(entry.spec, bar);
     if (reference === undefined) return false;
 
-    const side = entry.spec.side === 'long' ? 'buy' : 'sell';
+    const side = entry.spec.side === Side.Long ? 'buy' : 'sell';
     const price = this.broker.alignToTick(
       this.broker.fillPrice(side, reference, entry.spec.order.type === 'market')
     );
@@ -362,7 +363,7 @@ export class BacktestEngine {
   }
 
   private unrealizedPnl(trade: Trade, price: number): number {
-    const factor = trade.side === 'long' ? 1 : -1;
+    const factor = trade.side === Side.Long ? 1 : -1;
     return (price - trade.averageEntry) * trade.size * factor;
   }
 
@@ -372,13 +373,13 @@ export class BacktestEngine {
     bar: PriceData,
     time: number
   ): void {
-    if (trade.state !== 'open') return;
+    if (trade.state !== TradeState.Open) return;
     const state = this.ruleState.get(trade.id);
     if (!state) return;
     const price = bar.close;
 
     spec.rules.forEach((rule, index) => {
-      if (trade.state !== 'open') return;
+      if (trade.state !== TradeState.Open) return;
 
       switch (rule.kind) {
         case 'trailingStop': {
@@ -400,9 +401,9 @@ export class BacktestEngine {
   }
 
   private evaluateTrailingStop(trade: Trade, price: number, distance: number): void {
-    const next = trade.side === 'long' ? price - distance : price + distance;
+    const next = trade.side === Side.Long ? price - distance : price + distance;
     const current = trade.stopLoss;
-    if (trade.side === 'long') {
+    if (trade.side === Side.Long) {
       if (current === undefined || next > current) trade.setStopLoss(next);
     } else if (current === undefined || next < current) {
       trade.setStopLoss(next);
@@ -438,7 +439,7 @@ export class BacktestEngine {
   }
 
   private evaluateProtective(trade: Trade, bar: PriceData, time: number): void {
-    const long = trade.side === 'long';
+    const long = trade.side === Side.Long;
     const stopLoss = trade.stopLoss;
     const takeProfit = trade.takeProfit;
 
@@ -463,7 +464,7 @@ export class BacktestEngine {
   private evaluateContextRules(ctx: StrategyContext): void {
     for (const [id, trade] of [...this.trades]) {
       const spec = this.tradeSpecs.get(id);
-      if (!spec || trade.state !== 'open') continue;
+      if (!spec || trade.state !== TradeState.Open) continue;
       const shouldClose = spec.rules.some(
         rule => rule.kind === 'closeWhen' && rule.predicate(trade.toView(), ctx)
       );

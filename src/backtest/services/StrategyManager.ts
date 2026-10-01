@@ -9,6 +9,7 @@ import {
   TradeView,
 } from '../../backtest/types/backtest';
 import { computeSeries } from '../../backtest/indicators/IndicatorService';
+import { Side } from '../types/TradeEnums';
 
 export class StrategyManager {
   private static instance: StrategyManager;
@@ -105,7 +106,7 @@ export class StrategyManager {
 
   isValidTradeSpec(spec: TradeSpec): boolean {
     if (!spec || typeof spec !== 'object') return false;
-    if (spec.side !== 'long' && spec.side !== 'short') return false;
+    if (spec.side !== Side.Long && spec.side !== Side.Short) return false;
     if (
       !spec.order ||
       (spec.order.type !== 'market' &&
