@@ -48,7 +48,6 @@ export class BacktestEngine {
   private pendingEntries: PendingEntry[] = [];
   private pendingExits: PendingExit[] = [];
   private tradeCounter = 0;
-  private hasFinerData = false;
   private allBars: AggregatedBar[] = [];
 
   private toTime(date: string): number {
@@ -76,7 +75,6 @@ export class BacktestEngine {
     const strategyTimeframe = input.strategyTimeframe ?? resolved.definition.timeframe;
     const resampler = new DataResampler();
     const { bars, hasFinerData } = resampler.resample(input.dataset, strategyTimeframe);
-    this.hasFinerData = hasFinerData;
     this.allBars = bars;
 
     this.closedTrades = [];
@@ -122,7 +120,7 @@ export class BacktestEngine {
       this.processPendingExits(time, sub);
       this.processPendingEntries(sub, time);
       this.evaluateTradeRules(sub, time);
-      this.evaluateProtectiveTrades(sub, time);
+      this.processCandles(sub, time);
       this.checkStopOut(sub.close, time);
     }
 
@@ -131,6 +129,51 @@ export class BacktestEngine {
     }
 
     this.updateEquityCurve(bar);
+  }
+
+  private processCandles(sub: PriceData, time: number): void {
+    const closedTrades: { trade: Trade; sizeBefore: number; beforePnl: number }[] = [];
+
+    for (const trade of [...this.trades.values()]) {
+      if (trade.state !== TradeState.Open) continue;
+
+      const sizeBefore = trade.size;
+      const beforePnl = trade.realizedPnl;
+
+      try {
+        trade.processCandle(sub);
+      } catch (e) {
+        this.invalidateTrade(trade, time, e instanceof Error ? e.message : 'candle error');
+        continue;
+      }
+
+      if (trade.size === 0) {
+        closedTrades.push({ trade, sizeBefore, beforePnl });
+      } else if (trade.size < sizeBefore) {
+        this.applyPartialClose(trade, sizeBefore - trade.size, beforePnl, (sizeBefore - trade.size) / sizeBefore, time, false);
+      }
+    }
+
+    for (const { trade, sizeBefore, beforePnl } of closedTrades) {
+      this.applyPartialClose(trade, sizeBefore, beforePnl, 1, time, true);
+    }
+  }
+
+  private applyPartialClose(trade: Trade, closedSize: number, beforePnl: number, portion: number, time: number, finalize: boolean): void {
+    const fees = this.tradeFees.get(trade.id);
+    const entryPortion = fees ? fees.entryRemaining * portion : 0;
+    const exitFee = this.broker.commission(closedSize);
+
+    if (fees) {
+      fees.entryRemaining -= entryPortion;
+      fees.exitTotal += exitFee;
+    }
+    this.broker.releaseMargin(closedSize, trade.averageEntry);
+    this.broker.applyRealizedPnl(trade.realizedPnl - beforePnl - entryPortion - exitFee);
+
+    if (finalize) {
+      this.finalizeTrade(trade, time);
+    }
   }
 
   private processPendingExits(time: number, sub: PriceData): void {
@@ -160,14 +203,6 @@ export class BacktestEngine {
       const spec = this.tradeSpecs.get(trade.id);
       if (spec) this.evaluatePriceRules(trade, spec, sub, time);
     }
-
-    for (const trade of [...this.trades.values()]) {
-      if (!this.trades.has(trade.id)) continue;
-      this.evaluateProtective(trade, sub, time);
-    }
-  }
-
-  private evaluateProtectiveTrades(_sub: PriceData, _time: number): void {
   }
 
   private checkStopOut(closePrice: number, time: number): void {
@@ -226,10 +261,6 @@ export class BacktestEngine {
     return [...this.trades.values()].map(trade => trade.toView());
   }
 
-  private openedSize(trade: Trade): number {
-    return trade.fills.reduce((sum, fill) => sum + fill.size, 0);
-  }
-
   private finalizeTrade(trade: Trade, time: number): void {
     const fees = this.tradeFees.get(trade.id);
     const totalFees = fees ? fees.entryTotal + fees.exitTotal : 0;
@@ -238,7 +269,7 @@ export class BacktestEngine {
     this.closedTrades.push({
       id: trade.id,
       side: trade.side,
-      size: this.openedSize(trade),
+      size: trade.openedSize,
       averageEntry: trade.averageEntry,
       initialStopLoss: trade.initialStopLoss,
       grossPnl,
@@ -263,7 +294,7 @@ export class BacktestEngine {
     const exitFee = this.broker.commission(size);
     const before = trade.realizedPnl;
 
-    trade.close(price);
+    trade.close(size, price);
 
     if (fees) {
       fees.entryRemaining -= entryPortion;
@@ -284,7 +315,7 @@ export class BacktestEngine {
     const exitFee = this.broker.commission(reduceSize);
     const before = trade.realizedPnl;
 
-    trade.reduce(reduceSize, price);
+    trade.close(reduceSize, price);
 
     if (fees) {
       fees.entryRemaining -= entryPortion;
@@ -324,7 +355,7 @@ export class BacktestEngine {
 
     if (!this.broker.validateOrder({ price, size }).valid) return true;
 
-    const { id } = this.createTradeFromSpec(entry, size, price, time);
+    const { id } = this.createTradeFromSpec(entry, size, price);
     this.initializeTradeState(id, entry, size, time);
     this.broker.addMargin(size, price);
     return true;
@@ -340,13 +371,13 @@ export class BacktestEngine {
     }
   }
 
-  private createTradeFromSpec(entry: PendingEntry, size: number, price: number, time: number): { id: string; trade: Trade } {
+  private createTradeFromSpec(entry: PendingEntry, size: number, price: number): { id: string; trade: Trade } {
     this.tradeCounter += 1;
     const id = `trade-${this.tradeCounter}`;
     const trade = new Trade(id, entry.spec.side);
-    trade.addFill(size, price, time);
-    if (entry.spec.stopLoss !== undefined) trade.setStopLoss(entry.spec.stopLoss);
-    if (entry.spec.takeProfit !== undefined) trade.setTakeProfit(entry.spec.takeProfit);
+    trade.open(price, size);
+    if (entry.spec.stopLoss !== undefined) trade.addStopLoss(entry.spec.stopLoss, size);
+    if (entry.spec.takeProfit !== undefined) trade.addTakeProfit(entry.spec.takeProfit, size);
     this.trades.set(id, trade);
     return { id, trade };
   }
@@ -402,11 +433,24 @@ export class BacktestEngine {
 
   private evaluateTrailingStop(trade: Trade, price: number, distance: number): void {
     const next = trade.side === Side.Long ? price - distance : price + distance;
-    const current = trade.stopLoss;
+    const sls = trade.getStopLosses();
+    const current = sls[0]?.price;
+
     if (trade.side === Side.Long) {
-      if (current === undefined || next > current) trade.setStopLoss(next);
+      if (current === undefined || next > current) this.moveStopLoss(trade, next);
     } else if (current === undefined || next < current) {
-      trade.setStopLoss(next);
+      this.moveStopLoss(trade, next);
+    }
+  }
+
+  private moveStopLoss(trade: Trade, newPrice: number): void {
+    const sls = trade.getStopLosses();
+    if (sls.length > 0) {
+      const size = sls[0].size;
+      trade.updateStopLoss(0, 0);
+      trade.addStopLoss(newPrice, size);
+    } else {
+      trade.addStopLoss(newPrice, trade.size);
     }
   }
 
@@ -415,7 +459,7 @@ export class BacktestEngine {
     const risk = trade.riskAmount;
     if (risk === undefined) return;
     if (this.unrealizedPnl(trade, price) >= rMultiple * risk) {
-      trade.setStopLoss(trade.averageEntry);
+      this.moveStopLoss(trade, trade.averageEntry);
       state.breakEvenDone = true;
     }
   }
@@ -436,29 +480,6 @@ export class BacktestEngine {
       this.reduceTrade(trade, portion, price, time);
       state.partialsTriggered[index] = true;
     }
-  }
-
-  private evaluateProtective(trade: Trade, bar: PriceData, time: number): void {
-    const long = trade.side === Side.Long;
-    const stopLoss = trade.stopLoss;
-    const takeProfit = trade.takeProfit;
-
-    const hitStop = stopLoss !== undefined && (long ? bar.low <= stopLoss : bar.high >= stopLoss);
-    const hitTarget =
-      takeProfit !== undefined && (long ? bar.high >= takeProfit : bar.low <= takeProfit);
-
-    if (!hitStop && !hitTarget) return;
-
-    if (hitStop && hitTarget) {
-      if (!this.hasFinerData) {
-        this.invalidateTrade(trade, time, 'ambiguous bar without finer data');
-        return;
-      }
-      this.closeTrade(trade, stopLoss as number, time);
-      return;
-    }
-
-    this.closeTrade(trade, (hitStop ? stopLoss : takeProfit) as number, time);
   }
 
   private evaluateContextRules(ctx: StrategyContext): void {
