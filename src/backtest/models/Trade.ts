@@ -126,8 +126,9 @@ export class Trade {
     }
     if (size <= 0) throw new Error('Size must be positive');
 
+    const fillPrice = this._markPrice ?? this._averageEntry;
     const newSize = this._size + size;
-    this._averageEntry = (this._size * this._averageEntry + size * this._averageEntry) / newSize;
+    this._averageEntry = (this._size * this._averageEntry + size * fillPrice) / newSize;
     this._size = newSize;
     this._openedSize += size;
   }

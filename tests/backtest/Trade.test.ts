@@ -35,6 +35,27 @@ describe('Trade', () => {
       expect(trade.averageEntry).toBe(100);
     });
 
+    it('addSize at current markPrice averages the entry price', () => {
+      const trade = new Trade('p1', Side.Long);
+      trade.open(100, 1);
+      trade.processCandle(bar({ close: 110 }));
+
+      trade.addSize(1);
+
+      expect(trade.size).toBe(2);
+      expect(trade.averageEntry).toBeCloseTo(105);
+    });
+
+    it('addSize without markPrice keeps the entry price', () => {
+      const trade = new Trade('p1', Side.Long);
+      trade.open(100, 1);
+
+      trade.addSize(1);
+
+      expect(trade.size).toBe(2);
+      expect(trade.averageEntry).toBe(100);
+    });
+
     it('addSize(size) rejects size <= 0', () => {
       const trade = new Trade('p1', Side.Long);
       trade.open(100, 1);
