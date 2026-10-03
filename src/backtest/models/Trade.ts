@@ -1,6 +1,8 @@
 import { TradeView } from '../types/backtest';
 import { TradeState, Side } from '../types/TradeEnums';
+import { TradeError } from '../types/TradeError';
 import { PriceData } from '../../shared/types/asset';
+import { Result } from '../../shared/types/Result';
 
 interface StopLossLevel {
   price: number;
@@ -59,23 +61,28 @@ export class Trade {
     return (this._realizedPnl / this._averageEntry) * 100;
   }
 
-  get unrealizedPnl(): number {
+  get unrealizedPnl(): Result<number, TradeError> {
     if (this._markPrice === undefined) {
-      throw new Error(`Trade ${this.id}: mark price not set - call processCandle first`);
+      return { success: false, error: { type: 'MARK_PRICE_NOT_SET' } };
     }
-    return (this._markPrice - this._averageEntry) * this._size * Trade.directionFactor(this.side);
+    return {
+      success: true,
+      value: (this._markPrice - this._averageEntry) * this._size * Trade.directionFactor(this.side),
+    };
   }
 
-  get unrealizedPnlPercent(): number {
+  get unrealizedPnlPercent(): Result<number, TradeError> {
     if (this._markPrice === undefined) {
-      throw new Error(`Trade ${this.id}: mark price not set - call processCandle first`);
+      return { success: false, error: { type: 'MARK_PRICE_NOT_SET' } };
     }
-    if (this._averageEntry === 0) return 0;
-    return (
-      ((this._markPrice - this._averageEntry) / this._averageEntry) *
-      100 *
-      Trade.directionFactor(this.side)
-    );
+    if (this._averageEntry === 0) return { success: true, value: 0 };
+    return {
+      success: true,
+      value:
+        ((this._markPrice - this._averageEntry) / this._averageEntry) *
+        100 *
+        Trade.directionFactor(this.side),
+    };
   }
 
   get initialStopLoss(): number | undefined {
@@ -105,11 +112,13 @@ export class Trade {
     return this._realizedPnl / risk;
   }
 
-  open(price: number, size: number): void {
+  open(price: number, size: number): Result<void, TradeError> {
     if (this._state !== TradeState.Pending) {
-      throw new Error(`Trade ${this.id} is already open`);
+      return { success: false, error: { type: 'TRADE_ALREADY_OPEN', id: this.id } };
     }
-    if (size <= 0) throw new Error('Open size must be positive');
+    if (size <= 0) {
+      return { success: false, error: { type: 'INVALID_SIZE', size } };
+    }
 
     this._averageEntry = price;
     this._size = size;
@@ -117,67 +126,99 @@ export class Trade {
     this._initialAverageEntry = price;
     this._initialSize = size;
     this._state = TradeState.Open;
+    return { success: true, value: undefined };
   }
 
-  addSize(size: number): void {
-    this.assertNotClosed();
-    if (this._state !== TradeState.Open) {
-      throw new Error(`Trade ${this.id} is not open`);
+  addSize(size: number): Result<void, TradeError> {
+    if (this._state === TradeState.Closed) {
+      return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
     }
-    if (size <= 0) throw new Error('Size must be positive');
+    if (this._state !== TradeState.Open) {
+      return { success: false, error: { type: 'TRADE_NOT_OPEN', id: this.id } };
+    }
+    if (size <= 0) {
+      return { success: false, error: { type: 'INVALID_SIZE', size } };
+    }
 
     const fillPrice = this._markPrice ?? this._averageEntry;
     const newSize = this._size + size;
     this._averageEntry = (this._size * this._averageEntry + size * fillPrice) / newSize;
     this._size = newSize;
     this._openedSize += size;
+    return { success: true, value: undefined };
   }
 
-  addStopLoss(price: number, size: number): void {
-    this.assertNotClosed();
-    if (size < 0) throw new Error('Stop loss size must be non-negative');
-    if (size === 0) return;
+  addStopLoss(price: number, size: number): Result<void, TradeError> {
+    if (this._state === TradeState.Closed) {
+      return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
+    }
+    if (size < 0) {
+      return { success: false, error: { type: 'INVALID_STOP_LOSS_SIZE', size } };
+    }
+    if (size === 0) return { success: true, value: undefined };
 
     this._stopLosses.push({ price, size });
     if (this._initialStopLoss === undefined) {
       this._initialStopLoss = price;
     }
+    return { success: true, value: undefined };
   }
 
-  addTakeProfit(price: number, size: number): void {
-    this.assertNotClosed();
-    if (size < 0) throw new Error('Take profit size must be non-negative');
-    if (size === 0) return;
+  addTakeProfit(price: number, size: number): Result<void, TradeError> {
+    if (this._state === TradeState.Closed) {
+      return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
+    }
+    if (size < 0) {
+      return { success: false, error: { type: 'INVALID_TAKE_PROFIT_SIZE', size } };
+    }
+    if (size === 0) return { success: true, value: undefined };
 
     this._takeProfits.push({ price, size });
+    return { success: true, value: undefined };
   }
 
-  updateStopLoss(index: number, newSize: number): void {
-    this.assertNotClosed();
-    if (index < 0 || index >= this._stopLosses.length) {
-      throw new Error(`Invalid stop loss index: ${index}`);
+  updateStopLoss(index: number, newSize: number): Result<void, TradeError> {
+    if (this._state === TradeState.Closed) {
+      return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
     }
-    if (newSize < 0) throw new Error('Stop loss size must be non-negative');
+    if (index < 0 || index >= this._stopLosses.length) {
+      return {
+        success: false,
+        error: { type: 'INVALID_INDEX', index, maxIndex: this._stopLosses.length - 1 },
+      };
+    }
+    if (newSize < 0) {
+      return { success: false, error: { type: 'INVALID_STOP_LOSS_SIZE', size: newSize } };
+    }
 
     if (newSize === 0) {
       this._stopLosses.splice(index, 1);
     } else {
       this._stopLosses[index].size = newSize;
     }
+    return { success: true, value: undefined };
   }
 
-  updateTakeProfit(index: number, newSize: number): void {
-    this.assertNotClosed();
-    if (index < 0 || index >= this._takeProfits.length) {
-      throw new Error(`Invalid take profit index: ${index}`);
+  updateTakeProfit(index: number, newSize: number): Result<void, TradeError> {
+    if (this._state === TradeState.Closed) {
+      return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
     }
-    if (newSize < 0) throw new Error('Take profit size must be non-negative');
+    if (index < 0 || index >= this._takeProfits.length) {
+      return {
+        success: false,
+        error: { type: 'INVALID_INDEX', index, maxIndex: this._takeProfits.length - 1 },
+      };
+    }
+    if (newSize < 0) {
+      return { success: false, error: { type: 'INVALID_TAKE_PROFIT_SIZE', size: newSize } };
+    }
 
     if (newSize === 0) {
       this._takeProfits.splice(index, 1);
     } else {
       this._takeProfits[index].size = newSize;
     }
+    return { success: true, value: undefined };
   }
 
   getStopLosses(): readonly StopLossLevel[] {
@@ -188,14 +229,13 @@ export class Trade {
     return this._takeProfits;
   }
 
-  processCandle(bar: PriceData): void {
-    if (this._state !== TradeState.Open) return;
-    if (this._stopLosses.length === 0 && this._takeProfits.length === 0) {
-      this._markPrice = bar.close;
-      return;
-    }
-
+  processCandle(bar: PriceData): Result<void, TradeError> {
+    if (this._state !== TradeState.Open) return { success: true, value: undefined };
     this._markPrice = bar.close;
+
+    if (this._stopLosses.length === 0 && this._takeProfits.length === 0) {
+      return { success: true, value: undefined };
+    }
 
     const long = this.side === Side.Long;
     const slHit =
@@ -206,22 +246,33 @@ export class Trade {
       this._takeProfits.some(tp => (long ? bar.high >= tp.price : bar.low <= tp.price));
 
     if (slHit && tpHit) {
-      throw new Error(
-        `Trade ${this.id}: ambiguous candle - both SL and TP would execute in same candle`
-      );
+      return { success: false, error: { type: 'AMBIGUOUS_CANDLE', id: this.id } };
     }
 
     if (slHit) this._executeStopLosses(bar, long);
     if (tpHit) this._executeTakeProfits(bar, long);
+    return { success: true, value: undefined };
   }
 
-  close(size: number, price?: number): void {
-    this.assertNotClosed();
-    if (size <= 0) throw new Error('Close size must be positive');
-    if (size > this._size) throw new Error('Close size exceeds position size');
+  close(size: number, price?: number): Result<void, TradeError> {
+    if (this._state === TradeState.Closed) {
+      return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
+    }
+    if (this._state !== TradeState.Open) {
+      return { success: false, error: { type: 'TRADE_NOT_OPEN', id: this.id } };
+    }
+    if (size <= 0) {
+      return { success: false, error: { type: 'INVALID_SIZE', size } };
+    }
+    if (size > this._size) {
+      return {
+        success: false,
+        error: { type: 'CLOSE_SIZE_EXCEEDS_POSITION', requested: size, available: this._size },
+      };
+    }
     const execPrice = price ?? this._markPrice;
     if (execPrice === undefined) {
-      throw new Error(`Trade ${this.id}: mark price not set - call processCandle first`);
+      return { success: false, error: { type: 'MARK_PRICE_NOT_SET' } };
     }
 
     this._realizedPnl +=
@@ -231,11 +282,12 @@ export class Trade {
     if (this._size === 0) {
       this._state = TradeState.Closed;
     }
+    return { success: true, value: undefined };
   }
 
-  closeAll(): void {
-    if (this._state !== TradeState.Open) return;
-    this.close(this._size);
+  closeAll(): Result<void, TradeError> {
+    if (this._state !== TradeState.Open) return { success: true, value: undefined };
+    return this.close(this._size);
   }
 
   toView(): TradeView {
@@ -299,12 +351,6 @@ export class Trade {
       if (this._size === 0) {
         this._state = TradeState.Closed;
       }
-    }
-  }
-
-  private assertNotClosed(): void {
-    if (this._state === TradeState.Closed) {
-      throw new Error(`Trade ${this.id} is closed and cannot be modified`);
     }
   }
 }

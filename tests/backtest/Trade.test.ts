@@ -61,14 +61,21 @@ describe('Trade', () => {
       const trade = new Trade('p1', Side.Long);
       trade.open(100, 1);
 
-      expect(() => trade.addSize(0)).toThrow();
-      expect(() => trade.addSize(-1)).toThrow();
+      const r1 = trade.addSize(0);
+      expect(r1.success).toBe(false);
+      expect(!r1.success && r1.error.type).toBe('INVALID_SIZE');
+
+      const r2 = trade.addSize(-1);
+      expect(r2.success).toBe(false);
+      expect(!r2.success && r2.error.type).toBe('INVALID_SIZE');
     });
 
-    it('addSize on a pending trade throws', () => {
+    it('addSize on a pending trade fails', () => {
       const trade = new Trade('p1', Side.Long);
 
-      expect(() => trade.addSize(1)).toThrow();
+      const result = trade.addSize(1);
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('TRADE_NOT_OPEN');
     });
   });
 
@@ -79,7 +86,9 @@ describe('Trade', () => {
 
       trade.processCandle(bar({ close: 108 }));
 
-      expect(trade.unrealizedPnlPercent).toBeCloseTo(8);
+      const result = trade.unrealizedPnlPercent;
+      expect(result.success).toBe(true);
+      expect(result.success && result.value).toBeCloseTo(8);
     });
 
     it('unrealizedPnl for long position', () => {
@@ -88,7 +97,9 @@ describe('Trade', () => {
 
       trade.processCandle(bar({ close: 105 }));
 
-      expect(trade.unrealizedPnl).toBeCloseTo(10);
+      const result = trade.unrealizedPnl;
+      expect(result.success).toBe(true);
+      expect(result.success && result.value).toBeCloseTo(10);
     });
 
     it('unrealizedPnlPercent for short position', () => {
@@ -97,21 +108,27 @@ describe('Trade', () => {
 
       trade.processCandle(bar({ close: 95 }));
 
-      expect(trade.unrealizedPnlPercent).toBeCloseTo(5);
+      const result = trade.unrealizedPnlPercent;
+      expect(result.success).toBe(true);
+      expect(result.success && result.value).toBeCloseTo(5);
     });
 
-    it('unrealizedPnlPercent throws if no processCandle was called', () => {
+    it('unrealizedPnlPercent returns error if no processCandle was called', () => {
       const trade = new Trade('p1', Side.Long);
       trade.open(100, 1);
 
-      expect(() => trade.unrealizedPnlPercent).toThrow('mark price');
+      const result = trade.unrealizedPnlPercent;
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('MARK_PRICE_NOT_SET');
     });
 
-    it('unrealizedPnl throws if no processCandle was called', () => {
+    it('unrealizedPnl returns error if no processCandle was called', () => {
       const trade = new Trade('p1', Side.Long);
       trade.open(100, 1);
 
-      expect(() => trade.unrealizedPnl).toThrow('mark price');
+      const result = trade.unrealizedPnl;
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('MARK_PRICE_NOT_SET');
     });
 
     it('processCandle updates markPrice', () => {
@@ -238,26 +255,28 @@ describe('Trade', () => {
   });
 
   describe('processCandle - both SL and TP hit in same candle', () => {
-    it('throws error if both SL and TP conditions are met', () => {
+    it('returns error if both SL and TP conditions are met', () => {
       const trade = new Trade('p1', Side.Long);
       trade.open(100, 2);
       trade.addStopLoss(95, 1);
       trade.addTakeProfit(110, 1);
 
-      expect(() =>
-        trade.processCandle(bar({ high: 115, low: 90, close: 100 }))
-      ).toThrow();
+      const result = trade.processCandle(bar({ high: 115, low: 90, close: 100 }));
+
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('AMBIGUOUS_CANDLE');
     });
 
-    it('throws error for short when both SL and TP hit', () => {
+    it('returns error for short when both SL and TP hit', () => {
       const trade = new Trade('p1', Side.Short);
       trade.open(100, 2);
       trade.addStopLoss(105, 1);
       trade.addTakeProfit(90, 1);
 
-      expect(() =>
-        trade.processCandle(bar({ high: 110, low: 85, close: 100 }))
-      ).toThrow();
+      const result = trade.processCandle(bar({ high: 110, low: 85, close: 100 }));
+
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('AMBIGUOUS_CANDLE');
     });
   });
 
@@ -291,8 +310,13 @@ describe('Trade', () => {
       trade.open(100, 2);
       trade.processCandle(bar({ close: 110 }));
 
-      expect(() => trade.close(0)).toThrow();
-      expect(() => trade.close(-1)).toThrow();
+      const r1 = trade.close(0);
+      expect(r1.success).toBe(false);
+      expect(!r1.success && r1.error.type).toBe('INVALID_SIZE');
+
+      const r2 = trade.close(-1);
+      expect(r2.success).toBe(false);
+      expect(!r2.success && r2.error.type).toBe('INVALID_SIZE');
     });
 
     it('close(size) rejects size larger than position', () => {
@@ -300,13 +324,17 @@ describe('Trade', () => {
       trade.open(100, 2);
       trade.processCandle(bar({ close: 110 }));
 
-      expect(() => trade.close(3)).toThrow();
+      const result = trade.close(3);
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('CLOSE_SIZE_EXCEEDS_POSITION');
     });
 
-    it('close throws if trade is not open', () => {
+    it('close fails if trade is not open', () => {
       const trade = new Trade('p1', Side.Long);
 
-      expect(() => trade.close(1)).toThrow();
+      const result = trade.close(1);
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('TRADE_NOT_OPEN');
     });
 
     it('short: closeAll computes negative-direction PnL', () => {
@@ -326,9 +354,17 @@ describe('Trade', () => {
       trade.processCandle(bar({ close: 110 }));
       trade.closeAll();
 
-      expect(() => trade.addSize(1)).toThrow();
-      expect(() => trade.addStopLoss(95, 1)).toThrow();
-      expect(() => trade.close(1)).toThrow();
+      const r1 = trade.addSize(1);
+      expect(r1.success).toBe(false);
+      expect(!r1.success && r1.error.type).toBe('TRADE_CLOSED');
+
+      const r2 = trade.addStopLoss(95, 1);
+      expect(r2.success).toBe(false);
+      expect(!r2.success && r2.error.type).toBe('TRADE_CLOSED');
+
+      const r3 = trade.close(1);
+      expect(r3.success).toBe(false);
+      expect(!r3.success && r3.error.type).toBe('TRADE_CLOSED');
     });
   });
 
@@ -411,19 +447,23 @@ describe('Trade', () => {
       expect(trade.getTakeProfits()[0]).toEqual({ price: 120, size: 1 });
     });
 
-    it('updateStopLoss throws for out-of-range index', () => {
+    it('updateStopLoss fails for out-of-range index', () => {
       const trade = new Trade('p1', Side.Long);
       trade.open(100, 5);
       trade.addStopLoss(95, 1);
 
-      expect(() => trade.updateStopLoss(1, 2)).toThrow();
+      const result = trade.updateStopLoss(1, 2);
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('INVALID_INDEX');
     });
 
-    it('addStopLoss with negative size throws', () => {
+    it('addStopLoss with negative size fails', () => {
       const trade = new Trade('p1', Side.Long);
       trade.open(100, 5);
 
-      expect(() => trade.addStopLoss(95, -1)).toThrow();
+      const result = trade.addStopLoss(95, -1);
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('INVALID_STOP_LOSS_SIZE');
     });
   });
 

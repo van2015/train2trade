@@ -140,10 +140,13 @@ export class BacktestEngine {
       const sizeBefore = trade.size;
       const beforePnl = trade.realizedPnl;
 
-      try {
-        trade.processCandle(sub);
-      } catch (e) {
-        this.invalidateTrade(trade, time, e instanceof Error ? e.message : 'candle error');
+      const result = trade.processCandle(sub);
+      if (!result.success) {
+        const reason =
+          result.error.type === 'AMBIGUOUS_CANDLE'
+            ? 'ambiguous bar without finer data'
+            : `candle error: ${result.error.type}`;
+        this.invalidateTrade(trade, time, reason);
         continue;
       }
 
