@@ -179,7 +179,7 @@ class AppPresenter {
     });
   }
 
-  async requestRange(assetId: string, interval: Interval): Promise<void> {
+  async requestRange(assetId: string, interval: Interval): Promise<Result<void, AppPresenterError>> {
     try {
       this.currentRange = interval;
       const warmupMs = this.chartPresenter.getMaxLookback();
@@ -193,9 +193,15 @@ class AppPresenter {
       const samples = await this.assetService.fetchSamples(assetId, from, to);
       this.loadedRange = this.assetService.addRangeData(assetId, samples);
       this.notify();
+      return { success: true, value: undefined };
     } catch {
-      this.error = 'Failed to load asset data';
+      const error: AppPresenterError = {
+        type: 'LOAD_RANGE_FAILED',
+        message: 'Failed to load asset data',
+      };
+      this.error = error.message;
       this.notify();
+      return { success: false, error };
     }
   }
 
@@ -241,23 +247,23 @@ class AppPresenter {
     return this.chartPresenter.getActiveIndicators();
   }
 
-  addIndicator(id: import('../../shared/types/asset').IndicatorId): Promise<void> {
+  addIndicator(id: import('../../shared/types/asset').IndicatorId): Promise<Result<void, AppPresenterError>> {
     this.chartPresenter.addIndicator(id);
     return this.refreshRange();
   }
 
-  removeIndicator(key: string): Promise<void> {
+  removeIndicator(key: string): Promise<Result<void, AppPresenterError>> {
     this.chartPresenter.removeIndicator(key);
     return this.refreshRange();
   }
 
-  updateIndicator(key: string, params: Record<string, number>): Promise<void> {
+  updateIndicator(key: string, params: Record<string, number>): Promise<Result<void, AppPresenterError>> {
     this.chartPresenter.updateIndicator(key, params);
     return this.refreshRange();
   }
 
-  private refreshRange(): Promise<void> {
-    if (!this.selectedAssetId || !this.currentRange) return Promise.resolve();
+  private refreshRange(): Promise<Result<void, AppPresenterError>> {
+    if (!this.selectedAssetId || !this.currentRange) return Promise.resolve({ success: true, value: undefined });
     return this.requestRange(this.selectedAssetId, this.currentRange);
   }
 

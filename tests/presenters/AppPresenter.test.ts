@@ -188,7 +188,7 @@ describe('AppPresenter', () => {
     it('re-requests the current range when the active set changes', async () => {
       (presenter as any).selectedAssetId = 'asset1';
       (presenter as any).currentRange = new Interval(1000, 2000);
-      const spy = vi.spyOn(presenter, 'requestRange').mockResolvedValue(undefined);
+      const spy = vi.spyOn(presenter, 'requestRange').mockResolvedValue({ success: true, value: undefined });
 
       await presenter.addIndicator('sma');
 
