@@ -1,7 +1,9 @@
 import React, { useCallback } from 'react';
+import { Result } from '../../shared/types/Result';
+import { AppPresenterError } from '../../chart/presenters/AppPresenterError';
 
 interface FileImportProps {
-  onImport: (name: string, file: File) => Promise<void>;
+  onImport: (name: string, file: File) => Promise<Result<void, AppPresenterError>>;
   disabled?: boolean;
 }
 
@@ -15,15 +17,12 @@ export function FileImport({ onImport, disabled }: FileImportProps) {
       if (!file) return;
 
       setImporting(true);
-      try {
-        await onImport(assetName || file.name.replace(/\.[^.]+$/, ''), file);
+      const result = await onImport(assetName || file.name.replace(/\.[^.]+$/, ''), file);
+      if (!result.success) {
         setAssetName('');
         e.target.value = '';
-      } catch {
-        // Error handled by parent
-      } finally {
-        setImporting(false);
       }
+      setImporting(false);
     },
     [assetName, onImport]
   );

@@ -1,9 +1,11 @@
 import { useState, useCallback } from 'react';
 import { Timeframe, Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
 import { generateCSV, validateParams, TestDataParams } from '../../services/TestDataService';
+import { Result } from '../../shared/types/Result';
+import { AppPresenterError } from '../../chart/presenters/AppPresenterError';
 
 interface TestDataGeneratorProps {
-  onImport: (name: string, file: File) => Promise<void>;
+  onImport: (name: string, file: File) => Promise<Result<void, AppPresenterError>>;
   disabled?: boolean;
 }
 
@@ -44,13 +46,15 @@ export function TestDataGenerator({ onImport, disabled }: TestDataGeneratorProps
       const csv = generateCSV(params);
       const blob = new Blob([csv], { type: 'text/csv' });
       const file = new File([blob], `${assetName}.csv`, { type: 'text/csv' });
-      await onImport(assetName, file);
-      setAssetName('');
-      setStartingPrice('100.00');
-      setVolatility('2.0');
-      setVolumeMin('1000');
-      setVolumeMax('10000');
-      setSampleCount('1000');
+      const result = await onImport(assetName, file);
+      if (result.success) {
+        setAssetName('');
+        setStartingPrice('100.00');
+        setVolatility('2.0');
+        setVolumeMin('1000');
+        setVolumeMax('10000');
+        setSampleCount('1000');
+      }
     } catch {
       // Error handled by parent
     } finally {

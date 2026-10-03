@@ -10,6 +10,8 @@ import { AssetService } from '../../shared/services/AssetService';
 import { PriceRetrievalStrategy, RangeStrategy } from '../../services/PriceRetrievalStrategy';
 import { Interval } from '../../shared/utils/Interval';
 import { ChartPresenter, ChartState } from './ChartPresenter';
+import { AppPresenterError } from './AppPresenterError';
+import { Result } from '../../shared/types/Result';
 
 export interface AppState {
   selectedAssetId: string | null;
@@ -122,29 +124,40 @@ class AppPresenter {
     }
   }
 
-  async importAsset(name: string, file: File): Promise<void> {
+  async importAsset(name: string, file: File): Promise<Result<void, AppPresenterError>> {
+    this.error = null;
+    this.warnings = [];
+    const content = await file.text();
+
+    const result = validateAndParse(content, file.name);
+
+    if (!result.success) {
+      const error: AppPresenterError = {
+        type: 'VALIDATION_FAILED',
+        message: result.error?.message || 'Validation failed',
+      };
+      this.error = error.message;
+      this.notify();
+      return { success: false, error };
+    }
+
+    if (result.warnings && result.warnings.length > 0) {
+      this.warnings = result.warnings;
+    }
+
+    const assetName = name || file.name.replace(/\.[^.]+$/, '');
     try {
-      this.error = null;
-      this.warnings = [];
-      const content = await file.text();
-
-      const result = validateAndParse(content, file.name);
-
-      if (!result.success) {
-        throw new Error(result.error?.message || 'Validation failed');
-      }
-
-      if (result.warnings && result.warnings.length > 0) {
-        this.warnings = result.warnings;
-      }
-
-      const assetName = name || file.name.replace(/\.[^.]+$/, '');
       await this.assetService.save(assetName, result.data!, result.detectedTimeframe!);
       await this.loadAssets();
+      return { success: true, value: undefined };
     } catch (err) {
-      this.error = err instanceof Error ? err.message : 'Failed to import file';
+      const error: AppPresenterError = {
+        type: 'IMPORT_FAILED',
+        message: err instanceof Error ? err.message : 'Failed to import file',
+      };
+      this.error = error.message;
       this.notify();
-      throw err;
+      return { success: false, error };
     }
   }
 
@@ -186,9 +199,9 @@ class AppPresenter {
     }
   }
 
-  async removeAsset(id: string): Promise<void> {
+  async removeAsset(id: string): Promise<Result<void, AppPresenterError>> {
+    this.error = null;
     try {
-      this.error = null;
       await this.assetService.delete(id);
       if (this.selectedAssetId === id) {
         this.selectedAssetId = null;
@@ -197,10 +210,15 @@ class AppPresenter {
         this.lastSampleTime = null;
       }
       await this.loadAssets();
+      return { success: true, value: undefined };
     } catch (err) {
-      this.error = 'Failed to delete asset';
+      const error: AppPresenterError = {
+        type: 'DELETE_FAILED',
+        message: 'Failed to delete asset',
+      };
+      this.error = error.message;
       this.notify();
-      throw err;
+      return { success: false, error };
     }
   }
 
