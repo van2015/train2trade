@@ -183,4 +183,8 @@ export class ChartPresenter {
   getMaxLookback(): number {
     return maxLookback(this.activeIndicators, this.selectedTimeframe);
   }
+
+  getSelectedTimeframe(): Timeframe {
+    return this.selectedTimeframe;
+  }
 }

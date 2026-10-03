@@ -48,7 +48,7 @@ class AppPresenter {
   }
 
   get selectedTimeframe(): TimeframeType {
-    return this.chartPresenter.getState().selectedTimeframe;
+    return this.chartPresenter.getSelectedTimeframe();
   }
 
   set selectedTimeframe(value: TimeframeType) {
