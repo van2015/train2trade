@@ -44,11 +44,13 @@ describe('resample', () => {
     const dataset = minuteSeries(15);
     const result = resample(dataset, '5m');
 
-    expect(result.hasFinerData).toBe(true);
-    expect(result.bars).toHaveLength(3);
-    expect(result.bars[0].date).toBe('2024-01-01T00:00:00Z');
-    expect(result.bars[1].date).toBe('2024-01-01T00:05:00Z');
-    expect(result.bars[2].date).toBe('2024-01-01T00:10:00Z');
+    expect(result.success).toBe(true);
+    const value = result.success && result.value;
+    expect(value.hasFinerData).toBe(true);
+    expect(value.bars).toHaveLength(3);
+    expect(value.bars[0].date).toBe('2024-01-01T00:00:00Z');
+    expect(value.bars[1].date).toBe('2024-01-01T00:05:00Z');
+    expect(value.bars[2].date).toBe('2024-01-01T00:10:00Z');
   });
 
   it('computes open, high, low, close and volume correctly', () => {
@@ -59,8 +61,10 @@ describe('resample', () => {
     ];
     const result = resample(dataset, '5m');
 
-    expect(result.bars).toHaveLength(1);
-    expect(result.bars[0]).toMatchObject({
+    expect(result.success).toBe(true);
+    const value = result.success && result.value;
+    expect(value.bars).toHaveLength(1);
+    expect(value.bars[0]).toMatchObject({
       open: 10,
       high: 15,
       low: 8,
@@ -73,8 +77,10 @@ describe('resample', () => {
     const dataset = minuteSeries(15);
     const result = resample(dataset, '5m');
 
-    expect(result.bars[0].subBars).toHaveLength(5);
-    expect(result.bars[0].subBars.map(sub => sub.date)).toEqual(
+    expect(result.success).toBe(true);
+    const value = result.success && result.value;
+    expect(value.bars[0].subBars).toHaveLength(5);
+    expect(value.bars[0].subBars.map(sub => sub.date)).toEqual(
       dataset.slice(0, 5).map(candle => candle.date)
     );
   });
@@ -83,14 +89,18 @@ describe('resample', () => {
     const dataset = minuteSeries(15);
     const result = resample(dataset, '5m');
 
-    expect(result.subBars).toBe(dataset);
+    expect(result.success).toBe(true);
+    const value = result.success && result.value;
+    expect(value.subBars).toBe(dataset);
   });
 
   it('aligns aggregated bars to timeframe boundaries', () => {
     const dataset = minuteSeries(6, 2);
     const result = resample(dataset, '5m');
 
-    expect(result.bars[0].date).toBe('2024-01-01T00:00:00Z');
+    expect(result.success).toBe(true);
+    const value = result.success && result.value;
+    expect(value.bars[0].date).toBe('2024-01-01T00:00:00Z');
   });
 
   it('does not bridge a detected gap into a single bar', () => {
@@ -101,11 +111,13 @@ describe('resample', () => {
     ];
     const result = resample(dataset, '5m');
 
-    expect(result.bars).toHaveLength(2);
-    expect(result.bars[0].subBars).toHaveLength(2);
-    expect(result.bars[1].subBars).toHaveLength(1);
-    expect(new Date(result.bars[1].date).getTime()).toBeGreaterThan(
-      new Date(result.bars[0].date).getTime()
+    expect(result.success).toBe(true);
+    const value = result.success && result.value;
+    expect(value.bars).toHaveLength(2);
+    expect(value.bars[0].subBars).toHaveLength(2);
+    expect(value.bars[1].subBars).toHaveLength(1);
+    expect(new Date(value.bars[1].date).getTime()).toBeGreaterThan(
+      new Date(value.bars[0].date).getTime()
     );
   });
 
@@ -116,18 +128,22 @@ describe('resample', () => {
     ];
     const result = resample(dataset, '1h');
 
-    expect(result.hasFinerData).toBe(false);
-    expect(result.bars).toHaveLength(2);
-    expect(result.bars[0].date).toBe('2024-01-01T00:00:00Z');
-    expect(result.bars[0].subBars).toEqual([dataset[0]]);
+    expect(result.success).toBe(true);
+    const value = result.success && result.value;
+    expect(value.hasFinerData).toBe(false);
+    expect(value.bars).toHaveLength(2);
+    expect(value.bars[0].date).toBe('2024-01-01T00:00:00Z');
+    expect(value.bars[0].subBars).toEqual([dataset[0]]);
   });
 
   it('returns an empty result for an empty dataset', () => {
     const result = resample([], '1h');
 
-    expect(result.bars).toEqual([]);
-    expect(result.subBars).toEqual([]);
-    expect(result.hasFinerData).toBe(false);
+    expect(result.success).toBe(true);
+    const value = result.success && result.value;
+    expect(value.bars).toEqual([]);
+    expect(value.subBars).toEqual([]);
+    expect(value.hasFinerData).toBe(false);
   });
 
   it('rejects a target timeframe finer than the dataset', () => {
@@ -136,6 +152,9 @@ describe('resample', () => {
       bar('2024-01-01T01:00:00Z', 100, 101, 99, 100, 1),
     ];
 
-    expect(() => resample(dataset, '5m')).toThrow();
+    const result = resample(dataset, '5m');
+
+    expect(result.success).toBe(false);
+    expect(!result.success && result.error.type).toBe('INVALID_TIMEFRAME_COMBINATION');
   });
 });

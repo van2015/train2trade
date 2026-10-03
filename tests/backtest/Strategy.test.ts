@@ -40,13 +40,17 @@ describe('strategy registry', () => {
   it('normalizes parameters against defaults and minimums', () => {
     registerStrategy(definition);
 
-    const resolved = resolveStrategy('test-strategy', { period: 0 });
+    const result = resolveStrategy('test-strategy', { period: 0 });
 
-    expect(resolved.params).toEqual({ period: 1, risk: 0.01 });
+    expect(result.success).toBe(true);
+    expect(result.success && result.value.params).toEqual({ period: 1, risk: 0.01 });
   });
 
   it('rejects an unknown strategy id', () => {
-    expect(() => resolveStrategy('missing')).toThrow();
+    const result = resolveStrategy('missing');
+
+    expect(result.success).toBe(false);
+    expect(!result.success && result.error.type).toBe('STRATEGY_NOT_FOUND');
   });
 });
 

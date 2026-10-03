@@ -1,7 +1,11 @@
 import { PriceData, IndicatorId, IndicatorSeries } from '../../shared/types/asset';
 import { Timeframe } from '../timeframe/Timeframe';
 import { TradeState, Side } from './TradeEnums';
+import type { StrategyError } from './StrategyError';
+import type { ResampleError } from './ResampleError';
 export { TradeState, Side };
+export type { StrategyError };
+export type { ResampleError };
 
 export interface AggregatedBar {
   date: string;
@@ -164,6 +168,7 @@ export interface BacktestResult {
   invalidated: InvalidatedTrade[];
   equityCurve: EquityPoint[];
   hasFinerData: boolean;
+  error?: StrategyError | ResampleError;
 }
 
 export interface PerformanceMetrics {

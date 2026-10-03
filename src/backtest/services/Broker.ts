@@ -4,6 +4,8 @@ import {
   OrderValidationInput,
   PlatformConfig,
 } from '../../backtest/types/backtest';
+import { BrokerError } from '../../backtest/types/BrokerError';
+import { Result } from '../../shared/types/Result';
 
 export class Broker {
   private static roundToStep(value: number, step: number): number {
@@ -37,19 +39,19 @@ export class Broker {
     entry: number,
     stop: number | undefined,
     equity: number
-  ): number {
+  ): Result<number, BrokerError> {
     if (stop === undefined || !Number.isFinite(stop)) {
-      throw new Error('A stop is required for risk-based sizing');
+      return { success: false, error: { type: 'STOP_REQUIRED' } };
     }
     const distance = Math.abs(entry - stop);
     if (distance <= 0) {
-      throw new Error('Stop must differ from entry to size a position');
+      return { success: false, error: { type: 'STOP_SAME_AS_ENTRY' } };
     }
     const perLotRisk = distance * this.config.contractSize;
     const rawLots = (riskFraction * equity) / perLotRisk;
     const lots = Broker.roundToStep(rawLots, this.config.lotStep);
-    if (lots < this.config.minLot) return 0;
-    return lots;
+    if (lots < this.config.minLot) return { success: true, value: 0 };
+    return { success: true, value: lots };
   }
 
   isTickAligned(price: number): boolean {

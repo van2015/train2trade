@@ -20,29 +20,38 @@ function broker(): Broker {
 
 describe('Broker sizing', () => {
   it('sizes from risk and the stop distance', () => {
-    const size = broker().sizeFromRisk(0.01, 100, 90, 10000);
+    const result = broker().sizeFromRisk(0.01, 100, 90, 10000);
 
-    expect(size).toBeCloseTo(10);
+    expect(result.success).toBe(true);
+    expect(result.success && result.value).toBeCloseTo(10);
   });
 
   it('rounds down to the lot step', () => {
-    const size = broker().sizeFromRisk(0.0005, 100, 90, 10000);
+    const result = broker().sizeFromRisk(0.0005, 100, 90, 10000);
 
-    expect(size).toBeCloseTo(0.5);
+    expect(result.success).toBe(true);
+    expect(result.success && result.value).toBeCloseTo(0.5);
   });
 
   it('returns zero when the risk-based size is below the minimum lot', () => {
-    const size = broker().sizeFromRisk(0.000001, 100, 90, 10000);
+    const result = broker().sizeFromRisk(0.000001, 100, 90, 10000);
 
-    expect(size).toBe(0);
+    expect(result.success).toBe(true);
+    expect(result.success && result.value).toBe(0);
   });
 
   it('rejects risk-based sizing without a stop', () => {
-    expect(() => broker().sizeFromRisk(0.01, 100, undefined, 10000)).toThrow();
+    const result = broker().sizeFromRisk(0.01, 100, undefined, 10000);
+
+    expect(result.success).toBe(false);
+    expect(!result.success && result.error.type).toBe('STOP_REQUIRED');
   });
 
   it('rejects risk-based sizing when the stop equals the entry', () => {
-    expect(() => broker().sizeFromRisk(0.01, 100, 100, 10000)).toThrow();
+    const result = broker().sizeFromRisk(0.01, 100, 100, 10000);
+
+    expect(result.success).toBe(false);
+    expect(!result.success && result.error.type).toBe('STOP_SAME_AS_ENTRY');
   });
 });
 

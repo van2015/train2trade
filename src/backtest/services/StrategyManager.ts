@@ -10,6 +10,8 @@ import {
 } from '../../backtest/types/backtest';
 import { computeSeries } from '../../backtest/indicators/IndicatorService';
 import { Side } from '../types/TradeEnums';
+import { StrategyError } from '../types/StrategyError';
+import { Result } from '../../shared/types/Result';
 
 export class StrategyManager {
   private static instance: StrategyManager;
@@ -54,10 +56,12 @@ export class StrategyManager {
   resolveStrategy(
     id: string,
     params: Record<string, number> = {}
-  ): ResolvedStrategy {
+  ): Result<ResolvedStrategy, StrategyError> {
     const definition = this.registry.get(id);
-    if (!definition) throw new Error(`Unknown strategy: ${id}`);
-    return { definition, params: this.normalizeStrategyParams(definition, params) };
+    if (!definition) {
+      return { success: false, error: { type: 'STRATEGY_NOT_FOUND', id } };
+    }
+    return { success: true, value: { definition, params: this.normalizeStrategyParams(definition, params) } };
   }
 
   createContext(
@@ -156,7 +160,7 @@ export function normalizeStrategyParams(
 export function resolveStrategy(
   id: string,
   params: Record<string, number> = {}
-): ResolvedStrategy {
+): Result<ResolvedStrategy, StrategyError> {
   return globalManager.resolveStrategy(id, params);
 }
 

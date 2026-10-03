@@ -71,10 +71,18 @@ export class BacktestEngine {
 
   run(input: BacktestInput): BacktestResult {
     const strategyManager = StrategyManager.getInstance();
-    const resolved = strategyManager.resolveStrategy(input.strategyId, input.params ?? {});
+    const resolvedResult = strategyManager.resolveStrategy(input.strategyId, input.params ?? {});
+    if (!resolvedResult.success) {
+      return { trades: [], invalidated: [], equityCurve: [], hasFinerData: false, error: resolvedResult.error };
+    }
+    const resolved = resolvedResult.value;
     const strategyTimeframe = input.strategyTimeframe ?? resolved.definition.timeframe;
     const resampler = new DataResampler();
-    const { bars, hasFinerData } = resampler.resample(input.dataset, strategyTimeframe);
+    const resampleResult = resampler.resample(input.dataset, strategyTimeframe);
+    if (!resampleResult.success) {
+      return { trades: [], invalidated: [], equityCurve: [], hasFinerData: false, error: resampleResult.error };
+    }
+    const { bars, hasFinerData } = resampleResult.value;
     this.allBars = bars;
 
     this.closedTrades = [];
@@ -365,13 +373,11 @@ export class BacktestEngine {
   }
 
   private calculatePositionSize(entry: PendingEntry, price: number): { size?: number; skip: boolean } {
-    try {
-      const size = this.broker.sizeFromRisk(entry.spec.risk.fraction, price, entry.spec.stopLoss, this.equity(price));
-      if (size <= 0) return { skip: true };
-      return { size, skip: false };
-    } catch {
-      return { skip: true };
-    }
+    const result = this.broker.sizeFromRisk(entry.spec.risk.fraction, price, entry.spec.stopLoss, this.equity(price));
+    if (!result.success) return { skip: true };
+    const size = result.value;
+    if (size <= 0) return { skip: true };
+    return { size, skip: false };
   }
 
   private createTradeFromSpec(entry: PendingEntry, size: number, price: number): { id: string; trade: Trade } {

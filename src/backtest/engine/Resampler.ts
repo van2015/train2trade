@@ -1,34 +1,43 @@
 import { PriceData } from '../../shared/types/asset';
-import { ResampleResult } from '../../backtest/types/backtest';
+import { ResampleResult, ResampleError } from '../../backtest/types/backtest';
 import { Timeframe } from '../../backtest/timeframe/Timeframe';
 import { TimeframeAggregator } from '../../backtest/timeframe/TimeframeAggregator';
+import { Result } from '../../shared/types/Result';
 
 export class DataResampler {
   private aggregator = new TimeframeAggregator();
 
-  resample(dataset: PriceData[], strategyTimeframe: Timeframe): ResampleResult {
+  resample(dataset: PriceData[], strategyTimeframe: Timeframe): Result<ResampleResult, ResampleError> {
     const sourceTimeframe = Timeframe.detect(dataset).tf;
     const sourceMinutes = Timeframe.getMinutes(sourceTimeframe);
     const targetMinutes = Timeframe.getMinutes(strategyTimeframe);
 
     if (dataset.length === 0) {
-      return this.createEmptyResult(strategyTimeframe, sourceTimeframe);
+      return { success: true, value: this.createEmptyResult(strategyTimeframe, sourceTimeframe) };
     }
 
-    this.validateTimeframeCombination(sourceTimeframe, sourceMinutes, targetMinutes);
+    if (targetMinutes < sourceMinutes) {
+      return {
+        success: false,
+        error: { type: 'INVALID_TIMEFRAME_COMBINATION', source: sourceTimeframe, target: strategyTimeframe },
+      };
+    }
 
     if (targetMinutes === sourceMinutes) {
-      return this.createSingleTimeframeResult(dataset, strategyTimeframe, sourceTimeframe);
+      return { success: true, value: this.createSingleTimeframeResult(dataset, strategyTimeframe, sourceTimeframe) };
     }
 
     const result = this.aggregator.aggregateWithGaps(dataset, strategyTimeframe);
 
     return {
-      strategyTimeframe,
-      sourceTimeframe,
-      bars: result.bars,
-      subBars: result.subBars,
-      hasFinerData: result.hasFinerData,
+      success: true,
+      value: {
+        strategyTimeframe,
+        sourceTimeframe,
+        bars: result.bars,
+        subBars: result.subBars,
+        hasFinerData: result.hasFinerData,
+      },
     };
   }
 
@@ -40,14 +49,6 @@ export class DataResampler {
       subBars: [],
       hasFinerData: false,
     };
-  }
-
-  private validateTimeframeCombination(sourceTimeframe: Timeframe, sourceMinutes: number, targetMinutes: number): void {
-    if (targetMinutes < sourceMinutes) {
-      throw new Error(
-        `Cannot resample ${sourceTimeframe} data to a finer timeframe ${sourceTimeframe}`
-      );
-    }
   }
 
   private createSingleTimeframeResult(dataset: PriceData[], strategyTimeframe: Timeframe, sourceTimeframe: Timeframe): ResampleResult {
@@ -71,7 +72,7 @@ export class DataResampler {
   }
 }
 
-export function resample(dataset: PriceData[], strategyTimeframe: Timeframe): ResampleResult {
+export function resample(dataset: PriceData[], strategyTimeframe: Timeframe): Result<ResampleResult, ResampleError> {
   const resampler = new DataResampler();
   return resampler.resample(dataset, strategyTimeframe);
 }
