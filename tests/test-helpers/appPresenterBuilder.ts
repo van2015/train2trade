@@ -45,7 +45,13 @@ export class AppPresenterBuilder {
     return this;
   }
 
-  build(presenter: AppPresenter): AppPresenter {
+  static destroy(): void {
+    (AppPresenter as any).instance = null;
+  }
+
+  build(): AppPresenter {
+    AppPresenterBuilder.destroy();
+    const presenter = AppPresenter.getInstance();
     if (this.assets !== null) (presenter as any).assets = this.assets;
     if (this.loadedRange !== null) (presenter as any).loadedRange = this.loadedRange;
     if (this.lastSampleTime !== null) (presenter as any).lastSampleTime = this.lastSampleTime;
