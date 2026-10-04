@@ -4,6 +4,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import AppPresenter from '../../src/chart/presenters/AppPresenter';
 import { AssetService } from '../../src/shared/services/AssetService';
 import { Interval } from '../../src/shared/utils/Interval';
+import { AppPresenterBuilder } from '../test-helpers/appPresenterBuilder';
 
 describe('AppPresenter', () => {
   let presenter: AppPresenter;
@@ -31,10 +32,10 @@ describe('AppPresenter', () => {
         volume: 1000,
       }));
 
-      (presenter as any).assets = [
-        { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
-      ];
-      (AssetService.getInstance() as any).addRangeData('asset1', data);
+      new AppPresenterBuilder()
+        .withAssets([{ id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }])
+        .build(presenter);
+      AssetService.getInstance().addRangeData('asset1', data);
 
       const result = presenter.priceSample('asset1', '1m');
       expect(result).not.toBeNull();
@@ -56,9 +57,9 @@ describe('AppPresenter', () => {
         volume: 1000,
       }));
 
-      (presenter as any).assets = [
-        { id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }
-      ];
+      new AppPresenterBuilder()
+        .withAssets([{ id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }])
+        .build(presenter);
       AssetService.getInstance().addRangeData('asset1', data);
 
       expect(presenter.priceSample('asset1', '1m')).toHaveLength(100);
@@ -75,25 +76,29 @@ describe('AppPresenter', () => {
     });
 
     it('returns true when the interval is within the loaded range', () => {
-      (presenter as any).loadedRange = new Interval(0, 1000);
+      new AppPresenterBuilder()
+        .withRange(new Interval(0, 1000))
+        .build(presenter);
+
       expect(presenter.hasCompleteData(new Interval(100, 900))).toBe(true);
       expect(presenter.hasCompleteData(new Interval(-1, 900))).toBe(false);
     });
 
     it('requires indicator warm-up before the viewport start', () => {
-      (presenter as any).selectedTimeframe = '1m';
-      (presenter as any).activeIndicators = [
-        { key: 'sma-1', indicatorId: 'sma', params: { period: 20 } },
-      ];
-      (presenter as any).loadedRange = new Interval(0, 1000 * 60000);
+      new AppPresenterBuilder()
+        .withTimeframe('1m')
+        .withIndicators([{ key: 'sma-1', indicatorId: 'sma', params: { period: 20 } }])
+        .withRange(new Interval(0, 1000 * 60000))
+        .build(presenter);
 
       expect(presenter.hasCompleteData(new Interval(1300000, 2000000))).toBe(false);
       expect(presenter.hasCompleteData(new Interval(1400000, 2000000))).toBe(true);
     });
 
     it('treats a viewport beyond the last sample as complete once the tail is loaded', () => {
-      (presenter as any).lastSampleTime = 1000;
-      (presenter as any).loadedRange = new Interval(0, 1000);
+      new AppPresenterBuilder()
+        .withRange(new Interval(0, 1000), 1000)
+        .build(presenter);
 
       expect(presenter.hasCompleteData(new Interval(2000, 5000))).toBe(true);
       expect(presenter.hasCompleteData(new Interval(500, 5000))).toBe(true);
@@ -111,7 +116,9 @@ describe('AppPresenter', () => {
       const fetchSpy = vi
         .spyOn(AssetService.getInstance(), 'fetchSamples')
         .mockResolvedValue([lastSample]);
-      (presenter as any).lastSampleTime = 1000;
+      new AppPresenterBuilder()
+        .withLastSampleTime(1000)
+        .build(presenter);
 
       await presenter.requestRange('asset1', new Interval(2000, 5000));
 
@@ -184,8 +191,9 @@ describe('AppPresenter', () => {
     });
 
     it('re-requests the current range when the active set changes', async () => {
-      (presenter as any).selectedAssetId = 'asset1';
-      (presenter as any).currentRange = new Interval(1000, 2000);
+      new AppPresenterBuilder()
+        .withSelection('asset1', new Interval(1000, 2000))
+        .build(presenter);
       const spy = vi.spyOn(presenter, 'requestRange').mockResolvedValue({ success: true, value: undefined });
 
       await presenter.addIndicator('sma');
