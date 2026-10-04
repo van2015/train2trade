@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import AppPresenter from '../../src/chart/presenters/AppPresenter';
@@ -14,12 +14,10 @@ describe('AppPresenter', () => {
     vi.restoreAllMocks();
     presenter = AppPresenter.getInstance();
     AssetService.getInstance().clearCache();
-    (presenter as any).assets = [];
-    (presenter as any).selectedAssetId = null;
-    (presenter as any).currentRange = null;
-    (presenter as any).loadedRange = null;
-    (presenter as any).lastSampleTime = null;
-    (presenter as any).activeIndicators = [];
+  });
+
+  afterEach(() => {
+    (AppPresenter as any).instance = null;
   });
 
   describe('priceSample', () => {
