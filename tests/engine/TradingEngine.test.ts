@@ -16,7 +16,7 @@ describe('TradingEngine', () => {
 
   it('closes an open position with the exit price', () => {
     const engine = new TradingEngine();
-    const position = new PositionBuilder().build();
+    const position = new PositionBuilder().long().build();
 
     const closed = engine.close(position, 110);
 
@@ -28,7 +28,11 @@ describe('TradingEngine', () => {
 
   it('calculates PnL when closing a long position', () => {
     const engine = new TradingEngine();
-    const position = new PositionBuilder().entryPrice(100).size(2).build();
+    const position = new PositionBuilder()
+      .long()
+      .entryPrice(100)
+      .size(2)
+      .build();
 
     const closed = engine.close(position, 110);
 
@@ -37,7 +41,11 @@ describe('TradingEngine', () => {
 
   it('expresses PnL as a percentage of the entry price', () => {
     const engine = new TradingEngine();
-    const position = new PositionBuilder().entryPrice(250).size(3).build();
+    const position = new PositionBuilder()
+      .long()
+      .entryPrice(250)
+      .size(3)
+      .build();
 
     const closed = engine.close(position, 275);
 
@@ -46,10 +54,7 @@ describe('TradingEngine', () => {
 
   it('calculates PnL for a short position (closing below entry gains)', () => {
     const engine = new TradingEngine();
-    const position = new PositionBuilder()
-      .side('short')
-      .entryPrice(100)
-      .build();
+    const position = new PositionBuilder().short().entryPrice(100).build();
 
     const closed = engine.close(position, 90);
 

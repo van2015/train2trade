@@ -13,6 +13,14 @@ export class PositionBuilder {
     return this;
   }
 
+  long(): this {
+    return this.side('long');
+  }
+
+  short(): this {
+    return this.side('short');
+  }
+
   entryPrice(price: number): this {
     this.config.entryPrice = price;
     return this;
