@@ -198,37 +198,19 @@ export class TradingEngine {
     if (order.exitLevels) {
       const seenPrices = new Set<number>();
       for (const level of order.exitLevels) {
+        const levelValid = this.validateExitLevel(
+          level,
+          order.side,
+          order.price,
+          order.size
+        );
+        if (!levelValid.success) {
+          return levelValid;
+        }
         if (seenPrices.has(level.price)) {
           return { success: false, error: 'DUPLICATE_EXIT_LEVEL' };
         }
         seenPrices.add(level.price);
-        if (level.price <= 0) {
-          return { success: false, error: 'INVALID_PRICE' };
-        }
-        if (level.sizePercent <= 0 || level.sizePercent > 100) {
-          return { success: false, error: 'INVALID_SIZE' };
-        }
-        const invalid =
-          level.kind === 'tp'
-            ? this.isInvalidTakeProfit({
-                side: order.side,
-                price: order.price,
-                size: order.size,
-                takeProfit: level.price,
-              })
-            : this.isInvalidStop({
-                side: order.side,
-                price: order.price,
-                size: order.size,
-                stopLoss: level.price,
-              });
-        if (invalid) {
-          return {
-            success: false,
-            error:
-              level.kind === 'tp' ? 'INVALID_TAKE_PROFIT' : 'INVALID_STOP_LOSS',
-          };
-        }
       }
     }
     return { success: true, value: undefined };
@@ -250,6 +232,37 @@ export class TradingEngine {
     return order.side === 'long'
       ? order.takeProfit <= order.price
       : order.takeProfit >= order.price;
+  }
+
+  private validateExitLevel(
+    level: ExitLevel,
+    side: Side,
+    price: number,
+    size: number
+  ): Result<void, EngineError> {
+    if (level.price <= 0) {
+      return { success: false, error: 'INVALID_PRICE' };
+    }
+    if (level.sizePercent <= 0 || level.sizePercent > 100) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
+    const invalid =
+      level.kind === 'tp'
+        ? this.isInvalidTakeProfit({
+            side,
+            price,
+            size,
+            takeProfit: level.price,
+          })
+        : this.isInvalidStop({ side, price, size, stopLoss: level.price });
+    if (invalid) {
+      return {
+        success: false,
+        error:
+          level.kind === 'tp' ? 'INVALID_TAKE_PROFIT' : 'INVALID_STOP_LOSS',
+      };
+    }
+    return { success: true, value: undefined };
   }
 
   close(position: Position, price: number): Result<Position, EngineError> {
