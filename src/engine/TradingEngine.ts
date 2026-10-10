@@ -88,21 +88,24 @@ export class TradingEngine {
   checkStops(price: number): Position[] {
     const stopped: Position[] = [];
     for (const position of this.openPositions) {
-      if (position.stopLoss === undefined) {
-        continue;
-      }
-      const hit =
-        position.side === 'long'
-          ? price <= position.stopLoss
-          : price >= position.stopLoss;
-      if (hit) {
-        const result = this.close(position, position.stopLoss);
+      const stopLoss = position.stopLoss;
+      if (stopLoss !== undefined && this.isStopHit(position, price)) {
+        const result = this.close(position, stopLoss);
         if (result.success) {
           stopped.push(result.value);
         }
       }
     }
     return stopped;
+  }
+
+  private isStopHit(position: Position, price: number): boolean {
+    if (position.stopLoss === undefined) {
+      return false;
+    }
+    return position.side === 'long'
+      ? price <= position.stopLoss
+      : price >= position.stopLoss;
   }
 
   private ensurePositive(
