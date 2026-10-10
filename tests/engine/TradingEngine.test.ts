@@ -133,4 +133,18 @@ describe('TradingEngine', () => {
 
     expect(engine.unrealizedPnl(110)).toBe(-35);
   });
+
+  it('stores the stop loss when opening a position with one', () => {
+    const engine = new TradingEngine();
+
+    const withStop = unwrap(
+      engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 })
+    );
+    const withoutStop = unwrap(
+      engine.open({ side: 'long', price: 100, size: 1 })
+    );
+
+    expect(withStop.stopLoss).toBe(95);
+    expect(withoutStop.stopLoss).toBeUndefined();
+  });
 });

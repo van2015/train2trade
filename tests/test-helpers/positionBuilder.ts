@@ -41,6 +41,11 @@ export class PositionBuilder {
     return this;
   }
 
+  stopLoss(price: number): this {
+    this.config.stopLoss = price;
+    return this;
+  }
+
   build(): Position {
     return { ...this.config };
   }
