@@ -473,4 +473,29 @@ describe('TradingEngine', () => {
     expect(engine.pendingOrders).toHaveLength(1);
     expect(engine.pendingOrders[0].limitPrice).toBe(90);
   });
+
+  it('fills entries and checks exits in a single tick', () => {
+    const engine = new TradingEngine();
+    unwrap(
+      engine.placeLimitOrder({
+        side: 'long',
+        limitPrice: 95,
+        size: 1,
+        stopLoss: 90,
+      })
+    );
+    unwrap(
+      engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 })
+    );
+
+    const tick = engine.onPrice(94);
+
+    expect(tick.entries).toHaveLength(1);
+    expect(tick.entries[0].entryPrice).toBe(95);
+    expect(tick.exits).toHaveLength(1);
+    expect(tick.exits[0].exitPrice).toBe(95);
+    expect(engine.pendingOrders).toHaveLength(0);
+    expect(engine.openPositions).toHaveLength(1);
+    expect(engine.totalPnl).toBe(-5);
+  });
 });
