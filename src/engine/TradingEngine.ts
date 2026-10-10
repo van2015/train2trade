@@ -11,6 +11,8 @@ export interface Position {
   entryPrice: number;
   size: number;
   state: 'open' | 'closed';
+  exitPrice?: number;
+  pnl?: number;
 }
 
 export class TradingEngine {
@@ -21,5 +23,10 @@ export class TradingEngine {
       size: order.size,
       state: 'open',
     };
+  }
+
+  close(position: Position, price: number): Position {
+    const pnl = (price - position.entryPrice) * position.size;
+    return { ...position, state: 'closed', exitPrice: price, pnl };
   }
 }
