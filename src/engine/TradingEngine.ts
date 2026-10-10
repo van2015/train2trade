@@ -17,6 +17,14 @@ export interface OpenOrder {
   takeProfit?: number;
 }
 
+export interface PendingOrder {
+  side: Side;
+  limitPrice: number;
+  size: number;
+  stopLoss?: number;
+  takeProfit?: number;
+}
+
 export interface Position {
   side: Side;
   entryPrice: number;
@@ -30,6 +38,11 @@ export interface Position {
 
 export class TradingEngine {
   private readonly positions: Position[] = [];
+  private readonly pending: PendingOrder[] = [];
+
+  get pendingOrders(): PendingOrder[] {
+    return [...this.pending];
+  }
 
   get openPositions(): Position[] {
     return this.positions.filter((p) => p.state === 'open');
@@ -69,6 +82,11 @@ export class TradingEngine {
     };
     this.positions.push(position);
     return { success: true, value: position };
+  }
+
+  placeLimitOrder(order: PendingOrder): Result<PendingOrder, EngineError> {
+    this.pending.push(order);
+    return { success: true, value: order };
   }
 
   private validateOrder(order: OpenOrder): Result<void, EngineError> {

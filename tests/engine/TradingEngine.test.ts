@@ -377,4 +377,24 @@ describe('TradingEngine', () => {
 
     expect(engine.equity(110)).toBe(20);
   });
+
+  it('places a limit order without opening a position', () => {
+    const engine = new TradingEngine();
+
+    const pending = unwrap(
+      engine.placeLimitOrder({
+        side: 'long',
+        limitPrice: 95,
+        size: 1,
+        stopLoss: 90,
+        takeProfit: 130,
+      })
+    );
+
+    expect(pending.limitPrice).toBe(95);
+    expect(pending.stopLoss).toBe(90);
+    expect(pending.takeProfit).toBe(130);
+    expect(engine.pendingOrders).toHaveLength(1);
+    expect(engine.openPositions).toHaveLength(0);
+  });
 });
