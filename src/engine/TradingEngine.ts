@@ -74,25 +74,31 @@ export class TradingEngine {
     if (!size.success) {
       return size;
     }
-    if (order.stopLoss !== undefined) {
-      const invalidStop =
-        order.side === 'long'
-          ? order.stopLoss >= order.price
-          : order.stopLoss <= order.price;
-      if (invalidStop) {
-        return { success: false, error: 'INVALID_STOP_LOSS' };
-      }
+    if (this.isInvalidStop(order)) {
+      return { success: false, error: 'INVALID_STOP_LOSS' };
     }
-    if (order.takeProfit !== undefined) {
-      const invalidTakeProfit =
-        order.side === 'long'
-          ? order.takeProfit <= order.price
-          : order.takeProfit >= order.price;
-      if (invalidTakeProfit) {
-        return { success: false, error: 'INVALID_TAKE_PROFIT' };
-      }
+    if (this.isInvalidTakeProfit(order)) {
+      return { success: false, error: 'INVALID_TAKE_PROFIT' };
     }
     return { success: true, value: undefined };
+  }
+
+  private isInvalidStop(order: OpenOrder): boolean {
+    if (order.stopLoss === undefined) {
+      return false;
+    }
+    return order.side === 'long'
+      ? order.stopLoss >= order.price
+      : order.stopLoss <= order.price;
+  }
+
+  private isInvalidTakeProfit(order: OpenOrder): boolean {
+    if (order.takeProfit === undefined) {
+      return false;
+    }
+    return order.side === 'long'
+      ? order.takeProfit <= order.price
+      : order.takeProfit >= order.price;
   }
 
   close(position: Position, price: number): Result<Position, EngineError> {
