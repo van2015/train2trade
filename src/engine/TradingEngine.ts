@@ -35,10 +35,12 @@ export class TradingEngine {
     return this.positions.filter((p) => p.state === 'open');
   }
 
+  get closedPositions(): Position[] {
+    return this.positions.filter((p) => p.state === 'closed');
+  }
+
   get totalPnl(): number {
-    return this.positions
-      .filter((p) => p.state === 'closed')
-      .reduce((sum, p) => sum + (p.pnl ?? 0), 0);
+    return this.closedPositions.reduce((sum, p) => sum + (p.pnl ?? 0), 0);
   }
 
   unrealizedPnl(price: number): number {

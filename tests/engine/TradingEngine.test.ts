@@ -340,4 +340,16 @@ describe('TradingEngine', () => {
     expect(exited[0].exitPrice).toBe(120);
     expect(engine.totalPnl).toBe(20);
   });
+
+  it('exposes closed positions as history', () => {
+    const engine = new TradingEngine();
+    const first = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+    unwrap(engine.close(first, 110));
+    unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+
+    expect(engine.closedPositions).toHaveLength(1);
+    expect(engine.closedPositions[0].exitPrice).toBe(110);
+    expect(engine.closedPositions[0].pnl).toBe(10);
+    expect(engine.openPositions).toHaveLength(1);
+  });
 });
