@@ -120,6 +120,15 @@ export class TradingEngine {
     return { success: true, value: order };
   }
 
+  cancelLimitOrder(order: PendingOrder): boolean {
+    const index = this.pending.indexOf(order);
+    if (index < 0) {
+      return false;
+    }
+    this.pending.splice(index, 1);
+    return true;
+  }
+
   checkEntries(price: number): Position[] {
     const filled: Position[] = [];
     const filledOrders: PendingOrder[] = [];

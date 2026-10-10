@@ -539,4 +539,18 @@ describe('TradingEngine', () => {
     expect(closed.pnl).toBe(8.5);
     expect(engine.totalPnl).toBe(8.5);
   });
+
+  it('cancels a pending limit order', () => {
+    const engine = new TradingEngine();
+    const order = unwrap(
+      engine.placeLimitOrder({ side: 'long', limitPrice: 95, size: 1 })
+    );
+
+    const cancelled = engine.cancelLimitOrder(order);
+
+    expect(cancelled).toBe(true);
+    expect(engine.pendingOrders).toHaveLength(0);
+    expect(engine.checkEntries(94)).toHaveLength(0);
+    expect(engine.cancelLimitOrder(order)).toBe(false);
+  });
 });
