@@ -36,11 +36,13 @@ export class TradingEngine {
   }
 
   open(order: OpenOrder): Result<Position, EngineError> {
-    if (order.price <= 0) {
-      return { success: false, error: 'INVALID_PRICE' };
+    const price = this.ensurePositive(order.price, 'INVALID_PRICE');
+    if (!price.success) {
+      return price;
     }
-    if (order.size <= 0) {
-      return { success: false, error: 'INVALID_SIZE' };
+    const size = this.ensurePositive(order.size, 'INVALID_SIZE');
+    if (!size.success) {
+      return size;
     }
     const position: Position = {
       side: order.side,
@@ -53,8 +55,9 @@ export class TradingEngine {
   }
 
   close(position: Position, price: number): Result<Position, EngineError> {
-    if (price <= 0) {
-      return { success: false, error: 'INVALID_PRICE' };
+    const exit = this.ensurePositive(price, 'INVALID_PRICE');
+    if (!exit.success) {
+      return exit;
     }
     if (position.state !== 'open') {
       return { success: false, error: 'POSITION_NOT_OPEN' };
@@ -70,6 +73,15 @@ export class TradingEngine {
       this.positions[index] = closed;
     }
     return { success: true, value: closed };
+  }
+
+  private ensurePositive(
+    value: number,
+    error: EngineError
+  ): Result<void, EngineError> {
+    return value <= 0
+      ? { success: false, error }
+      : { success: true, value: undefined };
   }
 
   private calcPnl(position: Position, exitPrice: number): number {
