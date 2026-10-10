@@ -352,4 +352,18 @@ describe('TradingEngine', () => {
     expect(engine.closedPositions[0].pnl).toBe(10);
     expect(engine.openPositions).toHaveLength(1);
   });
+
+  it('closes every open position at the given price', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+    unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+
+    const closed = engine.closeAll(110);
+
+    expect(closed).toHaveLength(2);
+    expect(closed.map((p) => p.exitPrice)).toEqual([110, 110]);
+    expect(engine.openPositions).toHaveLength(0);
+    expect(engine.closedPositions).toHaveLength(2);
+    expect(engine.totalPnl).toBe(20);
+  });
 });

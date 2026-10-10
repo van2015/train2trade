@@ -124,6 +124,17 @@ export class TradingEngine {
     return { success: true, value: closed };
   }
 
+  closeAll(price: number): Position[] {
+    const closed: Position[] = [];
+    for (const position of this.openPositions) {
+      const result = this.close(position, price);
+      if (result.success) {
+        closed.push(result.value);
+      }
+    }
+    return closed;
+  }
+
   checkExits(price: number): Position[] {
     const exited: Position[] = [];
     for (const position of this.openPositions) {
