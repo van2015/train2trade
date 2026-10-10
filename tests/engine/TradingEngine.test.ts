@@ -645,4 +645,33 @@ describe('TradingEngine', () => {
     ]);
     expect(position.size).toBe(2);
   });
+
+  it('closes the level percent when its take profit is reached', () => {
+    const engine = new TradingEngine();
+    unwrap(
+      engine.open({
+        side: 'long',
+        price: 100,
+        size: 2,
+        exitLevels: [
+          { kind: 'tp', price: 110, sizePercent: 50 },
+          { kind: 'sl', price: 95, sizePercent: 25 },
+        ],
+      })
+    );
+
+    const exited = engine.checkExits(110);
+
+    expect(exited).toHaveLength(1);
+    expect(exited[0].size).toBe(1);
+    expect(exited[0].exitPrice).toBe(110);
+    expect(exited[0].pnl).toBe(10);
+    expect(exited[0].state).toBe('closed');
+    const remainder = engine.openPositions[0];
+    expect(remainder.size).toBe(1);
+    expect(remainder.exitLevels).toEqual([
+      { kind: 'sl', price: 95, sizePercent: 25 },
+    ]);
+    expect(engine.totalPnl).toBe(10);
+  });
 });

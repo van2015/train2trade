@@ -17,6 +17,12 @@ export interface ExitLevel {
   sizePercent: number;
 }
 
+interface ExitTarget {
+  price: number;
+  sizePercent: number | null;
+  level?: ExitLevel;
+}
+
 export interface OpenOrder {
   side: Side;
   price: number;
@@ -217,7 +223,8 @@ export class TradingEngine {
     position: Position,
     price: number,
     sizePercent: number = 100,
-    exitFee: number = this.takerFeePercent
+    exitFee: number = this.takerFeePercent,
+    excludeFromRemainder?: ExitLevel
   ): Result<Position, EngineError> {
     const exit = this.ensurePositive(price, 'INVALID_PRICE');
     if (!exit.success) {
@@ -250,6 +257,9 @@ export class TradingEngine {
     const remainder: Position = {
       ...position,
       size: position.size - sliceSize,
+      exitLevels: excludeFromRemainder
+        ? position.exitLevels?.filter((l) => l !== excludeFromRemainder)
+        : position.exitLevels,
     };
     const slice: Position = {
       ...position,
@@ -273,21 +283,16 @@ export class TradingEngine {
     return position.size / (position.feeBasis ?? position.size);
   }
 
-  private closeWithFee(
-    position: Position,
-    price: number,
-    exitFee: number
-  ): Result<Position, EngineError> {
-    return this.closePartial(position, price, 100, exitFee);
-  }
-
   closeAll(price: number): Position[] {
-    return this.closeEach(() => price, this.takerFeePercent);
+    return this.closeEach(
+      () => ({ price, sizePercent: null }),
+      this.takerFeePercent
+    );
   }
 
   checkExits(price: number): Position[] {
     return this.closeEach(
-      (position) => this.exitPriceAt(position, price),
+      (position) => this.exitAt(position, price),
       this.makerFeePercent
     );
   }
@@ -299,14 +304,20 @@ export class TradingEngine {
   }
 
   private closeEach(
-    locateExit: (position: Position) => number | null,
+    locateExit: (position: Position) => ExitTarget | null,
     exitFee: number
   ): Position[] {
     const closed: Position[] = [];
     for (const position of this.openPositions) {
-      const exitPrice = locateExit(position);
-      if (exitPrice !== null) {
-        const result = this.closeWithFee(position, exitPrice, exitFee);
+      const target = locateExit(position);
+      if (target !== null) {
+        const result = this.closePartial(
+          position,
+          target.price,
+          target.sizePercent ?? 100,
+          exitFee,
+          target.level
+        );
         if (result.success) {
           closed.push(result.value);
         }
@@ -315,15 +326,38 @@ export class TradingEngine {
     return closed;
   }
 
-  private exitPriceAt(position: Position, price: number): number | null {
+  private exitAt(position: Position, price: number): ExitTarget | null {
+    const levels = position.exitLevels;
+    if (levels) {
+      for (const level of levels) {
+        if (this.isLevelHit(position, level, price)) {
+          return { price: level.price, sizePercent: level.sizePercent, level };
+        }
+      }
+    }
     const { stopLoss, takeProfit } = position;
     if (stopLoss !== undefined && this.isStopHit(position, price)) {
-      return stopLoss;
+      return { price: stopLoss, sizePercent: null };
     }
     if (takeProfit !== undefined && this.isTakeProfitHit(position, price)) {
-      return takeProfit;
+      return { price: takeProfit, sizePercent: null };
     }
     return null;
+  }
+
+  private isLevelHit(
+    position: Position,
+    level: ExitLevel,
+    price: number
+  ): boolean {
+    if (level.kind === 'tp') {
+      return position.side === 'long'
+        ? price >= level.price
+        : price <= level.price;
+    }
+    return position.side === 'long'
+      ? price <= level.price
+      : price >= level.price;
   }
 
   private isStopHit(position: Position, price: number): boolean {
