@@ -50,6 +50,10 @@ export class TradingEngine {
     );
   }
 
+  equity(price: number): number {
+    return this.totalPnl + this.unrealizedPnl(price);
+  }
+
   open(order: OpenOrder): Result<Position, EngineError> {
     const valid = this.validateOrder(order);
     if (!valid.success) {

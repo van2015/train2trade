@@ -366,4 +366,15 @@ describe('TradingEngine', () => {
     expect(engine.closedPositions).toHaveLength(2);
     expect(engine.totalPnl).toBe(20);
   });
+
+  it('combines realized and unrealized PnL into equity at a given price', () => {
+    const engine = new TradingEngine();
+    const closedOne = unwrap(
+      engine.open({ side: 'long', price: 100, size: 1 })
+    );
+    unwrap(engine.close(closedOne, 110));
+    unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+
+    expect(engine.equity(110)).toBe(20);
+  });
 });
