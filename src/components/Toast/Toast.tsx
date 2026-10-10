@@ -1,4 +1,4 @@
-import { Toast as ToastType } from '../../app/hooks/useToast';
+import type { Toast as ToastType } from '../../app/hooks/useToast';
 
 interface ToastProps {
   toasts: ToastType[];
@@ -14,6 +14,7 @@ export function Toast({ toasts, onDismiss }: ToastProps) {
         <div key={toast.id} className={`toast toast-${toast.type}`}>
           <span className="toast-message">{toast.message}</span>
           <button
+            type="button"
             className="toast-dismiss"
             onClick={() => onDismiss(toast.id)}
             aria-label="Dismiss"

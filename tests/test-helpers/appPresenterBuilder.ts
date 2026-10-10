@@ -1,6 +1,10 @@
-import { AssetSummary, IndicatorInstance, Timeframe } from '../../src/shared/types/asset';
-import { Interval } from '../../src/shared/utils/Interval';
 import AppPresenter from '../../src/chart/presenters/AppPresenter';
+import type {
+  AssetSummary,
+  IndicatorInstance,
+  Timeframe,
+} from '../../src/shared/types/asset';
+import type { Interval } from '../../src/shared/utils/Interval';
 
 export class AppPresenterBuilder {
   private assets: AssetSummary[] | null = null;
@@ -53,12 +57,18 @@ export class AppPresenterBuilder {
     AppPresenterBuilder.destroy();
     const presenter = AppPresenter.getInstance();
     if (this.assets !== null) (presenter as any).assets = this.assets;
-    if (this.loadedRange !== null) (presenter as any).loadedRange = this.loadedRange;
-    if (this.lastSampleTime !== null) (presenter as any).lastSampleTime = this.lastSampleTime;
-    if (this.selectedTimeframe !== null) (presenter as any).selectedTimeframe = this.selectedTimeframe;
-    if (this.activeIndicators !== null) (presenter as any).activeIndicators = this.activeIndicators;
-    if (this.selectedAssetId !== null) (presenter as any).selectedAssetId = this.selectedAssetId;
-    if (this.currentRange !== null) (presenter as any).currentRange = this.currentRange;
+    if (this.loadedRange !== null)
+      (presenter as any).loadedRange = this.loadedRange;
+    if (this.lastSampleTime !== null)
+      (presenter as any).lastSampleTime = this.lastSampleTime;
+    if (this.selectedTimeframe !== null)
+      (presenter as any).selectedTimeframe = this.selectedTimeframe;
+    if (this.activeIndicators !== null)
+      (presenter as any).activeIndicators = this.activeIndicators;
+    if (this.selectedAssetId !== null)
+      (presenter as any).selectedAssetId = this.selectedAssetId;
+    if (this.currentRange !== null)
+      (presenter as any).currentRange = this.currentRange;
     return presenter;
   }
 }

@@ -1,15 +1,28 @@
-import { useState, useCallback } from 'react';
-import { Timeframe, Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
-import { generateCSV, validateParams, TestDataParams } from '../../services/TestDataService';
-import { Result } from '../../shared/types/Result';
-import { AppPresenterError } from '../../chart/presenters/AppPresenterError';
+import { useCallback, useState } from 'react';
+import {
+  Timeframe,
+  type Timeframe as TimeframeType,
+} from '../../backtest/timeframe/Timeframe';
+import type { AppPresenterError } from '../../chart/presenters/AppPresenterError';
+import {
+  generateCSV,
+  type TestDataParams,
+  validateParams,
+} from '../../services/TestDataService';
+import type { Result } from '../../shared/types/Result';
 
 interface TestDataGeneratorProps {
-  onImport: (name: string, file: File) => Promise<Result<void, AppPresenterError>>;
+  onImport: (
+    name: string,
+    file: File
+  ) => Promise<Result<void, AppPresenterError>>;
   disabled?: boolean;
 }
 
-export function TestDataGenerator({ onImport, disabled }: TestDataGeneratorProps) {
+export function TestDataGenerator({
+  onImport,
+  disabled,
+}: TestDataGeneratorProps) {
   const [assetName, setAssetName] = useState('');
   const [timeframe, setTimeframe] = useState<TimeframeType>('1m');
   const [startingPrice, setStartingPrice] = useState('100.00');
@@ -60,7 +73,16 @@ export function TestDataGenerator({ onImport, disabled }: TestDataGeneratorProps
     } finally {
       setGenerating(false);
     }
-  }, [assetName, timeframe, startingPrice, volatility, volumeMin, volumeMax, sampleCount, onImport]);
+  }, [
+    assetName,
+    timeframe,
+    startingPrice,
+    volatility,
+    volumeMin,
+    volumeMax,
+    sampleCount,
+    onImport,
+  ]);
 
   return (
     <div className="test-data-generator">
@@ -134,20 +156,24 @@ export function TestDataGenerator({ onImport, disabled }: TestDataGeneratorProps
       </div>
 
       <div className="tdg-row tdg-vol-row">
-        <label>Volume</label>
+        <label htmlFor="tdg-vol-min">Volume</label>
         <div className="tdg-volume">
           <input
+            id="tdg-vol-min"
             className="tdg-vol-min"
             type="number"
             placeholder="Min"
+            aria-label="Minimum volume"
             value={volumeMin}
             onChange={(e) => setVolumeMin(e.target.value)}
             disabled={disabled || generating}
           />
           <input
+            id="tdg-vol-max"
             className="tdg-vol-max"
             type="number"
             placeholder="Max"
+            aria-label="Maximum volume"
             value={volumeMax}
             onChange={(e) => setVolumeMax(e.target.value)}
             disabled={disabled || generating}
@@ -157,13 +183,14 @@ export function TestDataGenerator({ onImport, disabled }: TestDataGeneratorProps
 
       {errors.length > 0 && (
         <div className="validation-errors">
-          {errors.map((error, i) => (
-            <div key={i}>{error}</div>
+          {[...new Set(errors)].map((error) => (
+            <div key={error}>{error}</div>
           ))}
         </div>
       )}
 
       <button
+        type="button"
         className="generate-btn"
         onClick={handleSubmit}
         disabled={disabled || generating}

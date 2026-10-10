@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Trade } from '../../src/backtest/models/Trade';
-import { TradeState, Side } from '../../src/backtest/types/TradeEnums';
-import { PriceData } from '../../src/shared/types/asset';
+import { Side, TradeState } from '../../src/backtest/types/TradeEnums';
+import type { PriceData } from '../../src/shared/types/asset';
 
 const bar = (over: Partial<PriceData> = {}): PriceData => ({
   date: '2024-01-01T00:00:00Z',
@@ -261,7 +261,9 @@ describe('Trade', () => {
       trade.addStopLoss(95, 1);
       trade.addTakeProfit(110, 1);
 
-      const result = trade.processCandle(bar({ high: 115, low: 90, close: 100 }));
+      const result = trade.processCandle(
+        bar({ high: 115, low: 90, close: 100 })
+      );
 
       expect(result.success).toBe(false);
       expect(!result.success && result.error.type).toBe('AMBIGUOUS_CANDLE');
@@ -273,7 +275,9 @@ describe('Trade', () => {
       trade.addStopLoss(105, 1);
       trade.addTakeProfit(90, 1);
 
-      const result = trade.processCandle(bar({ high: 110, low: 85, close: 100 }));
+      const result = trade.processCandle(
+        bar({ high: 110, low: 85, close: 100 })
+      );
 
       expect(result.success).toBe(false);
       expect(!result.success && result.error.type).toBe('AMBIGUOUS_CANDLE');
@@ -326,7 +330,9 @@ describe('Trade', () => {
 
       const result = trade.close(3);
       expect(result.success).toBe(false);
-      expect(!result.success && result.error.type).toBe('CLOSE_SIZE_EXCEEDS_POSITION');
+      expect(!result.success && result.error.type).toBe(
+        'CLOSE_SIZE_EXCEEDS_POSITION'
+      );
     });
 
     it('close fails if trade is not open', () => {
@@ -463,7 +469,9 @@ describe('Trade', () => {
 
       const result = trade.addStopLoss(95, -1);
       expect(result.success).toBe(false);
-      expect(!result.success && result.error.type).toBe('INVALID_STOP_LOSS_SIZE');
+      expect(!result.success && result.error.type).toBe(
+        'INVALID_STOP_LOSS_SIZE'
+      );
     });
   });
 

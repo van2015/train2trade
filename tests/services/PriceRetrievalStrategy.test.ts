@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { RangeStrategy } from '../../src/services/PriceRetrievalStrategy';
 import { Interval } from '../../src/shared/utils/Interval';
 
@@ -33,7 +33,11 @@ describe('RangeStrategy', () => {
   it('extends the range before the viewport by the indicator warm-up span', async () => {
     const strategy = new RangeStrategy();
 
-    const result = await strategy.getRange('asset1', new Interval(100000, 200000), 50000);
+    const result = await strategy.getRange(
+      'asset1',
+      new Interval(100000, 200000),
+      50000
+    );
 
     expect(result.from).toBe(100000 - 50000);
     expect(result.to).toBe(200000 + 100000 * 0.2);
@@ -42,7 +46,11 @@ describe('RangeStrategy', () => {
   it('keeps the proportional buffer when the warm-up is smaller', async () => {
     const strategy = new RangeStrategy();
 
-    const result = await strategy.getRange('asset1', new Interval(100000, 200000), 10);
+    const result = await strategy.getRange(
+      'asset1',
+      new Interval(100000, 200000),
+      10
+    );
 
     expect(result.from).toBe(100000 - 100000 * 0.2);
   });
@@ -50,7 +58,11 @@ describe('RangeStrategy', () => {
   it('ignores a zero warm-up span', async () => {
     const strategy = new RangeStrategy();
 
-    const result = await strategy.getRange('asset1', new Interval(1000, 5000), 0);
+    const result = await strategy.getRange(
+      'asset1',
+      new Interval(1000, 5000),
+      0
+    );
 
     expect(result.from).toBe(1000 - 4000 * 0.2);
   });

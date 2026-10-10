@@ -1,4 +1,4 @@
-import { Timeframe } from '../timeframe/Timeframe';
+import type { Timeframe } from '../timeframe/Timeframe';
 
 export type ResampleError = {
   readonly type: 'INVALID_TIMEFRAME_COMBINATION';

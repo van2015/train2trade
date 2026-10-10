@@ -1,4 +1,4 @@
-import { InvalidatedTrade, Side } from '../../src/backtest/types/backtest';
+import type { InvalidatedTrade, Side } from '../../src/backtest/types/backtest';
 
 export class InvalidatedTradeBuilder {
   private config: InvalidatedTrade = {

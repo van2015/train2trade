@@ -5,7 +5,11 @@ export type TradeError =
   | { readonly type: 'INVALID_SIZE'; readonly size: number }
   | { readonly type: 'INVALID_STOP_LOSS_SIZE'; readonly size: number }
   | { readonly type: 'INVALID_TAKE_PROFIT_SIZE'; readonly size: number }
-  | { readonly type: 'INVALID_INDEX'; readonly index: number; readonly maxIndex: number }
+  | {
+      readonly type: 'INVALID_INDEX';
+      readonly index: number;
+      readonly maxIndex: number;
+    }
   | {
       readonly type: 'CLOSE_SIZE_EXCEEDS_POSITION';
       readonly requested: number;

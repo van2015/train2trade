@@ -1,11 +1,15 @@
-import { PriceData, IndicatorId, IndicatorSeries } from '../../shared/types/asset';
-import { Timeframe } from '../timeframe/Timeframe';
-import { TradeState, Side } from './TradeEnums';
-import type { StrategyError } from './StrategyError';
+import type {
+  IndicatorId,
+  IndicatorSeries,
+  PriceData,
+} from '../../shared/types/asset';
+import type { Timeframe } from '../timeframe/Timeframe';
 import type { ResampleError } from './ResampleError';
-export { TradeState, Side };
-export type { StrategyError };
-export type { ResampleError };
+import type { StrategyError } from './StrategyError';
+import { Side, TradeState } from './TradeEnums';
+
+export type { ResampleError, StrategyError };
+export { Side, TradeState };
 
 export interface AggregatedBar {
   date: string;
@@ -77,11 +81,17 @@ export interface StrategyContext {
   readonly time: number;
   candle(): PriceData;
   series(name: PriceSeriesName): (number | undefined)[];
-  indicator(indicatorId: IndicatorId, params?: Record<string, number>): IndicatorSeries[];
+  indicator(
+    indicatorId: IndicatorId,
+    params?: Record<string, number>
+  ): IndicatorSeries[];
   trades(): readonly TradeView[];
 }
 
-export type TradePredicate = (trade: TradeView, ctx: StrategyContext) => boolean;
+export type TradePredicate = (
+  trade: TradeView,
+  ctx: StrategyContext
+) => boolean;
 
 export interface StrategyParameterSpec {
   key: string;

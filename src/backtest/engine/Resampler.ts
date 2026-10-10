@@ -1,33 +1,53 @@
-import { PriceData } from '../../shared/types/asset';
-import { ResampleResult, ResampleError } from '../types/backtest';
+import type { PriceData } from '../../shared/types/asset';
+import type { Result } from '../../shared/types/Result';
 import { Timeframe } from '../timeframe/Timeframe';
 import { TimeframeAggregator } from '../timeframe/TimeframeAggregator';
-import { Result } from '../../shared/types/Result';
+import type { ResampleError, ResampleResult } from '../types/backtest';
 
 export class DataResampler {
   private aggregator = new TimeframeAggregator();
 
-  resample(dataset: PriceData[], strategyTimeframe: Timeframe): Result<ResampleResult, ResampleError> {
+  resample(
+    dataset: PriceData[],
+    strategyTimeframe: Timeframe
+  ): Result<ResampleResult, ResampleError> {
     const sourceTimeframe = Timeframe.detect(dataset).tf;
     const sourceMinutes = Timeframe.getMinutes(sourceTimeframe);
     const targetMinutes = Timeframe.getMinutes(strategyTimeframe);
 
     if (dataset.length === 0) {
-      return { success: true, value: this.createEmptyResult(strategyTimeframe, sourceTimeframe) };
+      return {
+        success: true,
+        value: this.createEmptyResult(strategyTimeframe, sourceTimeframe),
+      };
     }
 
     if (targetMinutes < sourceMinutes) {
       return {
         success: false,
-        error: { type: 'INVALID_TIMEFRAME_COMBINATION', source: sourceTimeframe, target: strategyTimeframe },
+        error: {
+          type: 'INVALID_TIMEFRAME_COMBINATION',
+          source: sourceTimeframe,
+          target: strategyTimeframe,
+        },
       };
     }
 
     if (targetMinutes === sourceMinutes) {
-      return { success: true, value: this.createSingleTimeframeResult(dataset, strategyTimeframe, sourceTimeframe) };
+      return {
+        success: true,
+        value: this.createSingleTimeframeResult(
+          dataset,
+          strategyTimeframe,
+          sourceTimeframe
+        ),
+      };
     }
 
-    const result = this.aggregator.aggregateWithGaps(dataset, strategyTimeframe);
+    const result = this.aggregator.aggregateWithGaps(
+      dataset,
+      strategyTimeframe
+    );
 
     return {
       success: true,
@@ -41,7 +61,10 @@ export class DataResampler {
     };
   }
 
-  private createEmptyResult(strategyTimeframe: Timeframe, sourceTimeframe: Timeframe): ResampleResult {
+  private createEmptyResult(
+    strategyTimeframe: Timeframe,
+    sourceTimeframe: Timeframe
+  ): ResampleResult {
     return {
       strategyTimeframe,
       sourceTimeframe,
@@ -51,8 +74,12 @@ export class DataResampler {
     };
   }
 
-  private createSingleTimeframeResult(dataset: PriceData[], strategyTimeframe: Timeframe, sourceTimeframe: Timeframe): ResampleResult {
-    const bars = dataset.map(candle => ({
+  private createSingleTimeframeResult(
+    dataset: PriceData[],
+    strategyTimeframe: Timeframe,
+    sourceTimeframe: Timeframe
+  ): ResampleResult {
+    const bars = dataset.map((candle) => ({
       date: candle.date,
       open: candle.open,
       high: candle.high,
@@ -72,7 +99,10 @@ export class DataResampler {
   }
 }
 
-export function resample(dataset: PriceData[], strategyTimeframe: Timeframe): Result<ResampleResult, ResampleError> {
+export function resample(
+  dataset: PriceData[],
+  strategyTimeframe: Timeframe
+): Result<ResampleResult, ResampleError> {
   const resampler = new DataResampler();
   return resampler.resample(dataset, strategyTimeframe);
 }

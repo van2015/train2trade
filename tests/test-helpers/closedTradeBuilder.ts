@@ -1,4 +1,4 @@
-import { ClosedTrade, Side } from '../../src/backtest/types/backtest';
+import type { ClosedTrade, Side } from '../../src/backtest/types/backtest';
 
 export class ClosedTradeBuilder {
   private config: ClosedTrade = {

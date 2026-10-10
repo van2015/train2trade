@@ -1,10 +1,10 @@
-import {
+import type { Timeframe } from '../../src/backtest/timeframe/Timeframe';
+import type {
   StrategyContext,
   StrategyDefinition,
   StrategyParameterSpec,
   TradeSpec,
 } from '../../src/backtest/types/backtest';
-import { Timeframe } from '../../src/backtest/timeframe/Timeframe';
 
 export class StrategyDefinitionBuilder {
   private config: StrategyDefinition = {
@@ -35,12 +35,20 @@ export class StrategyDefinitionBuilder {
     return this;
   }
 
-  onBar(handler: (ctx: StrategyContext, params: Record<string, number>) => TradeSpec[]): this {
+  onBar(
+    handler: (
+      ctx: StrategyContext,
+      params: Record<string, number>
+    ) => TradeSpec[]
+  ): this {
     this.config.onBar = handler;
     return this;
   }
 
   build(): StrategyDefinition {
-    return { ...this.config, params: this.config.params.map(spec => ({ ...spec })) };
+    return {
+      ...this.config,
+      params: this.config.params.map((spec) => ({ ...spec })),
+    };
   }
 }

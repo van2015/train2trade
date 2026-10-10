@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Timeframe } from '../../src/backtest/timeframe/Timeframe';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 
@@ -10,9 +10,9 @@ describe('Timeframe.detect', () => {
   });
 
   it('returns 1D for single candle', () => {
-    const result = Timeframe.detect(
-      [new SamplePriceBuilder().green(1).buildOne()]
-    );
+    const result = Timeframe.detect([
+      new SamplePriceBuilder().green(1).buildOne(),
+    ]);
     expect(result.tf).toBe('1D');
     expect(result.confidence).toBe(0);
   });
@@ -173,7 +173,9 @@ describe('Timeframe.detect', () => {
 describe('Timeframe.detectGaps', () => {
   it('returns empty for insufficient data', () => {
     expect(Timeframe.detectGaps([])).toEqual([]);
-    expect(Timeframe.detectGaps([new SamplePriceBuilder().green(1).buildOne()])).toEqual([]);
+    expect(
+      Timeframe.detectGaps([new SamplePriceBuilder().green(1).buildOne()])
+    ).toEqual([]);
   });
 
   it('returns empty for continuous 1m data', () => {
@@ -204,12 +206,54 @@ describe('Timeframe.detectGaps', () => {
 
   it('identifies multiple gaps', () => {
     const data = [
-      { date: '2024-01-01T00:00:00Z', open: 100, high: 105, low: 98, close: 102, volume: 1000 },
-      { date: '2024-01-01T01:00:00Z', open: 100, high: 105, low: 98, close: 102, volume: 1000 },
-      { date: '2024-01-01T04:00:00Z', open: 100, high: 105, low: 98, close: 102, volume: 1000 },
-      { date: '2024-01-01T05:00:00Z', open: 100, high: 105, low: 98, close: 102, volume: 1000 },
-      { date: '2024-01-01T09:00:00Z', open: 100, high: 105, low: 98, close: 102, volume: 1000 },
-      { date: '2024-01-01T10:00:00Z', open: 100, high: 105, low: 98, close: 102, volume: 1000 },
+      {
+        date: '2024-01-01T00:00:00Z',
+        open: 100,
+        high: 105,
+        low: 98,
+        close: 102,
+        volume: 1000,
+      },
+      {
+        date: '2024-01-01T01:00:00Z',
+        open: 100,
+        high: 105,
+        low: 98,
+        close: 102,
+        volume: 1000,
+      },
+      {
+        date: '2024-01-01T04:00:00Z',
+        open: 100,
+        high: 105,
+        low: 98,
+        close: 102,
+        volume: 1000,
+      },
+      {
+        date: '2024-01-01T05:00:00Z',
+        open: 100,
+        high: 105,
+        low: 98,
+        close: 102,
+        volume: 1000,
+      },
+      {
+        date: '2024-01-01T09:00:00Z',
+        open: 100,
+        high: 105,
+        low: 98,
+        close: 102,
+        volume: 1000,
+      },
+      {
+        date: '2024-01-01T10:00:00Z',
+        open: 100,
+        high: 105,
+        low: 98,
+        close: 102,
+        volume: 1000,
+      },
     ];
     const gaps = Timeframe.detectGaps(data);
     expect(gaps.length).toBe(2);
@@ -226,7 +270,10 @@ describe('Timeframe.detectGaps', () => {
       .buildSeries();
     const candles = data.map((c, i) => ({
       ...c,
-      date: i < 3 ? `2024-01-01T00:0${i}:00Z` : `2024-01-01T00:0${i === 3 ? '5' : '6'}:00Z`,
+      date:
+        i < 3
+          ? `2024-01-01T00:0${i}:00Z`
+          : `2024-01-01T00:0${i === 3 ? '5' : '6'}:00Z`,
     }));
     candles[3].date = '2024-01-01T00:05:00Z';
     candles[4].date = '2024-01-01T00:06:00Z';

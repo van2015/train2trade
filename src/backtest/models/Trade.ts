@@ -1,8 +1,8 @@
-import { TradeView } from '../types/backtest';
-import { TradeState, Side } from '../types/TradeEnums';
-import { TradeError } from '../types/TradeError';
-import { PriceData } from '../../shared/types/asset';
-import { Result } from '../../shared/types/Result';
+import type { PriceData } from '../../shared/types/asset';
+import type { Result } from '../../shared/types/Result';
+import type { TradeView } from '../types/backtest';
+import { Side, TradeState } from '../types/TradeEnums';
+import type { TradeError } from '../types/TradeError';
 
 interface PriceLevel {
   price: number;
@@ -62,7 +62,10 @@ export class Trade {
     }
     return {
       success: true,
-      value: (this._markPrice - this._averageEntry) * this._size * Trade.directionFactor(this.side),
+      value:
+        (this._markPrice - this._averageEntry) *
+        this._size *
+        Trade.directionFactor(this.side),
     };
   }
 
@@ -97,7 +100,9 @@ export class Trade {
     ) {
       return undefined;
     }
-    const risk = Math.abs(this._initialAverageEntry - this._initialStopLoss) * this._initialSize;
+    const risk =
+      Math.abs(this._initialAverageEntry - this._initialStopLoss) *
+      this._initialSize;
     return risk === 0 ? undefined : risk;
   }
 
@@ -109,7 +114,10 @@ export class Trade {
 
   open(price: number, size: number): Result<void, TradeError> {
     if (this._state !== TradeState.Pending) {
-      return { success: false, error: { type: 'TRADE_ALREADY_OPEN', id: this.id } };
+      return {
+        success: false,
+        error: { type: 'TRADE_ALREADY_OPEN', id: this.id },
+      };
     }
     if (size <= 0) {
       return { success: false, error: { type: 'INVALID_SIZE', size } };
@@ -137,14 +145,20 @@ export class Trade {
 
     const fillPrice = this._markPrice ?? this._averageEntry;
     const newSize = this._size + size;
-    this._averageEntry = (this._size * this._averageEntry + size * fillPrice) / newSize;
+    this._averageEntry =
+      (this._size * this._averageEntry + size * fillPrice) / newSize;
     this._size = newSize;
     this._openedSize += size;
     return { success: true, value: undefined };
   }
 
   addStopLoss(price: number, size: number): Result<void, TradeError> {
-    const result = this.addLevel(this._stopLosses, price, size, 'INVALID_STOP_LOSS_SIZE');
+    const result = this.addLevel(
+      this._stopLosses,
+      price,
+      size,
+      'INVALID_STOP_LOSS_SIZE'
+    );
     if (result.success && size > 0 && this._initialStopLoss === undefined) {
       this._initialStopLoss = price;
     }
@@ -152,7 +166,12 @@ export class Trade {
   }
 
   addTakeProfit(price: number, size: number): Result<void, TradeError> {
-    return this.addLevel(this._takeProfits, price, size, 'INVALID_TAKE_PROFIT_SIZE');
+    return this.addLevel(
+      this._takeProfits,
+      price,
+      size,
+      'INVALID_TAKE_PROFIT_SIZE'
+    );
   }
 
   private addLevel(
@@ -174,11 +193,21 @@ export class Trade {
   }
 
   updateStopLoss(index: number, newSize: number): Result<void, TradeError> {
-    return this.updateLevel(this._stopLosses, index, newSize, 'INVALID_STOP_LOSS_SIZE');
+    return this.updateLevel(
+      this._stopLosses,
+      index,
+      newSize,
+      'INVALID_STOP_LOSS_SIZE'
+    );
   }
 
   updateTakeProfit(index: number, newSize: number): Result<void, TradeError> {
-    return this.updateLevel(this._takeProfits, index, newSize, 'INVALID_TAKE_PROFIT_SIZE');
+    return this.updateLevel(
+      this._takeProfits,
+      index,
+      newSize,
+      'INVALID_TAKE_PROFIT_SIZE'
+    );
   }
 
   private updateLevel(
@@ -217,7 +246,8 @@ export class Trade {
   }
 
   processCandle(bar: PriceData): Result<void, TradeError> {
-    if (this._state !== TradeState.Open) return { success: true, value: undefined };
+    if (this._state !== TradeState.Open)
+      return { success: true, value: undefined };
     this._markPrice = bar.close;
 
     if (this._stopLosses.length === 0 && this._takeProfits.length === 0) {
@@ -227,13 +257,20 @@ export class Trade {
     const long = this.side === Side.Long;
     const slHit =
       this._stopLosses.length > 0 &&
-      this._stopLosses.some(sl => (long ? bar.low <= sl.price : bar.high >= sl.price));
+      this._stopLosses.some((sl) =>
+        long ? bar.low <= sl.price : bar.high >= sl.price
+      );
     const tpHit =
       this._takeProfits.length > 0 &&
-      this._takeProfits.some(tp => (long ? bar.high >= tp.price : bar.low <= tp.price));
+      this._takeProfits.some((tp) =>
+        long ? bar.high >= tp.price : bar.low <= tp.price
+      );
 
     if (slHit && tpHit) {
-      return { success: false, error: { type: 'AMBIGUOUS_CANDLE', id: this.id } };
+      return {
+        success: false,
+        error: { type: 'AMBIGUOUS_CANDLE', id: this.id },
+      };
     }
 
     if (slHit) this.executeLevels(this._stopLosses, bar, long, true);
@@ -254,7 +291,11 @@ export class Trade {
     if (size > this._size) {
       return {
         success: false,
-        error: { type: 'CLOSE_SIZE_EXCEEDS_POSITION', requested: size, available: this._size },
+        error: {
+          type: 'CLOSE_SIZE_EXCEEDS_POSITION',
+          requested: size,
+          available: this._size,
+        },
       };
     }
     const execPrice = price ?? this._markPrice;
@@ -263,7 +304,9 @@ export class Trade {
     }
 
     this._realizedPnl +=
-      (execPrice - this._averageEntry) * size * Trade.directionFactor(this.side);
+      (execPrice - this._averageEntry) *
+      size *
+      Trade.directionFactor(this.side);
     this._size -= size;
 
     if (this._size === 0) {
@@ -273,7 +316,8 @@ export class Trade {
   }
 
   closeAll(): Result<void, TradeError> {
-    if (this._state !== TradeState.Open) return { success: true, value: undefined };
+    if (this._state !== TradeState.Open)
+      return { success: true, value: undefined };
     return this.close(this._size);
   }
 
@@ -295,7 +339,12 @@ export class Trade {
     return side === Side.Long ? 1 : -1;
   }
 
-  private executeLevels(levels: PriceLevel[], bar: PriceData, long: boolean, isStopLoss: boolean): void {
+  private executeLevels(
+    levels: PriceLevel[],
+    bar: PriceData,
+    long: boolean,
+    isStopLoss: boolean
+  ): void {
     for (const level of [...levels]) {
       if (this._state !== TradeState.Open) break;
       const triggered = isStopLoss
@@ -309,7 +358,9 @@ export class Trade {
 
       const closeSize = Math.min(level.size, this._size);
       this._realizedPnl +=
-        (level.price - this._averageEntry) * closeSize * Trade.directionFactor(this.side);
+        (level.price - this._averageEntry) *
+        closeSize *
+        Trade.directionFactor(this.side);
       this._size -= closeSize;
 
       level.size -= closeSize;

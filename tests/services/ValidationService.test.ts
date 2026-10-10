@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { validateAndParse } from '../../src/shared/services/ValidationService';
 
 describe('ValidationService', () => {
@@ -10,8 +10,8 @@ describe('ValidationService', () => {
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
       expect(result.data).toHaveLength(2);
-      expect(result.data![0].open).toBe(100);
-      expect(result.data![0].high).toBe(105);
+      expect(result.data?.[0].open).toBe(100);
+      expect(result.data?.[0].high).toBe(105);
     });
 
     it('rejects CSV missing required field', () => {
@@ -65,8 +65,22 @@ malformed row
   describe('JSON parsing', () => {
     it('parses valid JSON array', () => {
       const json = JSON.stringify([
-        { date: '2024-01-01T00:00:00Z', open: 100, high: 105, low: 98, close: 102, volume: 1000 },
-        { date: '2024-01-01T00:01:00Z', open: 102, high: 108, low: 100, close: 105, volume: 1200 },
+        {
+          date: '2024-01-01T00:00:00Z',
+          open: 100,
+          high: 105,
+          low: 98,
+          close: 102,
+          volume: 1000,
+        },
+        {
+          date: '2024-01-01T00:01:00Z',
+          open: 102,
+          high: 108,
+          low: 100,
+          close: 105,
+          volume: 1200,
+        },
       ]);
       const result = validateAndParse(json, 'data.json');
       expect(result.success).toBe(true);
@@ -81,7 +95,14 @@ malformed row
     });
 
     it('rejects non-array JSON root', () => {
-      const json = JSON.stringify({ date: '2024-01-01T00:00:00Z', open: 100, high: 105, low: 98, close: 102, volume: 1000 });
+      const json = JSON.stringify({
+        date: '2024-01-01T00:00:00Z',
+        open: 100,
+        high: 105,
+        low: 98,
+        close: 102,
+        volume: 1000,
+      });
       const result = validateAndParse(json, 'data.json');
       expect(result.success).toBe(false);
       expect(result.error?.message).toBe('JSON must be an array of price data');
@@ -93,7 +114,9 @@ malformed row
       ]);
       const result = validateAndParse(json, 'data.json');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Each item must have date, open, high, low, close, volume');
+      expect(result.error?.message).toContain(
+        'Each item must have date, open, high, low, close, volume'
+      );
     });
   });
 
@@ -201,7 +224,7 @@ malformed row
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
       expect(result.warnings).toBeDefined();
-      expect(result.warnings!.some(w => w.includes('gaps'))).toBe(true);
+      expect(result.warnings?.some((w) => w.includes('gaps'))).toBe(true);
     });
 
     it('returns warning when timeframe confidence is low', () => {
@@ -213,7 +236,9 @@ malformed row
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
       expect(result.warnings).toBeDefined();
-      expect(result.warnings!.some(w => w.includes('Could not detect timeframe'))).toBe(true);
+      expect(
+        result.warnings?.some((w) => w.includes('Could not detect timeframe'))
+      ).toBe(true);
     });
 
     it('returns empty warnings array for clean data', () => {

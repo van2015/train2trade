@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { PriceData, AssetSummary } from '../../src/shared/types/asset';
-import { Timeframe } from '../../src/backtest/timeframe/Timeframe';
-import { AssetChartRepository } from '../../src/shared/services/repositories/AssetChartRepository';
+import { beforeEach, describe, expect, it } from 'vitest';
+import type { Timeframe } from '../../src/backtest/timeframe/Timeframe';
 import { AssetService } from '../../src/shared/services/AssetService';
+import type { AssetChartRepository } from '../../src/shared/services/repositories/AssetChartRepository';
+import type { AssetSummary, PriceData } from '../../src/shared/types/asset';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 
 class FakeRepository implements AssetChartRepository {
@@ -14,9 +14,18 @@ class FakeRepository implements AssetChartRepository {
   }
 
   async init(): Promise<void> {}
-  async saveAsset(name: string, data: PriceData[], originalTimeframe: Timeframe): Promise<AssetSummary> {
+  async saveAsset(
+    name: string,
+    data: PriceData[],
+    originalTimeframe: Timeframe
+  ): Promise<AssetSummary> {
     const id = crypto.randomUUID();
-    const summary: AssetSummary = { id, name, createdAt: new Date(), originalTimeframe };
+    const summary: AssetSummary = {
+      id,
+      name,
+      createdAt: new Date(),
+      originalTimeframe,
+    };
     this.summaries.set(id, summary);
     this.dataByAsset.set(id, data);
     return summary;
@@ -31,18 +40,28 @@ class FakeRepository implements AssetChartRepository {
     this.summaries.delete(id);
     this.dataByAsset.delete(id);
   }
-  async getSamplesRange(assetId: string, from: number, to: number): Promise<PriceData[]> {
+  async getSamplesRange(
+    assetId: string,
+    from: number,
+    to: number
+  ): Promise<PriceData[]> {
     const data = this.dataByAsset.get(assetId) ?? [];
-    return data.filter(s => {
+    return data.filter((s) => {
       const t = new Date(s.date).getTime();
       return t >= from && t <= to;
     });
   }
-  async getSampleAfter(assetId: string, time: number): Promise<PriceData | null> {
+  async getSampleAfter(
+    assetId: string,
+    time: number
+  ): Promise<PriceData | null> {
     const data = this.sortedData(assetId);
-    return data.find(s => new Date(s.date).getTime() > time) ?? null;
+    return data.find((s) => new Date(s.date).getTime() > time) ?? null;
   }
-  async getSampleBefore(assetId: string, time: number): Promise<PriceData | null> {
+  async getSampleBefore(
+    assetId: string,
+    time: number
+  ): Promise<PriceData | null> {
     const data = this.sortedData(assetId);
     let prev: PriceData | null = null;
     for (const s of data) {
@@ -91,8 +110,22 @@ describe('AssetService', () => {
   describe('aggregate', () => {
     it('returns same data for same timeframe', () => {
       const data = [
-        new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne(),
-        new SamplePriceBuilder().date('2024-01-01T00:01:00Z').open(102).high(108).low(100).close(105).volume(1200).buildOne(),
+        new SamplePriceBuilder()
+          .date('2024-01-01T00:00:00Z')
+          .open(100)
+          .high(105)
+          .low(98)
+          .close(102)
+          .volume(1000)
+          .buildOne(),
+        new SamplePriceBuilder()
+          .date('2024-01-01T00:01:00Z')
+          .open(102)
+          .high(108)
+          .low(100)
+          .close(105)
+          .volume(1200)
+          .buildOne(),
       ];
       const result = service.aggregate(data, '1m', '1m');
       expect(result).toEqual(data);
@@ -100,8 +133,22 @@ describe('AssetService', () => {
 
     it('returns same data when factor <= 1 (1D to 4H)', () => {
       const data = [
-        new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne(),
-        new SamplePriceBuilder().date('2024-01-02T00:00:00Z').open(102).high(108).low(100).close(105).volume(1200).buildOne(),
+        new SamplePriceBuilder()
+          .date('2024-01-01T00:00:00Z')
+          .open(100)
+          .high(105)
+          .low(98)
+          .close(102)
+          .volume(1000)
+          .buildOne(),
+        new SamplePriceBuilder()
+          .date('2024-01-02T00:00:00Z')
+          .open(102)
+          .high(108)
+          .low(100)
+          .close(105)
+          .volume(1200)
+          .buildOne(),
       ];
       const result = service.aggregate(data, '4h', '1D');
       expect(result).toEqual(data);
@@ -169,7 +216,16 @@ describe('AssetService', () => {
     });
 
     it('returns original data for same timeframe', () => {
-      const data = [new SamplePriceBuilder().date('2024-01-01T00:00:00Z').open(100).high(105).low(98).close(102).volume(1000).buildOne()];
+      const data = [
+        new SamplePriceBuilder()
+          .date('2024-01-01T00:00:00Z')
+          .open(100)
+          .high(105)
+          .low(98)
+          .close(102)
+          .volume(1000)
+          .buildOne(),
+      ];
       repo.setData('asset1', data);
       service.addRangeData('asset1', data);
       const result = service.priceSample('asset1', '1m', '1m');
@@ -207,7 +263,7 @@ describe('AssetService', () => {
       service.addRangeData('asset1', data);
       const result = service.priceSample('asset1', '1m', '5m');
       expect(result).toHaveLength(1);
-      expect(result![0].open).toBe(100);
+      expect(result?.[0].open).toBe(100);
     });
   });
 
@@ -215,8 +271,8 @@ describe('AssetService', () => {
     it('returns the interval spanning the samples', () => {
       const interval = service.addRangeData('asset1', buildSamples(3, 0));
       expect(interval).not.toBeNull();
-      expect(interval!.from).toBe(0);
-      expect(interval!.to).toBe(2 * 60000);
+      expect(interval?.from).toBe(0);
+      expect(interval?.to).toBe(2 * 60000);
     });
 
     it('returns null for an empty window', () => {
@@ -229,8 +285,12 @@ describe('AssetService', () => {
 
       const result = service.priceSample('asset1', '1m', '1m');
       expect(result).toHaveLength(6);
-      expect(result![0].date).toBe(new Date(0).toISOString().replace('.000Z', 'Z'));
-      expect(result![5].date).toBe(new Date(12 * 60000).toISOString().replace('.000Z', 'Z'));
+      expect(result?.[0].date).toBe(
+        new Date(0).toISOString().replace('.000Z', 'Z')
+      );
+      expect(result?.[5].date).toBe(
+        new Date(12 * 60000).toISOString().replace('.000Z', 'Z')
+      );
     });
 
     it('deduplicates overlapping samples by timestamp', () => {
@@ -239,11 +299,8 @@ describe('AssetService', () => {
 
       const result = service.priceSample('asset1', '1m', '1m');
       expect(result).toHaveLength(4);
-      expect(result!.map(sample => new Date(sample.date).getTime())).toEqual([
-        0,
-        60000,
-        120000,
-        180000,
+      expect(result?.map((sample) => new Date(sample.date).getTime())).toEqual([
+        0, 60000, 120000, 180000,
       ]);
     });
 
@@ -254,7 +311,9 @@ describe('AssetService', () => {
       const result = service.priceSample('asset1', '1m', '1m')!;
       expect(result).toHaveLength(10100);
       expect(new Date(result[0].date).getTime()).toBe(0);
-      expect(new Date(result[result.length - 1].date).getTime()).toBe(10099 * 60000);
+      expect(new Date(result[result.length - 1].date).getTime()).toBe(
+        10099 * 60000
+      );
     });
   });
 
@@ -363,8 +422,8 @@ describe('AssetService', () => {
       const range = await service.getInitialRange('asset1', '1m');
       const last = new Date('2024-01-01T00:04:00Z').getTime();
       expect(range).not.toBeNull();
-      expect(range!.to).toBe(last);
-      expect(range!.from).toBe(last - 500 * 60000);
+      expect(range?.to).toBe(last);
+      expect(range?.from).toBe(last - 500 * 60000);
     });
 
     it('returns null for an asset with no data', async () => {

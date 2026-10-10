@@ -1,16 +1,16 @@
 import {
-  ChartType,
-  IndicatorId,
-  IndicatorInstance,
-} from '../../shared/types/asset';
-import { Timeframe } from '../../backtest/timeframe/Timeframe';
-import { Interval } from '../../shared/utils/Interval';
-import {
   createIndicatorInstance,
   getDefinition,
   maxLookback,
   normalizeParams,
 } from '../../backtest/indicators/IndicatorService';
+import { Timeframe } from '../../backtest/timeframe/Timeframe';
+import type {
+  ChartType,
+  IndicatorId,
+  IndicatorInstance,
+} from '../../shared/types/asset';
+import { Interval } from '../../shared/utils/Interval';
 
 const TIMEFRAME_STORAGE_KEY = 'selectedTimeframe';
 const INDICATORS_STORAGE_KEY = 'activeIndicators';
@@ -45,7 +45,9 @@ export class ChartPresenter {
 
   private notify(): void {
     const state = this.getState();
-    this.listeners.forEach(fn => fn(state));
+    this.listeners.forEach((fn) => {
+      fn(state);
+    });
     this.options.onStateChange?.(state);
   }
 
@@ -81,8 +83,10 @@ export class ChartPresenter {
       const parsed = JSON.parse(stored);
       if (!Array.isArray(parsed)) return;
       this.activeIndicators = parsed
-        .map(raw => this.sanitizeIndicator(raw))
-        .filter((indicator): indicator is IndicatorInstance => indicator !== null);
+        .map((raw) => this.sanitizeIndicator(raw))
+        .filter(
+          (indicator): indicator is IndicatorInstance => indicator !== null
+        );
     } catch {
       this.activeIndicators = [];
     }
@@ -91,7 +95,8 @@ export class ChartPresenter {
   private sanitizeIndicator(raw: unknown): IndicatorInstance | null {
     if (!raw || typeof raw !== 'object') return null;
     const candidate = raw as Partial<IndicatorInstance>;
-    if (typeof candidate.key !== 'string' || candidate.key.length === 0) return null;
+    if (typeof candidate.key !== 'string' || candidate.key.length === 0)
+      return null;
     if (typeof candidate.indicatorId !== 'string') return null;
     const definition = getDefinition(candidate.indicatorId as IndicatorId);
     if (!definition) return null;
@@ -109,7 +114,10 @@ export class ChartPresenter {
 
   private saveIndicatorsToStorage(): void {
     try {
-      localStorage.setItem(INDICATORS_STORAGE_KEY, JSON.stringify(this.activeIndicators));
+      localStorage.setItem(
+        INDICATORS_STORAGE_KEY,
+        JSON.stringify(this.activeIndicators)
+      );
     } catch {}
   }
 
@@ -141,7 +149,9 @@ export class ChartPresenter {
   }
 
   removeIndicator(key: string): void {
-    const next = this.activeIndicators.filter(indicator => indicator.key !== key);
+    const next = this.activeIndicators.filter(
+      (indicator) => indicator.key !== key
+    );
     if (next.length === this.activeIndicators.length) return;
     this.activeIndicators = next;
     this.saveIndicatorsToStorage();
@@ -150,7 +160,7 @@ export class ChartPresenter {
 
   updateIndicator(key: string, params: Record<string, number>): void {
     let changed = false;
-    this.activeIndicators = this.activeIndicators.map(indicator => {
+    this.activeIndicators = this.activeIndicators.map((indicator) => {
       if (indicator.key !== key) return indicator;
       const definition = getDefinition(indicator.indicatorId);
       if (!definition) return indicator;

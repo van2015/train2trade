@@ -1,4 +1,4 @@
-import { ChartType } from '../../shared/types/asset';
+import type { ChartType } from '../../shared/types/asset';
 
 interface ChartTypeSelectorProps {
   value: ChartType;
@@ -12,11 +12,16 @@ const CHART_TYPES: { value: ChartType; label: string }[] = [
   { value: 'ohlc', label: 'OHLC' },
 ];
 
-export function ChartTypeSelector({ value, onChange, disabled }: ChartTypeSelectorProps) {
+export function ChartTypeSelector({
+  value,
+  onChange,
+  disabled,
+}: ChartTypeSelectorProps) {
   return (
     <div className="chart-type-selector">
       {CHART_TYPES.map((type) => (
         <button
+          type="button"
           key={type.value}
           className={`chart-type-btn ${value === type.value ? 'active' : ''}`}
           onClick={() => onChange(type.value)}

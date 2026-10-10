@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { computeMetrics } from '../../src/backtest/services/MetricsCalculator';
 import { ClosedTradeBuilder } from '../test-helpers/closedTradeBuilder';
-import { InvalidatedTradeBuilder } from '../test-helpers/invalidatedTradeBuilder';
 import { EquityPointBuilder } from '../test-helpers/equityPointBuilder';
+import { InvalidatedTradeBuilder } from '../test-helpers/invalidatedTradeBuilder';
 
 function trade(netPnl: number, fees = 0, rMultiple?: number) {
   const builder = new ClosedTradeBuilder().netPnl(netPnl).fees(fees);
@@ -66,13 +66,21 @@ describe('computeMetrics', () => {
   });
 
   it('averages R only over trades with a defined R', () => {
-    const metrics = computeMetrics([trade(10, 0, 2), trade(5, 0, 4), trade(1)], [], []);
+    const metrics = computeMetrics(
+      [trade(10, 0, 2), trade(5, 0, 4), trade(1)],
+      [],
+      []
+    );
 
     expect(metrics.averageR).toBeCloseTo(3);
   });
 
   it('reports invalidated trades separately and excludes them from PnL and win rate', () => {
-    const metrics = computeMetrics([trade(10), trade(-5)], [invalidated('i1')], []);
+    const metrics = computeMetrics(
+      [trade(10), trade(-5)],
+      [invalidated('i1')],
+      []
+    );
 
     expect(metrics.invalidatedCount).toBe(1);
     expect(metrics.invalidatedRatio).toBeCloseTo(1 / 3);

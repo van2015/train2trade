@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { IndicatorId, IndicatorInstance } from '../../shared/types/asset';
-import { getDefinition, getIndicatorGroups } from '../../backtest/indicators/IndicatorService';
+import {
+  getDefinition,
+  getIndicatorGroups,
+} from '../../backtest/indicators/IndicatorService';
+import type { IndicatorId, IndicatorInstance } from '../../shared/types/asset';
 
 interface IndicatorSelectorProps {
   indicators: IndicatorInstance[];
@@ -23,7 +26,10 @@ export function IndicatorSelector({
     if (!open) return;
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -41,8 +47,9 @@ export function IndicatorSelector({
     <div className="indicator-selector" ref={containerRef}>
       <div className="indicator-add">
         <button
+          type="button"
           className="indicator-add-btn"
-          onClick={() => setOpen(value => !value)}
+          onClick={() => setOpen((value) => !value)}
           disabled={disabled}
         >
           + Indicator
@@ -51,8 +58,9 @@ export function IndicatorSelector({
           <div className="indicator-dropdown">
             <div className="indicator-group">
               <div className="indicator-group-title">Overlays</div>
-              {groups.overlays.map(definition => (
+              {groups.overlays.map((definition) => (
                 <button
+                  type="button"
                   key={definition.id}
                   className="indicator-option"
                   onClick={() => handleAdd(definition.id)}
@@ -63,8 +71,9 @@ export function IndicatorSelector({
             </div>
             <div className="indicator-group">
               <div className="indicator-group-title">Oscillators</div>
-              {groups.oscillators.map(definition => (
+              {groups.oscillators.map((definition) => (
                 <button
+                  type="button"
                   key={definition.id}
                   className="indicator-option"
                   onClick={() => handleAdd(definition.id)}
@@ -77,7 +86,7 @@ export function IndicatorSelector({
         )}
       </div>
       <div className="indicator-chips">
-        {indicators.map(indicator => {
+        {indicators.map((indicator) => {
           const definition = getDefinition(indicator.indicatorId);
           return (
             <span key={indicator.key} className="indicator-chip">
@@ -85,6 +94,7 @@ export function IndicatorSelector({
                 {definition?.label ?? indicator.indicatorId}
               </span>
               <button
+                type="button"
                 className="indicator-chip-remove"
                 onClick={() => onRemove(indicator.key)}
                 aria-label="Remove indicator"

@@ -1,11 +1,11 @@
-import {
+import type { Result } from '../../shared/types/Result';
+import type { BrokerError } from '../types/BrokerError';
+import type {
   OrderSide,
   OrderValidation,
   OrderValidationInput,
   PlatformConfig,
 } from '../types/backtest';
-import { BrokerError } from '../types/BrokerError';
-import { Result } from '../../shared/types/Result';
 
 export class Broker {
   private static roundToStep(value: number, step: number): number {
@@ -62,7 +62,11 @@ export class Broker {
 
   alignToTick(price: number): number {
     if (this.config.tickSize <= 0) return price;
-    return Number((Math.round(price / this.config.tickSize) * this.config.tickSize).toFixed(10));
+    return Number(
+      (Math.round(price / this.config.tickSize) * this.config.tickSize).toFixed(
+        10
+      )
+    );
   }
 
   isSizeValid(size: number): boolean {
@@ -85,11 +89,17 @@ export class Broker {
     return { valid: true };
   }
 
-  fillPrice(side: OrderSide, referencePrice: number, withSlippage = true): number {
+  fillPrice(
+    side: OrderSide,
+    referencePrice: number,
+    withSlippage = true
+  ): number {
     const halfSpread = this.config.spread / 2;
     const slippage = withSlippage ? this.config.slippage : 0;
     const adjustment = halfSpread + slippage;
-    return side === 'buy' ? referencePrice + adjustment : referencePrice - adjustment;
+    return side === 'buy'
+      ? referencePrice + adjustment
+      : referencePrice - adjustment;
   }
 
   commission(size: number): number {
@@ -113,6 +123,8 @@ export class Broker {
   }
 
   isStopOut(equity: number): boolean {
-    return this._margin > 0 && equity <= this._margin * this.config.stopOutLevel;
+    return (
+      this._margin > 0 && equity <= this._margin * this.config.stopOutLevel
+    );
   }
 }

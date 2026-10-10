@@ -1,4 +1,4 @@
-import {
+import type {
   ClosedTrade,
   EquityPoint,
   InvalidatedTrade,
@@ -61,7 +61,18 @@ export class MetricsCalculator {
       }
     }
 
-    return { totalTrades: trades.length, wins, losses, breakeven, netPnl, grossProfit, grossLoss, costs, rSum, rCount };
+    return {
+      totalTrades: trades.length,
+      wins,
+      losses,
+      breakeven,
+      netPnl,
+      grossProfit,
+      grossLoss,
+      costs,
+      rSum,
+      rCount,
+    };
   }
 
   private calculateMaxDrawdown(equityCurve: EquityPoint[]): number {
@@ -80,7 +91,18 @@ export class MetricsCalculator {
     invalidated: InvalidatedTrade[],
     maxDrawdown: number
   ): PerformanceMetrics {
-    const { totalTrades, wins, losses, breakeven, netPnl, grossProfit, grossLoss, costs, rSum, rCount } = stats;
+    const {
+      totalTrades,
+      wins,
+      losses,
+      breakeven,
+      netPnl,
+      grossProfit,
+      grossLoss,
+      costs,
+      rSum,
+      rCount,
+    } = stats;
 
     const winRate = totalTrades > 0 ? wins / totalTrades : 0;
     const profitFactor =

@@ -1,8 +1,8 @@
-import { useState, useEffect, useContext, useCallback } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
+import type { Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
+import type { IndicatorId } from '../../shared/types/asset';
+import type { Interval } from '../../shared/utils/Interval';
 import { PresenterContext } from '../context/PresenterContext';
-import { Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
-import { IndicatorId } from '../../shared/types/asset';
-import { Interval } from '../../shared/utils/Interval';
 
 export function useAppPresenter() {
   const presenter = useContext(PresenterContext);
@@ -33,7 +33,8 @@ export function useAppPresenter() {
   );
 
   const changeChartType = useCallback(
-    (type: Parameters<typeof presenter.changeChartType>[0]) => presenter.changeChartType(type),
+    (type: Parameters<typeof presenter.changeChartType>[0]) =>
+      presenter.changeChartType(type),
     [presenter]
   );
 
@@ -53,7 +54,8 @@ export function useAppPresenter() {
   );
 
   const updateIndicator = useCallback(
-    (key: string, params: Record<string, number>) => presenter.updateIndicator(key, params),
+    (key: string, params: Record<string, number>) =>
+      presenter.updateIndicator(key, params),
     [presenter]
   );
 
@@ -63,7 +65,8 @@ export function useAppPresenter() {
   );
 
   const requestRange = useCallback(
-    (assetId: string, interval: Interval) => presenter.requestRange(assetId, interval),
+    (assetId: string, interval: Interval) =>
+      presenter.requestRange(assetId, interval),
     [presenter]
   );
 
@@ -82,10 +85,7 @@ export function useAppPresenter() {
     [presenter]
   );
 
-  const getAssetList = useCallback(
-    () => presenter.getAssetList(),
-    [presenter]
-  );
+  const getAssetList = useCallback(() => presenter.getAssetList(), [presenter]);
 
   return {
     state,

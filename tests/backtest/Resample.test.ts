@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { PriceData } from '../../src/shared/types/asset';
+import { describe, expect, it } from 'vitest';
 import { resample } from '../../src/backtest/engine/Resampler';
+import type { PriceData } from '../../src/shared/types/asset';
 import { PriceSeriesBuilder } from '../test-helpers/priceSeriesBuilder';
 
 function bar(
@@ -80,8 +80,8 @@ describe('resample', () => {
     expect(result.success).toBe(true);
     const value = result.success && result.value;
     expect(value.bars[0].subBars).toHaveLength(5);
-    expect(value.bars[0].subBars.map(sub => sub.date)).toEqual(
-      dataset.slice(0, 5).map(candle => candle.date)
+    expect(value.bars[0].subBars.map((sub) => sub.date)).toEqual(
+      dataset.slice(0, 5).map((candle) => candle.date)
     );
   });
 
@@ -155,6 +155,8 @@ describe('resample', () => {
     const result = resample(dataset, '5m');
 
     expect(result.success).toBe(false);
-    expect(!result.success && result.error.type).toBe('INVALID_TIMEFRAME_COMBINATION');
+    expect(!result.success && result.error.type).toBe(
+      'INVALID_TIMEFRAME_COMBINATION'
+    );
   });
 });

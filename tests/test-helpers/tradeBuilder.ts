@@ -1,4 +1,7 @@
-import { TradePredicate, TradeSpec } from '../../src/backtest/types/backtest';
+import type {
+  TradePredicate,
+  TradeSpec,
+} from '../../src/backtest/types/backtest';
 
 export class TradeBuilder {
   private spec: TradeSpec = {
@@ -86,8 +89,14 @@ export class TradeBuilder {
       throw new Error('Specify the side with long() or short()');
     }
     if (!this.orderSpecified) {
-      throw new Error('Specify an order type with market(), limit(price) or stop(price)');
+      throw new Error(
+        'Specify an order type with market(), limit(price) or stop(price)'
+      );
     }
-    return { ...this.spec, risk: { ...this.spec.risk }, rules: [...this.spec.rules] };
+    return {
+      ...this.spec,
+      risk: { ...this.spec.risk },
+      rules: [...this.spec.rules],
+    };
   }
 }

@@ -1,5 +1,4 @@
-import { describe, it, expect } from 'vitest';
-import { PriceData, IndicatorId, IndicatorInstance } from '../../src/shared/types/asset';
+import { describe, expect, it } from 'vitest';
 import {
   compute,
   computeSeries,
@@ -9,13 +8,24 @@ import {
   maxLookback,
   normalizeParams,
 } from '../../src/backtest/indicators/IndicatorService';
+import type {
+  IndicatorId,
+  IndicatorInstance,
+  PriceData,
+} from '../../src/shared/types/asset';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 
-function candles(closes: number[], volumes?: number[], opens?: number[]): PriceData[] {
+function candles(
+  closes: number[],
+  volumes?: number[],
+  opens?: number[]
+): PriceData[] {
   return closes.map((close, i) => {
     const open = opens?.[i] ?? close;
     return {
-      date: new Date(Date.UTC(2024, 0, 1, 0, i)).toISOString().replace('.000Z', 'Z'),
+      date: new Date(Date.UTC(2024, 0, 1, 0, i))
+        .toISOString()
+        .replace('.000Z', 'Z'),
       open,
       high: Math.max(open, close),
       low: Math.min(open, close),
@@ -25,17 +35,28 @@ function candles(closes: number[], volumes?: number[], opens?: number[]): PriceD
   });
 }
 
-function instance(indicatorId: IndicatorId, params: Record<string, number> = {}): IndicatorInstance {
+function instance(
+  indicatorId: IndicatorId,
+  params: Record<string, number> = {}
+): IndicatorInstance {
   return { key: `${indicatorId}-1`, indicatorId, params };
 }
 
-function plotsOf(indicatorId: IndicatorInstance['indicatorId'], params: Record<string, number>, data: PriceData[]) {
+function plotsOf(
+  indicatorId: IndicatorInstance['indicatorId'],
+  params: Record<string, number>,
+  data: PriceData[]
+) {
   const result = compute(instance(indicatorId, params), data);
   expect(result.success).toBe(true);
   return result.success ? result.value : [];
 }
 
-function seriesOf(indicatorId: IndicatorInstance['indicatorId'], params: Record<string, number>, data: PriceData[]) {
+function seriesOf(
+  indicatorId: IndicatorInstance['indicatorId'],
+  params: Record<string, number>,
+  data: PriceData[]
+) {
   const result = computeSeries(instance(indicatorId, params), data);
   expect(result.success).toBe(true);
   return result.success ? result.value : [];
@@ -47,7 +68,7 @@ describe('IndicatorService', () => {
       const plots = plotsOf('sma', { period: 3 }, candles([1, 2, 3, 4, 5]));
 
       expect(plots).toHaveLength(1);
-      expect(plots[0].data.map(point => point.value)).toEqual([
+      expect(plots[0].data.map((point) => point.value)).toEqual([
         undefined,
         undefined,
         2,
@@ -67,7 +88,7 @@ describe('IndicatorService', () => {
     it('computes EMA with an SMA seed', () => {
       const plots = plotsOf('ema', { period: 3 }, candles([1, 2, 3, 4, 10]));
 
-      const values = plots[0].data.map(point => point.value);
+      const values = plots[0].data.map((point) => point.value);
       expect(values[0]).toBeUndefined();
       expect(values[1]).toBeUndefined();
       expect(values[2]).toBeCloseTo(2);
@@ -76,12 +97,20 @@ describe('IndicatorService', () => {
     });
 
     it('computes Bollinger Bands as three plots', () => {
-      const plots = plotsOf('bb', { period: 3, stdDev: 2 }, candles([1, 2, 3, 4, 5]));
+      const plots = plotsOf(
+        'bb',
+        { period: 3, stdDev: 2 },
+        candles([1, 2, 3, 4, 5])
+      );
 
-      expect(plots.map(plot => plot.key)).toEqual(['upper', 'middle', 'lower']);
-      const middle = plots.find(plot => plot.key === 'middle')!;
-      const upper = plots.find(plot => plot.key === 'upper')!;
-      const lower = plots.find(plot => plot.key === 'lower')!;
+      expect(plots.map((plot) => plot.key)).toEqual([
+        'upper',
+        'middle',
+        'lower',
+      ]);
+      const middle = plots.find((plot) => plot.key === 'middle')!;
+      const upper = plots.find((plot) => plot.key === 'upper')!;
+      const lower = plots.find((plot) => plot.key === 'lower')!;
 
       expect(middle.data[2].value).toBeCloseTo(2);
       expect(upper.data[2].value).toBeCloseTo(3.633, 2);
@@ -91,7 +120,7 @@ describe('IndicatorService', () => {
     it('computes RSI using Wilder smoothing', () => {
       const plots = plotsOf('rsi', { period: 2 }, candles([1, 2, 1, 2, 3]));
 
-      const values = plots[0].data.map(point => point.value);
+      const values = plots[0].data.map((point) => point.value);
       expect(values[0]).toBeUndefined();
       expect(values[1]).toBeUndefined();
       expect(values[2]).toBeCloseTo(50);
@@ -106,9 +135,9 @@ describe('IndicatorService', () => {
         candles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
       );
 
-      const macdPlot = plots.find(plot => plot.key === 'macd')!;
-      const signalPlot = plots.find(plot => plot.key === 'signal')!;
-      const histogramPlot = plots.find(plot => plot.key === 'histogram')!;
+      const macdPlot = plots.find((plot) => plot.key === 'macd')!;
+      const signalPlot = plots.find((plot) => plot.key === 'signal')!;
+      const histogramPlot = plots.find((plot) => plot.key === 'histogram')!;
 
       expect(macdPlot.data[0].value).toBeUndefined();
       expect(macdPlot.data[1].value).toBeUndefined();
@@ -134,15 +163,31 @@ describe('IndicatorService', () => {
   });
 
   describe('computeSeries', () => {
-    const cases: { id: IndicatorId; params: Record<string, number>; candles: PriceData[] }[] = [
-      { id: 'sma', params: { period: 3 }, candles: SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5]) },
-      { id: 'ema', params: { period: 3 }, candles: SamplePriceBuilder.fromCloses([1, 2, 3, 4, 10]) },
+    const cases: {
+      id: IndicatorId;
+      params: Record<string, number>;
+      candles: PriceData[];
+    }[] = [
+      {
+        id: 'sma',
+        params: { period: 3 },
+        candles: SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5]),
+      },
+      {
+        id: 'ema',
+        params: { period: 3 },
+        candles: SamplePriceBuilder.fromCloses([1, 2, 3, 4, 10]),
+      },
       {
         id: 'bb',
         params: { period: 3, stdDev: 2 },
         candles: SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5]),
       },
-      { id: 'rsi', params: { period: 2 }, candles: SamplePriceBuilder.fromCloses([1, 2, 1, 2, 3]) },
+      {
+        id: 'rsi',
+        params: { period: 2 },
+        candles: SamplePriceBuilder.fromCloses([1, 2, 1, 2, 3]),
+      },
       {
         id: 'macd',
         params: { fast: 2, slow: 3, signal: 2 },
@@ -151,7 +196,10 @@ describe('IndicatorService', () => {
       {
         id: 'volume',
         params: {},
-        candles: SamplePriceBuilder.fromCloses([10, 10], { volumes: [100, 200], opens: [10, 11] }),
+        candles: SamplePriceBuilder.fromCloses([10, 10], {
+          volumes: [100, 200],
+          opens: [10, 11],
+        }),
       },
     ];
 
@@ -160,13 +208,15 @@ describe('IndicatorService', () => {
         const series = seriesOf(testCase.id, testCase.params, testCase.candles);
         const plots = plotsOf(testCase.id, testCase.params, testCase.candles);
 
-        expect(series.map(entry => entry.key)).toEqual(plots.map(plot => plot.key));
+        expect(series.map((entry) => entry.key)).toEqual(
+          plots.map((plot) => plot.key)
+        );
 
         for (let i = 0; i < series.length; i++) {
           const values = series[i].values;
           const points = plots[i].data;
           expect(values).toHaveLength(testCase.candles.length);
-          expect(values).toEqual(points.map(point => point.value));
+          expect(values).toEqual(points.map((point) => point.value));
         }
       }
     });
@@ -189,10 +239,18 @@ describe('IndicatorService', () => {
     });
 
     it('preserves per-indicator expected values', () => {
-      const smaSeries = seriesOf('sma', { period: 3 }, SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5]));
+      const smaSeries = seriesOf(
+        'sma',
+        { period: 3 },
+        SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5])
+      );
       expect(smaSeries[0].values[2]).toBeCloseTo(2);
 
-      const rsiSeries = seriesOf('rsi', { period: 2 }, SamplePriceBuilder.fromCloses([1, 2, 1, 2, 3]));
+      const rsiSeries = seriesOf(
+        'rsi',
+        { period: 2 },
+        SamplePriceBuilder.fromCloses([1, 2, 1, 2, 3])
+      );
       expect(rsiSeries[0].values[2]).toBeCloseTo(50);
 
       const macdSeries = seriesOf(
@@ -200,7 +258,7 @@ describe('IndicatorService', () => {
         { fast: 2, slow: 3, signal: 2 },
         SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
       );
-      const histogram = macdSeries.find(entry => entry.key === 'histogram')!;
+      const histogram = macdSeries.find((entry) => entry.key === 'histogram')!;
       expect(histogram.values[3]).toBeCloseTo(0);
     });
   });
@@ -242,7 +300,9 @@ describe('IndicatorService', () => {
     });
 
     it('returns error for unknown indicator', () => {
-      const result = createIndicatorInstance('unknown' as IndicatorInstance['indicatorId']);
+      const result = createIndicatorInstance(
+        'unknown' as IndicatorInstance['indicatorId']
+      );
 
       expect(result.success).toBe(false);
       expect(!result.success && result.error.type).toBe('INDICATOR_NOT_FOUND');
@@ -251,8 +311,16 @@ describe('IndicatorService', () => {
     it('groups definitions by pane', () => {
       const groups = getIndicatorGroups();
 
-      expect(groups.overlays.map(def => def.id)).toEqual(['sma', 'ema', 'bb']);
-      expect(groups.oscillators.map(def => def.id)).toEqual(['rsi', 'macd', 'volume']);
+      expect(groups.overlays.map((def) => def.id)).toEqual([
+        'sma',
+        'ema',
+        'bb',
+      ]);
+      expect(groups.oscillators.map((def) => def.id)).toEqual([
+        'rsi',
+        'macd',
+        'volume',
+      ]);
     });
 
     it('normalizes params against defaults and minimums', () => {

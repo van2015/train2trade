@@ -1,17 +1,20 @@
 import {
+  type PriceRetrievalStrategy,
+  RangeStrategy,
+} from '../../services/PriceRetrievalStrategy';
+import { AssetService } from '../../shared/services/AssetService';
+import { validateAndParse } from '../../shared/services/ValidationService';
+import type {
   AssetSummary,
   ChartType,
   IndicatorInstance,
   PriceData,
   Timeframe as TimeframeType,
 } from '../../shared/types/asset';
-import { validateAndParse } from '../../shared/services/ValidationService';
-import { AssetService } from '../../shared/services/AssetService';
-import { PriceRetrievalStrategy, RangeStrategy } from '../../services/PriceRetrievalStrategy';
-import { Interval } from '../../shared/utils/Interval';
-import { ChartPresenter, ChartState } from './ChartPresenter';
-import { AppPresenterError } from './AppPresenterError';
-import { Result } from '../../shared/types/Result';
+import type { Result } from '../../shared/types/Result';
+import type { Interval } from '../../shared/utils/Interval';
+import type { AppPresenterError } from './AppPresenterError';
+import { ChartPresenter, type ChartState } from './ChartPresenter';
 
 export interface AppState {
   selectedAssetId: string | null;
@@ -85,7 +88,9 @@ class AppPresenter {
   }
 
   private notify(): void {
-    this.listeners.forEach(fn => fn(this.getState()));
+    this.listeners.forEach((fn) => {
+      fn(this.getState());
+    });
   }
 
   getState(): AppState {
@@ -118,13 +123,16 @@ class AppPresenter {
       await this.initPromise;
       this.assets = await this.assetService.getSummaries();
       this.notify();
-    } catch (err) {
+    } catch (_err) {
       this.error = 'Failed to load assets';
       this.notify();
     }
   }
 
-  async importAsset(name: string, file: File): Promise<Result<void, AppPresenterError>> {
+  async importAsset(
+    name: string,
+    file: File
+  ): Promise<Result<void, AppPresenterError>> {
     this.error = null;
     this.warnings = [];
     const content = await file.text();
@@ -147,7 +155,11 @@ class AppPresenter {
 
     const assetName = name || file.name.replace(/\.[^.]+$/, '');
     try {
-      await this.assetService.save(assetName, result.data!, result.detectedTimeframe!);
+      await this.assetService.save(
+        assetName,
+        result.data!,
+        result.detectedTimeframe!
+      );
       await this.loadAssets();
       return { success: true, value: undefined };
     } catch (err) {
@@ -170,20 +182,29 @@ class AppPresenter {
     this.loadedRange = null;
     this.lastSampleTime = null;
     this.notify();
-    const asset = this.assets.find(a => a.id === id);
+    const asset = this.assets.find((a) => a.id === id);
     if (!asset) return;
-    this.assetService.getInitialRange(id, asset.originalTimeframe).then(interval => {
-      if (!interval || this.selectedAssetId !== id) return;
-      this.lastSampleTime = interval.to;
-      this.requestRange(id, interval);
-    });
+    this.assetService
+      .getInitialRange(id, asset.originalTimeframe)
+      .then((interval) => {
+        if (!interval || this.selectedAssetId !== id) return;
+        this.lastSampleTime = interval.to;
+        this.requestRange(id, interval);
+      });
   }
 
-  async requestRange(assetId: string, interval: Interval): Promise<Result<void, AppPresenterError>> {
+  async requestRange(
+    assetId: string,
+    interval: Interval
+  ): Promise<Result<void, AppPresenterError>> {
     try {
       this.currentRange = interval;
       const warmupMs = this.chartPresenter.getMaxLookback();
-      const resolved = await this.strategy.getRange(assetId, interval, warmupMs);
+      const resolved = await this.strategy.getRange(
+        assetId,
+        interval,
+        warmupMs
+      );
       let from = resolved.from;
       let to = resolved.to;
       if (this.lastSampleTime !== null) {
@@ -217,7 +238,7 @@ class AppPresenter {
       }
       await this.loadAssets();
       return { success: true, value: undefined };
-    } catch (err) {
+    } catch (_err) {
       const error: AppPresenterError = {
         type: 'DELETE_FAILED',
         message: 'Failed to delete asset',
@@ -237,7 +258,11 @@ class AppPresenter {
     if (
       this.selectedAssetId &&
       this.currentRange &&
-      !this.chartPresenter.hasCompleteData(this.loadedRange, this.currentRange, this.lastSampleTime)
+      !this.chartPresenter.hasCompleteData(
+        this.loadedRange,
+        this.currentRange,
+        this.lastSampleTime
+      )
     ) {
       void this.requestRange(this.selectedAssetId, this.currentRange);
     }
@@ -247,7 +272,9 @@ class AppPresenter {
     return this.chartPresenter.getActiveIndicators();
   }
 
-  addIndicator(id: import('../../shared/types/asset').IndicatorId): Promise<Result<void, AppPresenterError>> {
+  addIndicator(
+    id: import('../../shared/types/asset').IndicatorId
+  ): Promise<Result<void, AppPresenterError>> {
     this.chartPresenter.addIndicator(id);
     return this.refreshRange();
   }
@@ -257,13 +284,17 @@ class AppPresenter {
     return this.refreshRange();
   }
 
-  updateIndicator(key: string, params: Record<string, number>): Promise<Result<void, AppPresenterError>> {
+  updateIndicator(
+    key: string,
+    params: Record<string, number>
+  ): Promise<Result<void, AppPresenterError>> {
     this.chartPresenter.updateIndicator(key, params);
     return this.refreshRange();
   }
 
   private refreshRange(): Promise<Result<void, AppPresenterError>> {
-    if (!this.selectedAssetId || !this.currentRange) return Promise.resolve({ success: true, value: undefined });
+    if (!this.selectedAssetId || !this.currentRange)
+      return Promise.resolve({ success: true, value: undefined });
     return this.requestRange(this.selectedAssetId, this.currentRange);
   }
 
@@ -272,14 +303,22 @@ class AppPresenter {
   }
 
   hasCompleteData(interval: Interval): boolean {
-    return this.chartPresenter.hasCompleteData(this.loadedRange, interval, this.lastSampleTime);
+    return this.chartPresenter.hasCompleteData(
+      this.loadedRange,
+      interval,
+      this.lastSampleTime
+    );
   }
 
   priceSample(assetId: string, timeframe: TimeframeType): PriceData[] | null {
-    const asset = this.assets.find(a => a.id === assetId);
+    const asset = this.assets.find((a) => a.id === assetId);
     if (!asset) return null;
 
-    return this.assetService.priceSample(assetId, asset.originalTimeframe, timeframe);
+    return this.assetService.priceSample(
+      assetId,
+      asset.originalTimeframe,
+      timeframe
+    );
   }
 
   clearWarnings(): void {

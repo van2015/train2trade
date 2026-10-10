@@ -1,6 +1,9 @@
-import { PriceData } from '../../src/shared/types/asset';
-import { BacktestInput, PlatformConfig } from '../../src/backtest/types/backtest';
-import { Timeframe } from '../../src/backtest/timeframe/Timeframe';
+import type { Timeframe } from '../../src/backtest/timeframe/Timeframe';
+import type {
+  BacktestInput,
+  PlatformConfig,
+} from '../../src/backtest/types/backtest';
+import type { PriceData } from '../../src/shared/types/asset';
 
 export class BacktestInputBuilder {
   private config: Partial<BacktestInput> = {};
@@ -37,8 +40,10 @@ export class BacktestInputBuilder {
 
   build(): BacktestInput {
     const { dataset, strategyId, platform } = this.config;
-    if (dataset === undefined || dataset.length === 0) throw new Error('dataset is required');
-    if (strategyId === undefined || strategyId === '') throw new Error('strategy is required');
+    if (dataset === undefined || dataset.length === 0)
+      throw new Error('dataset is required');
+    if (strategyId === undefined || strategyId === '')
+      throw new Error('strategy is required');
     if (platform === undefined) throw new Error('platform is required');
 
     return {

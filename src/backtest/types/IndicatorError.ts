@@ -1,4 +1,6 @@
-import { IndicatorId } from '../../shared/types/asset';
+import type { IndicatorId } from '../../shared/types/asset';
 
-export type IndicatorError =
-  | { readonly type: 'INDICATOR_NOT_FOUND'; readonly indicatorId: IndicatorId };
+export type IndicatorError = {
+  readonly type: 'INDICATOR_NOT_FOUND';
+  readonly indicatorId: IndicatorId;
+};

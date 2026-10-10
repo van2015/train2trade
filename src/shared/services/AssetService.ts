@@ -1,9 +1,9 @@
-import { AssetSummary, PriceData } from '../types/asset';
 import { Timeframe } from '../../backtest/timeframe/Timeframe';
 import { TimeframeAggregator } from '../../backtest/timeframe/TimeframeAggregator';
-import { AssetChartRepository } from './repositories/AssetChartRepository';
-import { IndexedDbAssetChartRepository } from './repositories/IndexedDbAssetChartRepository';
 import { Interval } from '../../shared/utils/Interval';
+import type { AssetSummary, PriceData } from '../types/asset';
+import type { AssetChartRepository } from './repositories/AssetChartRepository';
+import { IndexedDbAssetChartRepository } from './repositories/IndexedDbAssetChartRepository';
 
 const DEFAULT_INITIAL_CANDLES = 500;
 
@@ -22,7 +22,9 @@ class AssetService {
 
   static getInstance(): AssetService {
     if (!AssetService.instance) {
-      AssetService.instance = new AssetService(IndexedDbAssetChartRepository.getInstance());
+      AssetService.instance = new AssetService(
+        IndexedDbAssetChartRepository.getInstance()
+      );
     }
     return AssetService.instance;
   }
@@ -48,7 +50,10 @@ class AssetService {
     this.clearCache(id);
   }
 
-  async getInitialRange(assetId: string, originalTimeframe: Timeframe): Promise<Interval | null> {
+  async getInitialRange(
+    assetId: string,
+    originalTimeframe: Timeframe
+  ): Promise<Interval | null> {
     const last = await this.repo.getLastSample(assetId);
     if (!last) return null;
     const intervalMs = Timeframe.getMinutes(originalTimeframe) * 60 * 1000;
@@ -56,7 +61,11 @@ class AssetService {
     return Interval.endingAt(to, DEFAULT_INITIAL_CANDLES * intervalMs);
   }
 
-  async fetchSamples(assetId: string, from: number, to: number): Promise<PriceData[]> {
+  async fetchSamples(
+    assetId: string,
+    from: number,
+    to: number
+  ): Promise<PriceData[]> {
     return this.repo.getSamplesRange(assetId, from, to);
   }
 
@@ -80,7 +89,10 @@ class AssetService {
 
   private intervalOf(samples: PriceData[]): Interval | null {
     if (samples.length === 0) return null;
-    return new Interval(this.timeOf(samples[0]), this.timeOf(samples[samples.length - 1]));
+    return new Interval(
+      this.timeOf(samples[0]),
+      this.timeOf(samples[samples.length - 1])
+    );
   }
 
   private timeOf(sample: PriceData): number {
@@ -114,7 +126,7 @@ class AssetService {
     }
 
     const aggregatedBars = this.aggregator.aggregate(data, targetTF);
-    return aggregatedBars.map(bar => ({
+    return aggregatedBars.map((bar) => ({
       date: bar.date,
       open: bar.open,
       high: bar.high,

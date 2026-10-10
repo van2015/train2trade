@@ -1,28 +1,25 @@
 import { useEffect } from 'react';
 import { useAppPresenter } from './app/hooks/useAppPresenter';
 import { useToast } from './app/hooks/useToast';
+import { ChartView } from './chart/components/ChartView';
+import { AssetList } from './components/AssetList/AssetList';
 import { FileImport } from './components/FileImport/FileImport';
 import { TestDataGenerator } from './components/TestDataGenerator/TestDataGenerator';
-import { AssetList } from './components/AssetList/AssetList';
-import { ChartView } from './chart/components/ChartView';
+import { initTheme, ThemeToggle } from './components/ThemeToggle/ThemeToggle';
 import { Toast } from './components/Toast/Toast';
-import { ThemeToggle, initTheme } from './components/ThemeToggle/ThemeToggle';
 
 initTheme();
 
 function App() {
-  const {
-    state,
-    importAsset,
-    selectAsset,
-    removeAsset,
-    clearWarnings,
-  } = useAppPresenter();
+  const { state, importAsset, selectAsset, removeAsset, clearWarnings } =
+    useAppPresenter();
   const { toasts, showToast, dismissToast } = useToast();
 
   useEffect(() => {
     if (state.warnings.length > 0) {
-      state.warnings.forEach(warning => showToast(warning, 'warning'));
+      state.warnings.forEach((warning) => {
+        showToast(warning, 'warning');
+      });
       clearWarnings();
     }
   }, [state.warnings, showToast, clearWarnings]);

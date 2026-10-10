@@ -1,4 +1,7 @@
-import { Timeframe, Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
+import {
+  Timeframe,
+  type Timeframe as TimeframeType,
+} from '../../backtest/timeframe/Timeframe';
 
 interface TimeframeSelectorProps {
   value: TimeframeType;
@@ -6,13 +9,18 @@ interface TimeframeSelectorProps {
   disabled?: boolean;
 }
 
-export function TimeframeSelector({ value, onChange, disabled }: TimeframeSelectorProps) {
+export function TimeframeSelector({
+  value,
+  onChange,
+  disabled,
+}: TimeframeSelectorProps) {
   const timeframes = Timeframe.getValues();
 
   return (
     <div className="timeframe-selector">
       {timeframes.map((tf) => (
         <button
+          type="button"
           key={tf}
           className={`timeframe-btn ${value === tf ? 'active' : ''}`}
           onClick={() => onChange(tf)}

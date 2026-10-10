@@ -1,4 +1,4 @@
-import { EquityPoint } from '../../src/backtest/types/backtest';
+import type { EquityPoint } from '../../src/backtest/types/backtest';
 
 export class EquityPointBuilder {
   private points: EquityPoint[] = [];
@@ -17,6 +17,6 @@ export class EquityPointBuilder {
   }
 
   build(): EquityPoint[] {
-    return this.points.map(point => ({ ...point }));
+    return this.points.map((point) => ({ ...point }));
   }
 }

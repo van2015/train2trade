@@ -1,5 +1,8 @@
-import { Timeframe, Timeframe as TimeframeType } from '../backtest/timeframe/Timeframe';
-import { PriceData } from '../shared/types/asset';
+import {
+  Timeframe,
+  type Timeframe as TimeframeType,
+} from '../backtest/timeframe/Timeframe';
+import type { PriceData } from '../shared/types/asset';
 
 export interface TestDataParams {
   assetName: string;
@@ -60,10 +63,13 @@ export function generateTestData(params: TestDataParams): PriceData[] {
   let currentPrice = params.startingPrice;
 
   for (let i = 0; i < params.sampleCount; i++) {
-    const date = new Date(startDate.getTime() + i * timeframeMinutes * 60 * 1000);
+    const date = new Date(
+      startDate.getTime() + i * timeframeMinutes * 60 * 1000
+    );
     const open = currentPrice;
 
-    const changePercent = randomInRange(-params.volatility, params.volatility) / 100;
+    const changePercent =
+      randomInRange(-params.volatility, params.volatility) / 100;
     const close = open * (1 + changePercent);
 
     const maxOpenClose = Math.max(open, close);
@@ -75,7 +81,9 @@ export function generateTestData(params: TestDataParams): PriceData[] {
     const high = maxOpenClose + highExtra;
     const low = minOpenClose - lowExtra;
 
-    const volume = Math.floor(randomInRange(params.volumeMin, params.volumeMax));
+    const volume = Math.floor(
+      randomInRange(params.volumeMin, params.volumeMax)
+    );
 
     candles.push({
       date: formatDate(date),
@@ -95,8 +103,9 @@ export function generateTestData(params: TestDataParams): PriceData[] {
 export function generateCSV(params: TestDataParams): string {
   const candles = generateTestData(params);
   const header = 'date,open,high,low,close,volume';
-  const rows = candles.map(c => 
-    `${c.date},${c.open.toFixed(2)},${c.high.toFixed(2)},${c.low.toFixed(2)},${c.close.toFixed(2)},${c.volume}`
+  const rows = candles.map(
+    (c) =>
+      `${c.date},${c.open.toFixed(2)},${c.high.toFixed(2)},${c.low.toFixed(2)},${c.close.toFixed(2)},${c.volume}`
   );
   return [header, ...rows].join('\n');
 }

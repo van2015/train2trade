@@ -1,5 +1,5 @@
-import { PriceData } from '../../src/shared/types/asset';
-import { Timeframe } from '../../src/backtest/timeframe/Timeframe';
+import type { Timeframe } from '../../src/backtest/timeframe/Timeframe';
+import type { PriceData } from '../../src/shared/types/asset';
 
 type CandleType = 'green' | 'red' | 'doji' | 'custom';
 
@@ -39,8 +39,6 @@ export class SamplePriceBuilder {
   };
 
   private customCandles: CustomCandle[] = [];
-
-  constructor() {}
 
   static fromCloses(
     closes: number[],
@@ -173,7 +171,7 @@ export class SamplePriceBuilder {
 
   buildSeries(): PriceData[] {
     if (this.customCandles.length > 0) {
-      return this.customCandles.map(candle => ({
+      return this.customCandles.map((candle) => ({
         date: candle.date,
         open: candle.open,
         high: candle.high,
@@ -205,7 +203,11 @@ export class SamplePriceBuilder {
     return candles;
   }
 
-  private calculateCandleValues(open: number): { high: number; low: number; close: number } {
+  private calculateCandleValues(open: number): {
+    high: number;
+    low: number;
+    close: number;
+  } {
     const { type, percent } = this.config;
 
     if (type === 'doji') {
@@ -220,12 +222,8 @@ export class SamplePriceBuilder {
     const change = (percent / 100) * factor;
 
     const close = open * (1 + change);
-    const high = type === 'green'
-      ? close * 1.01
-      : open * 1.01;
-    const low = type === 'green'
-      ? open * 0.99
-      : close * 0.99;
+    const high = type === 'green' ? close * 1.01 : open * 1.01;
+    const low = type === 'green' ? open * 0.99 : close * 0.99;
 
     return { high, low, close };
   }

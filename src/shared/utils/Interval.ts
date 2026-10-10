@@ -1,5 +1,8 @@
 export class Interval {
-  constructor(readonly from: number, readonly to: number) {}
+  constructor(
+    readonly from: number,
+    readonly to: number
+  ) {}
 
   static endingAt(to: number, span: number): Interval {
     return new Interval(to - span, to);
@@ -31,7 +34,10 @@ export class Interval {
   }
 
   union(other: Interval): Interval {
-    return new Interval(Math.min(this.from, other.from), Math.max(this.to, other.to));
+    return new Interval(
+      Math.min(this.from, other.from),
+      Math.max(this.to, other.to)
+    );
   }
 
   movedTo(post: Interval): Interval | null {

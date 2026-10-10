@@ -7,7 +7,12 @@ interface AssetListProps {
   disabled?: boolean;
 }
 
-export function AssetList({ selectedId, onSelect, onDelete, disabled }: AssetListProps) {
+export function AssetList({
+  selectedId,
+  onSelect,
+  onDelete,
+  disabled,
+}: AssetListProps) {
   const { getAssetList } = useAppPresenter();
   const assets = getAssetList();
   if (assets.length === 0) {
@@ -21,10 +26,15 @@ export function AssetList({ selectedId, onSelect, onDelete, disabled }: AssetLis
           key={asset.id}
           className={`asset-item ${selectedId === asset.id ? 'selected' : ''}`}
         >
-          <span className="asset-name" onClick={() => onSelect(asset.id)}>
-            {asset.name}
-          </span>
           <button
+            type="button"
+            className="asset-name"
+            onClick={() => onSelect(asset.id)}
+          >
+            {asset.name}
+          </button>
+          <button
+            type="button"
             className="delete-btn"
             onClick={() => onDelete(asset.id)}
             disabled={disabled}

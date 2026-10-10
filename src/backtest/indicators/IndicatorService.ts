@@ -1,4 +1,4 @@
-import {
+import type {
   IndicatorDefinition,
   IndicatorId,
   IndicatorInstance,
@@ -7,10 +7,10 @@ import {
   IndicatorSeries,
   PriceData,
 } from '../../shared/types/asset';
-import { Timeframe } from '../timeframe/Timeframe';
-import { Result } from '../../shared/types/Result';
-import { IndicatorError } from '../types/IndicatorError';
+import type { Result } from '../../shared/types/Result';
 import { normalizeParams as normalizeParamValues } from '../../shared/utils/normalizeParams';
+import { Timeframe } from '../timeframe/Timeframe';
+import type { IndicatorError } from '../types/IndicatorError';
 
 type Values = (number | undefined)[];
 
@@ -140,7 +140,7 @@ export class IndicatorCalculator {
     const signalLine: Values = new Array(values.length).fill(undefined);
     const histogram: Values = new Array(values.length).fill(undefined);
 
-    const firstIndex = macdLine.findIndex(value => value !== undefined);
+    const firstIndex = macdLine.findIndex((value) => value !== undefined);
     if (firstIndex >= 0) {
       const defined = macdLine.slice(firstIndex) as number[];
       const signalEma = this.ema(defined, signal);
@@ -164,7 +164,8 @@ export class IndicatorCalculator {
       const time = this.toTime(candle.date);
       const value = values[index];
       if (value === undefined) return { time };
-      if (colorForPoint) return { time, value, color: colorForPoint(value, index, candle) };
+      if (colorForPoint)
+        return { time, value, color: colorForPoint(value, index, candle) };
       return { time, value };
     });
   }
@@ -175,15 +176,18 @@ const smaDefinition: IndicatorDefinition = {
   label: 'SMA',
   pane: 'overlay',
   params: [{ key: 'period', label: 'Period', default: 20, min: 1 }],
-  lookback: params => params.period,
+  lookback: (params) => params.period,
   series: [
     {
       key: 'sma',
-      label: params => `SMA(${params.period})`,
+      label: (params) => `SMA(${params.period})`,
       style: 'line',
       color: COLORS.sma,
       computeValues: (candles, params) =>
-        new IndicatorCalculator().sma(candles.map(candle => candle.close), params.period),
+        new IndicatorCalculator().sma(
+          candles.map((candle) => candle.close),
+          params.period
+        ),
     },
   ],
 };
@@ -193,15 +197,18 @@ const emaDefinition: IndicatorDefinition = {
   label: 'EMA',
   pane: 'overlay',
   params: [{ key: 'period', label: 'Period', default: 20, min: 1 }],
-  lookback: params => params.period * 3,
+  lookback: (params) => params.period * 3,
   series: [
     {
       key: 'ema',
-      label: params => `EMA(${params.period})`,
+      label: (params) => `EMA(${params.period})`,
       style: 'line',
       color: COLORS.ema,
       computeValues: (candles, params) =>
-        new IndicatorCalculator().ema(candles.map(candle => candle.close), params.period),
+        new IndicatorCalculator().ema(
+          candles.map((candle) => candle.close),
+          params.period
+        ),
     },
   ],
 };
@@ -214,10 +221,10 @@ const bollingerDefinition: IndicatorDefinition = {
     { key: 'period', label: 'Period', default: 20, min: 1 },
     { key: 'stdDev', label: 'Std Dev', default: 2, min: 0 },
   ],
-  lookback: params => params.period,
+  lookback: (params) => params.period,
   computeAll: (candles, params) => {
     const bb = new IndicatorCalculator().bollinger(
-      candles.map(candle => candle.close),
+      candles.map((candle) => candle.close),
       params.period,
       params.stdDev
     );
@@ -231,7 +238,7 @@ const bollingerDefinition: IndicatorDefinition = {
       color: COLORS.bbBand,
       computeValues: (candles, params) =>
         new IndicatorCalculator().bollinger(
-          candles.map(candle => candle.close),
+          candles.map((candle) => candle.close),
           params.period,
           params.stdDev
         ).upper,
@@ -243,7 +250,7 @@ const bollingerDefinition: IndicatorDefinition = {
       color: COLORS.bbMiddle,
       computeValues: (candles, params) =>
         new IndicatorCalculator().bollinger(
-          candles.map(candle => candle.close),
+          candles.map((candle) => candle.close),
           params.period,
           params.stdDev
         ).middle,
@@ -255,7 +262,7 @@ const bollingerDefinition: IndicatorDefinition = {
       color: COLORS.bbBand,
       computeValues: (candles, params) =>
         new IndicatorCalculator().bollinger(
-          candles.map(candle => candle.close),
+          candles.map((candle) => candle.close),
           params.period,
           params.stdDev
         ).lower,
@@ -268,15 +275,18 @@ const rsiDefinition: IndicatorDefinition = {
   label: 'RSI',
   pane: 'separate',
   params: [{ key: 'period', label: 'Period', default: 14, min: 1 }],
-  lookback: params => params.period + 1,
+  lookback: (params) => params.period + 1,
   series: [
     {
       key: 'rsi',
-      label: params => `RSI(${params.period})`,
+      label: (params) => `RSI(${params.period})`,
       style: 'line',
       color: COLORS.rsi,
       computeValues: (candles, params) =>
-        new IndicatorCalculator().rsi(candles.map(candle => candle.close), params.period),
+        new IndicatorCalculator().rsi(
+          candles.map((candle) => candle.close),
+          params.period
+        ),
     },
   ],
 };
@@ -290,10 +300,10 @@ const macdDefinition: IndicatorDefinition = {
     { key: 'slow', label: 'Slow', default: 26, min: 1 },
     { key: 'signal', label: 'Signal', default: 9, min: 1 },
   ],
-  lookback: params => params.slow + params.signal,
+  lookback: (params) => params.slow + params.signal,
   computeAll: (candles, params) => {
     const m = new IndicatorCalculator().macd(
-      candles.map(candle => candle.close),
+      candles.map((candle) => candle.close),
       params.fast,
       params.slow,
       params.signal
@@ -308,7 +318,7 @@ const macdDefinition: IndicatorDefinition = {
       color: COLORS.macd,
       computeValues: (candles, params) =>
         new IndicatorCalculator().macd(
-          candles.map(candle => candle.close),
+          candles.map((candle) => candle.close),
           params.fast,
           params.slow,
           params.signal
@@ -321,7 +331,7 @@ const macdDefinition: IndicatorDefinition = {
       color: COLORS.signal,
       computeValues: (candles, params) =>
         new IndicatorCalculator().macd(
-          candles.map(candle => candle.close),
+          candles.map((candle) => candle.close),
           params.fast,
           params.slow,
           params.signal
@@ -332,10 +342,10 @@ const macdDefinition: IndicatorDefinition = {
       label: () => 'Histogram',
       style: 'histogram',
       color: COLORS.volume,
-      colorForValue: value => (value >= 0 ? COLORS.up : COLORS.down),
+      colorForValue: (value) => (value >= 0 ? COLORS.up : COLORS.down),
       computeValues: (candles, params) =>
         new IndicatorCalculator().macd(
-          candles.map(candle => candle.close),
+          candles.map((candle) => candle.close),
           params.fast,
           params.slow,
           params.signal
@@ -358,7 +368,7 @@ const volumeDefinition: IndicatorDefinition = {
       color: COLORS.volume,
       colorForValue: (_value, _index, candle) =>
         candle.close >= candle.open ? COLORS.up : COLORS.down,
-      computeValues: candles => candles.map(candle => candle.volume),
+      computeValues: (candles) => candles.map((candle) => candle.volume),
     },
   ],
 };
@@ -374,7 +384,7 @@ export const INDICATOR_DEFINITIONS: IndicatorDefinition[] = [
 
 export class IndicatorDefinitionRegistry {
   private definitionsById = new Map<IndicatorId, IndicatorDefinition>(
-    INDICATOR_DEFINITIONS.map(definition => [definition.id, definition])
+    INDICATOR_DEFINITIONS.map((definition) => [definition.id, definition])
   );
 
   getDefinition(id: IndicatorId): IndicatorDefinition | undefined {
@@ -393,14 +403,21 @@ export class IndicatorDefinitionRegistry {
     oscillators: IndicatorDefinition[];
   } {
     return {
-      overlays: INDICATOR_DEFINITIONS.filter(definition => definition.pane === 'overlay'),
-      oscillators: INDICATOR_DEFINITIONS.filter(definition => definition.pane === 'separate'),
+      overlays: INDICATOR_DEFINITIONS.filter(
+        (definition) => definition.pane === 'overlay'
+      ),
+      oscillators: INDICATOR_DEFINITIONS.filter(
+        (definition) => definition.pane === 'separate'
+      ),
     };
   }
 }
 
 function newInstanceKey(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID();
   }
   return `indicator-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -410,10 +427,33 @@ export class IndicatorEngine {
   private registry = new IndicatorDefinitionRegistry();
   private calculator = new IndicatorCalculator();
 
-  createIndicatorInstance(id: IndicatorId): Result<IndicatorInstance, IndicatorError> {
+  getDefinition(id: IndicatorId): IndicatorDefinition | undefined {
+    return this.registry.getDefinition(id);
+  }
+
+  normalizeParams(
+    definition: IndicatorDefinition,
+    params: Record<string, number>
+  ): Record<string, number> {
+    return this.registry.normalizeParams(definition, params);
+  }
+
+  getIndicatorGroups(): {
+    overlays: IndicatorDefinition[];
+    oscillators: IndicatorDefinition[];
+  } {
+    return this.registry.getIndicatorGroups();
+  }
+
+  createIndicatorInstance(
+    id: IndicatorId
+  ): Result<IndicatorInstance, IndicatorError> {
     const definition = this.registry.getDefinition(id);
     if (!definition) {
-      return { success: false, error: { type: 'INDICATOR_NOT_FOUND', indicatorId: id } };
+      return {
+        success: false,
+        error: { type: 'INDICATOR_NOT_FOUND', indicatorId: id },
+      };
     }
     return {
       success: true,
@@ -425,10 +465,19 @@ export class IndicatorEngine {
     };
   }
 
-  compute(instance: IndicatorInstance, candles: PriceData[]): Result<IndicatorPlot[], IndicatorError> {
+  compute(
+    instance: IndicatorInstance,
+    candles: PriceData[]
+  ): Result<IndicatorPlot[], IndicatorError> {
     const definition = this.registry.getDefinition(instance.indicatorId);
     if (!definition) {
-      return { success: false, error: { type: 'INDICATOR_NOT_FOUND', indicatorId: instance.indicatorId } };
+      return {
+        success: false,
+        error: {
+          type: 'INDICATOR_NOT_FOUND',
+          indicatorId: instance.indicatorId,
+        },
+      };
     }
     const params = this.registry.normalizeParams(definition, instance.params);
     const seriesResult = this.computeSeries(instance, candles);
@@ -441,27 +490,43 @@ export class IndicatorEngine {
         label: spec.label(params),
         style: spec.style,
         color: spec.color,
-        data: this.calculator.toPlotPoints(candles, series[index].values, spec.colorForValue),
+        data: this.calculator.toPlotPoints(
+          candles,
+          series[index].values,
+          spec.colorForValue
+        ),
       })),
     };
   }
 
-  computeSeries(instance: IndicatorInstance, candles: PriceData[]): Result<IndicatorSeries[], IndicatorError> {
+  computeSeries(
+    instance: IndicatorInstance,
+    candles: PriceData[]
+  ): Result<IndicatorSeries[], IndicatorError> {
     const definition = this.registry.getDefinition(instance.indicatorId);
     if (!definition) {
-      return { success: false, error: { type: 'INDICATOR_NOT_FOUND', indicatorId: instance.indicatorId } };
+      return {
+        success: false,
+        error: {
+          type: 'INDICATOR_NOT_FOUND',
+          indicatorId: instance.indicatorId,
+        },
+      };
     }
     const params = this.registry.normalizeParams(definition, instance.params);
     if (definition.computeAll) {
       const all = definition.computeAll(candles, params);
       return {
         success: true,
-        value: definition.series.map(spec => ({ key: spec.key, values: all[spec.key] })),
+        value: definition.series.map((spec) => ({
+          key: spec.key,
+          values: all[spec.key],
+        })),
       };
     }
     return {
       success: true,
-      value: definition.series.map(spec => ({
+      value: definition.series.map((spec) => ({
         key: spec.key,
         values: spec.computeValues(candles, params),
       })),
@@ -473,7 +538,9 @@ export class IndicatorEngine {
     for (const instance of instances) {
       const definition = this.registry.getDefinition(instance.indicatorId);
       if (!definition) continue;
-      const lookback = definition.lookback(this.registry.normalizeParams(definition, instance.params));
+      const lookback = definition.lookback(
+        this.registry.normalizeParams(definition, instance.params)
+      );
       if (lookback > candles) candles = lookback;
     }
     if (candles <= 0) return 0;
@@ -485,18 +552,22 @@ export class IndicatorEngine {
 
 const globalEngine = new IndicatorEngine();
 
-export function getDefinition(id: IndicatorId): IndicatorDefinition | undefined {
-  return globalEngine['registry'].getDefinition(id);
+export function getDefinition(
+  id: IndicatorId
+): IndicatorDefinition | undefined {
+  return globalEngine.getDefinition(id);
 }
 
 export function normalizeParams(
   definition: IndicatorDefinition,
   params: Record<string, number>
 ): Record<string, number> {
-  return globalEngine['registry'].normalizeParams(definition, params);
+  return globalEngine.normalizeParams(definition, params);
 }
 
-export function createIndicatorInstance(id: IndicatorId): Result<IndicatorInstance, IndicatorError> {
+export function createIndicatorInstance(
+  id: IndicatorId
+): Result<IndicatorInstance, IndicatorError> {
   return globalEngine.createIndicatorInstance(id);
 }
 
@@ -504,17 +575,26 @@ export function getIndicatorGroups(): {
   overlays: IndicatorDefinition[];
   oscillators: IndicatorDefinition[];
 } {
-  return globalEngine['registry'].getIndicatorGroups();
+  return globalEngine.getIndicatorGroups();
 }
 
-export function compute(instance: IndicatorInstance, candles: PriceData[]): Result<IndicatorPlot[], IndicatorError> {
+export function compute(
+  instance: IndicatorInstance,
+  candles: PriceData[]
+): Result<IndicatorPlot[], IndicatorError> {
   return globalEngine.compute(instance, candles);
 }
 
-export function computeSeries(instance: IndicatorInstance, candles: PriceData[]): Result<IndicatorSeries[], IndicatorError> {
+export function computeSeries(
+  instance: IndicatorInstance,
+  candles: PriceData[]
+): Result<IndicatorSeries[], IndicatorError> {
   return globalEngine.computeSeries(instance, candles);
 }
 
-export function maxLookback(instances: IndicatorInstance[], timeframe: Timeframe): number {
+export function maxLookback(
+  instances: IndicatorInstance[],
+  timeframe: Timeframe
+): number {
   return globalEngine.maxLookback(instances, timeframe);
 }

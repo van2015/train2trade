@@ -1,6 +1,6 @@
-import { PriceData } from '../../shared/types/asset';
+import type { PriceData } from '../../shared/types/asset';
+import type { AggregatedBar } from '../types/backtest';
 import { Timeframe } from './Timeframe';
-import { AggregatedBar } from '../types/backtest';
 
 export interface AggregationResult {
   bars: AggregatedBar[];
@@ -9,7 +9,6 @@ export interface AggregationResult {
 }
 
 export class TimeframeAggregator {
-
   private formatDate(time: number): string {
     return new Date(time).toISOString().replace('.000Z', 'Z');
   }
@@ -32,7 +31,9 @@ export class TimeframeAggregator {
     }
 
     const targetMinutes = Timeframe.getMinutes(targetTF);
-    const gapEnds = new Set(Timeframe.detectGaps(data).map(gap => gap.endRow));
+    const gapEnds = new Set(
+      Timeframe.detectGaps(data).map((gap) => gap.endRow)
+    );
     const groups = this.createTimeBucketsWithGaps(data, targetMinutes, gapEnds);
     const bars = this.buildAggregatedBarsWithGaps(groups, targetMinutes);
 
@@ -43,7 +44,10 @@ export class TimeframeAggregator {
     };
   }
 
-  private createTimeBuckets(data: PriceData[], targetMinutes: number): Map<number, PriceData[]> {
+  private createTimeBuckets(
+    data: PriceData[],
+    targetMinutes: number
+  ): Map<number, PriceData[]> {
     const bucketSpanMs = targetMinutes * 60 * 1000;
     const buckets = new Map<number, PriceData[]>();
 
@@ -61,7 +65,9 @@ export class TimeframeAggregator {
     return buckets;
   }
 
-  private sortBucketsChronologically(buckets: Map<number, PriceData[]>): number[] {
+  private sortBucketsChronologically(
+    buckets: Map<number, PriceData[]>
+  ): number[] {
     return [...buckets.keys()].sort((a, b) => a - b);
   }
 
@@ -99,7 +105,8 @@ export class TimeframeAggregator {
       const sample = data[i];
       const timestamp = new Date(sample.date).getTime();
       const boundary = Math.floor(timestamp / bucketSpanMs) * bucketSpanMs;
-      const startsNewGroup = groups.length === 0 || boundary !== currentBoundary || gapEnds.has(i);
+      const startsNewGroup =
+        groups.length === 0 || boundary !== currentBoundary || gapEnds.has(i);
 
       if (startsNewGroup) {
         currentGroup = { bucketKey: boundary, candles: [] };
@@ -107,7 +114,7 @@ export class TimeframeAggregator {
         currentBoundary = boundary;
       }
 
-      currentGroup!.candles.push(sample);
+      currentGroup?.candles.push(sample);
     }
 
     return groups;
@@ -124,9 +131,8 @@ export class TimeframeAggregator {
       const group = groups[i];
       const firstTimestamp = new Date(group.candles[0].date).getTime();
       const boundary = Math.floor(firstTimestamp / targetSpan) * targetSpan;
-      const previousEnd = i > 0
-        ? new Date(bars[i - 1].date).getTime() + targetSpan
-        : boundary;
+      const previousEnd =
+        i > 0 ? new Date(bars[i - 1].date).getTime() + targetSpan : boundary;
       const date = Math.max(boundary, previousEnd);
 
       bars.push(this.createBar(group.candles, date));

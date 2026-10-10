@@ -1,5 +1,8 @@
-import { PriceData } from '../types/asset';
-import { Timeframe, Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
+import {
+  Timeframe,
+  type Timeframe as TimeframeType,
+} from '../../backtest/timeframe/Timeframe';
+import type { PriceData } from '../types/asset';
 
 export interface ValidationError {
   type: 'DUPLICATE_TIMESTAMP' | 'INVALID_VALUES' | 'UNORDERED';
@@ -33,7 +36,10 @@ export class DataValidator {
     return duplicates;
   }
 
-  private validateCandle(candle: PriceData): { valid: boolean; error?: string } {
+  private validateCandle(candle: PriceData): {
+    valid: boolean;
+    error?: string;
+  } {
     const negativeError = this.checkForNegativePrices(candle);
     if (negativeError) return negativeError;
 
@@ -49,44 +55,60 @@ export class DataValidator {
     return { valid: true };
   }
 
-  private checkForNegativePrices(candle: PriceData): { valid: boolean; error?: string } | undefined {
-    if (candle.open < 0 || candle.high < 0 || candle.low < 0 || candle.close < 0) {
+  private checkForNegativePrices(
+    candle: PriceData
+  ): { valid: boolean; error?: string } | undefined {
+    if (
+      candle.open < 0 ||
+      candle.high < 0 ||
+      candle.low < 0 ||
+      candle.close < 0
+    ) {
       return { valid: false, error: 'Negative price value' };
     }
     return undefined;
   }
 
-  private checkForInvalidNumbers(candle: PriceData): { valid: boolean; error?: string } | undefined {
+  private checkForInvalidNumbers(
+    candle: PriceData
+  ): { valid: boolean; error?: string } | undefined {
     if (
-      isNaN(candle.open) ||
-      isNaN(candle.high) ||
-      isNaN(candle.low) ||
-      isNaN(candle.close) ||
-      !isFinite(candle.open) ||
-      !isFinite(candle.high) ||
-      !isFinite(candle.low) ||
-      !isFinite(candle.close)
+      Number.isNaN(candle.open) ||
+      Number.isNaN(candle.high) ||
+      Number.isNaN(candle.low) ||
+      Number.isNaN(candle.close) ||
+      !Number.isFinite(candle.open) ||
+      !Number.isFinite(candle.high) ||
+      !Number.isFinite(candle.low) ||
+      !Number.isFinite(candle.close)
     ) {
       return { valid: false, error: 'Invalid number (NaN or Infinity)' };
     }
     return undefined;
   }
 
-  private checkForInvalidVolume(candle: PriceData): { valid: boolean; error?: string } | undefined {
-    if (isNaN(candle.volume) || !isFinite(candle.volume)) {
+  private checkForInvalidVolume(
+    candle: PriceData
+  ): { valid: boolean; error?: string } | undefined {
+    if (Number.isNaN(candle.volume) || !Number.isFinite(candle.volume)) {
       return { valid: false, error: 'Invalid volume' };
     }
     return undefined;
   }
 
-  private checkHighLowConsistency(candle: PriceData): { valid: boolean; error?: string } | undefined {
+  private checkHighLowConsistency(
+    candle: PriceData
+  ): { valid: boolean; error?: string } | undefined {
     if (candle.high < candle.low) {
       return { valid: false, error: 'High is less than Low' };
     }
     return undefined;
   }
 
-  private parseCSV(content: string): { data?: PriceData[]; error?: ValidationError } {
+  private parseCSV(content: string): {
+    data?: PriceData[];
+    error?: ValidationError;
+  } {
     const lines = content.trim().split('\n');
 
     const headerError = this.validateHeaderExists(lines);
@@ -116,7 +138,9 @@ export class DataValidator {
     return { data: dataResult.data };
   }
 
-  private validateHeaderExists(lines: string[]): { error?: ValidationError } | undefined {
+  private validateHeaderExists(
+    lines: string[]
+  ): { error?: ValidationError } | undefined {
     if (lines.length < 2) {
       return {
         error: {
@@ -129,13 +153,19 @@ export class DataValidator {
     return undefined;
   }
 
-  private parseHeaderIndices(headerLine: string): { indices?: Record<string, number>; error?: ValidationError } {
-    const header = headerLine.toLowerCase().split(',').map(h => h.trim());
+  private parseHeaderIndices(headerLine: string): {
+    indices?: Record<string, number>;
+    error?: ValidationError;
+  } {
+    const header = headerLine
+      .toLowerCase()
+      .split(',')
+      .map((h) => h.trim());
     const requiredFields = ['date', 'open', 'high', 'low', 'close', 'volume'];
     const headerIndices: Record<string, number> = {};
 
     for (const field of requiredFields) {
-      const index = header.findIndex(h => h.includes(field));
+      const index = header.findIndex((h) => h.includes(field));
       if (index === -1) {
         return {
           error: {
@@ -151,20 +181,23 @@ export class DataValidator {
     return { indices: headerIndices };
   }
 
-  private parseDataRows(lines: string[], headerIndices: Record<string, number>): { data?: PriceData[]; error?: ValidationError } {
+  private parseDataRows(
+    lines: string[],
+    headerIndices: Record<string, number>
+  ): { data?: PriceData[]; error?: ValidationError } {
     const data: PriceData[] = [];
 
     for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
+      const values = lines[i].split(',').map((v) => v.trim());
       if (values.length !== lines[0].split(',').length) continue;
 
       data.push({
-        date: values[headerIndices['date']],
-        open: parseFloat(values[headerIndices['open']]),
-        high: parseFloat(values[headerIndices['high']]),
-        low: parseFloat(values[headerIndices['low']]),
-        close: parseFloat(values[headerIndices['close']]),
-        volume: parseFloat(values[headerIndices['volume']]),
+        date: values[headerIndices.date],
+        open: parseFloat(values[headerIndices.open]),
+        high: parseFloat(values[headerIndices.high]),
+        low: parseFloat(values[headerIndices.low]),
+        close: parseFloat(values[headerIndices.close]),
+        volume: parseFloat(values[headerIndices.volume]),
       });
     }
 
@@ -181,7 +214,10 @@ export class DataValidator {
     return { data };
   }
 
-  private parseJSON(content: string): { data?: PriceData[]; error?: ValidationError } {
+  private parseJSON(content: string): {
+    data?: PriceData[];
+    error?: ValidationError;
+  } {
     const parsedResult = this.parseJSONContent(content);
     if (parsedResult.error) {
       return { error: parsedResult.error };
@@ -200,7 +236,10 @@ export class DataValidator {
     return { data: parsedResult.parsed as PriceData[] };
   }
 
-  private parseJSONContent(content: string): { parsed?: unknown; error?: ValidationError } {
+  private parseJSONContent(content: string): {
+    parsed?: unknown;
+    error?: ValidationError;
+  } {
     try {
       return { parsed: JSON.parse(content) };
     } catch {
@@ -283,7 +322,10 @@ export class DataValidator {
     };
   }
 
-  private parseByFormat(content: string, filename: string): { data?: PriceData[]; error?: ValidationError } {
+  private parseByFormat(
+    content: string,
+    filename: string
+  ): { data?: PriceData[]; error?: ValidationError } {
     if (filename.endsWith('.csv')) {
       return this.parseCSV(content);
     } else if (filename.endsWith('.json')) {
@@ -306,7 +348,7 @@ export class DataValidator {
         error: {
           type: 'DUPLICATE_TIMESTAMP',
           message: `Duplicate timestamps found: ${duplicates.slice(0, 5).join(', ')}${duplicates.length > 5 ? '...' : ''}`,
-          details: { values: duplicates.map(d => ({ date: d })) },
+          details: { values: duplicates.map((d) => ({ date: d })) },
         },
       };
     }
@@ -329,8 +371,8 @@ export class DataValidator {
           type: 'INVALID_VALUES',
           message: `Invalid data at row ${firstFew[0].row}: ${firstFew[0].error}${invalidRows.length > 1 ? ` (+${invalidRows.length - 1} more)` : ''}`,
           details: {
-            rows: invalidRows.map(r => r.row),
-            values: firstFew.map(r => ({ row: r.row, error: r.error })),
+            rows: invalidRows.map((r) => r.row),
+            values: firstFew.map((r) => ({ row: r.row, error: r.error })),
           },
         },
       };
@@ -355,7 +397,10 @@ export class DataValidator {
     return {};
   }
 
-  private detectTimeframeAndGaps(data: PriceData[]): { warnings: string[]; detectedTimeframe?: TimeframeType } {
+  private detectTimeframeAndGaps(data: PriceData[]): {
+    warnings: string[];
+    detectedTimeframe?: TimeframeType;
+  } {
     const gaps = Timeframe.detectGaps(data);
     const warnings: string[] = [];
     if (gaps.length > 0) {
@@ -375,7 +420,10 @@ export class DataValidator {
   }
 }
 
-export function validateAndParse(content: string, filename: string): ParseResult {
+export function validateAndParse(
+  content: string,
+  filename: string
+): ParseResult {
   const validator = new DataValidator();
   return validator.validateAndParse(content, filename);
 }

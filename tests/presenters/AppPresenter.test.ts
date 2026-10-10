@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import AppPresenter from '../../src/chart/presenters/AppPresenter';
+import type AppPresenter from '../../src/chart/presenters/AppPresenter';
 import { AssetService } from '../../src/shared/services/AssetService';
 import { Interval } from '../../src/shared/utils/Interval';
 import { AppPresenterBuilder } from '../test-helpers/appPresenterBuilder';
@@ -24,7 +24,9 @@ describe('AppPresenter', () => {
   describe('priceSample', () => {
     it('returns data for valid asset and timeframe', () => {
       const data = Array.from({ length: 100 }, (_, i) => ({
-        date: new Date(Date.UTC(2024, 0, 1, 0, i)).toISOString().replace('.000Z', 'Z'),
+        date: new Date(Date.UTC(2024, 0, 1, 0, i))
+          .toISOString()
+          .replace('.000Z', 'Z'),
         open: 100 + i,
         high: 101 + i,
         low: 99 + i,
@@ -33,7 +35,14 @@ describe('AppPresenter', () => {
       }));
 
       presenter = new AppPresenterBuilder()
-        .withAssets([{ id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }])
+        .withAssets([
+          {
+            id: 'asset1',
+            name: 'Test',
+            createdAt: new Date(),
+            originalTimeframe: '1m',
+          },
+        ])
         .build();
       AssetService.getInstance().addRangeData('asset1', data);
 
@@ -49,7 +58,9 @@ describe('AppPresenter', () => {
 
     it('re-aggregates the retained window across timeframe changes without refetching', () => {
       const data = Array.from({ length: 100 }, (_, i) => ({
-        date: new Date(Date.UTC(2024, 0, 1, 0, i)).toISOString().replace('.000Z', 'Z'),
+        date: new Date(Date.UTC(2024, 0, 1, 0, i))
+          .toISOString()
+          .replace('.000Z', 'Z'),
         open: 100 + i,
         high: 101 + i,
         low: 99 + i,
@@ -58,7 +69,14 @@ describe('AppPresenter', () => {
       }));
 
       presenter = new AppPresenterBuilder()
-        .withAssets([{ id: 'asset1', name: 'Test', createdAt: new Date(), originalTimeframe: '1m' }])
+        .withAssets([
+          {
+            id: 'asset1',
+            name: 'Test',
+            createdAt: new Date(),
+            originalTimeframe: '1m',
+          },
+        ])
         .build();
       AssetService.getInstance().addRangeData('asset1', data);
 
@@ -87,12 +105,18 @@ describe('AppPresenter', () => {
     it('requires indicator warm-up before the viewport start', () => {
       presenter = new AppPresenterBuilder()
         .withTimeframe('1m')
-        .withIndicators([{ key: 'sma-1', indicatorId: 'sma', params: { period: 20 } }])
+        .withIndicators([
+          { key: 'sma-1', indicatorId: 'sma', params: { period: 20 } },
+        ])
         .withRange(new Interval(0, 1000 * 60000))
         .build();
 
-      expect(presenter.hasCompleteData(new Interval(1300000, 2000000))).toBe(false);
-      expect(presenter.hasCompleteData(new Interval(1400000, 2000000))).toBe(true);
+      expect(presenter.hasCompleteData(new Interval(1300000, 2000000))).toBe(
+        false
+      );
+      expect(presenter.hasCompleteData(new Interval(1400000, 2000000))).toBe(
+        true
+      );
     });
 
     it('treats a viewport beyond the last sample as complete once the tail is loaded', () => {
@@ -116,9 +140,7 @@ describe('AppPresenter', () => {
       const fetchSpy = vi
         .spyOn(AssetService.getInstance(), 'fetchSamples')
         .mockResolvedValue([lastSample]);
-      presenter = new AppPresenterBuilder()
-        .withLastSampleTime(1000)
-        .build();
+      presenter = new AppPresenterBuilder().withLastSampleTime(1000).build();
 
       await presenter.requestRange('asset1', new Interval(2000, 5000));
 
@@ -194,7 +216,9 @@ describe('AppPresenter', () => {
       presenter = new AppPresenterBuilder()
         .withSelection('asset1', new Interval(1000, 2000))
         .build();
-      const spy = vi.spyOn(presenter, 'requestRange').mockResolvedValue({ success: true, value: undefined });
+      const spy = vi
+        .spyOn(presenter, 'requestRange')
+        .mockResolvedValue({ success: true, value: undefined });
 
       await presenter.addIndicator('sma');
 

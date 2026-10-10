@@ -21,7 +21,9 @@ export function openDatabase(): Promise<IDBDatabase> {
       } else {
         const store = tx.objectStore(ASSETS_STORE);
         if (!store.indexNames.contains('originalTimeframe')) {
-          store.createIndex('originalTimeframe', 'originalTimeframe', { unique: false });
+          store.createIndex('originalTimeframe', 'originalTimeframe', {
+            unique: false,
+          });
         }
       }
 
@@ -32,7 +34,9 @@ export function openDatabase(): Promise<IDBDatabase> {
       }
 
       if (!db.objectStoreNames.contains(CHUNK_META_STORE)) {
-        db.createObjectStore(CHUNK_META_STORE, { keyPath: ['assetId', 'from'] });
+        db.createObjectStore(CHUNK_META_STORE, {
+          keyPath: ['assetId', 'from'],
+        });
       }
       if (!db.objectStoreNames.contains(CHUNK_STORE)) {
         db.createObjectStore(CHUNK_STORE, { keyPath: ['assetId', 'from'] });

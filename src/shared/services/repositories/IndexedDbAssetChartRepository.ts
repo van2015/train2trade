@@ -1,13 +1,13 @@
-import { AssetSummary, PriceData } from '../../types/asset';
-import { Timeframe } from '../../../backtest/timeframe/Timeframe';
-import { AssetChartRepository } from './AssetChartRepository';
+import type { Timeframe } from '../../../backtest/timeframe/Timeframe';
+import type { AssetSummary, PriceData } from '../../types/asset';
 import {
-  openDatabase,
   ASSETS_STORE,
   CHUNK_META_STORE,
-  CHUNK_STORE,
   CHUNK_SIZE,
+  CHUNK_STORE,
+  openDatabase,
 } from '../db';
+import type { AssetChartRepository } from './AssetChartRepository';
 
 interface ChunkMeta {
   assetId: string;
@@ -37,7 +37,8 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
 
   static getInstance(): IndexedDbAssetChartRepository {
     if (!IndexedDbAssetChartRepository.instance) {
-      IndexedDbAssetChartRepository.instance = new IndexedDbAssetChartRepository();
+      IndexedDbAssetChartRepository.instance =
+        new IndexedDbAssetChartRepository();
     }
     return IndexedDbAssetChartRepository.instance;
   }
@@ -99,12 +100,14 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
-        const summaries: AssetSummary[] = request.result.map((asset: AssetSummary) => ({
-          id: asset.id,
-          name: asset.name,
-          createdAt: asset.createdAt,
-          originalTimeframe: asset.originalTimeframe || '1D',
-        }));
+        const summaries: AssetSummary[] = request.result.map(
+          (asset: AssetSummary) => ({
+            id: asset.id,
+            name: asset.name,
+            createdAt: asset.createdAt,
+            originalTimeframe: asset.originalTimeframe || '1D',
+          })
+        );
         resolve(summaries);
       };
     });
@@ -112,7 +115,10 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
 
   async getAssetData(id: string): Promise<PriceData[]> {
     const metas = await this.getAllChunkMetas(id);
-    const chunks = await this.getChunks(id, metas.map(meta => meta.from));
+    const chunks = await this.getChunks(
+      id,
+      metas.map((meta) => meta.from)
+    );
 
     const result: PriceData[] = [];
     for (const chunk of chunks) {
@@ -140,9 +146,16 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     });
   }
 
-  async getSamplesRange(assetId: string, from: number, to: number): Promise<PriceData[]> {
+  async getSamplesRange(
+    assetId: string,
+    from: number,
+    to: number
+  ): Promise<PriceData[]> {
     const metas = await this.getChunkMetas(assetId, from, to);
-    const chunks = await this.getChunks(assetId, metas.map(meta => meta.from));
+    const chunks = await this.getChunks(
+      assetId,
+      metas.map((meta) => meta.from)
+    );
 
     const result: PriceData[] = [];
     for (const chunk of chunks) {
@@ -155,12 +168,15 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     return result;
   }
 
-  async getSampleAfter(assetId: string, time: number): Promise<PriceData | null> {
+  async getSampleAfter(
+    assetId: string,
+    time: number
+  ): Promise<PriceData | null> {
     const containing = await this.getChunkMetaAtOrBefore(assetId, time);
     if (containing) {
       const [chunk] = await this.getChunks(assetId, [containing.from]);
       if (chunk) {
-        const found = chunk.samples.find(sample => timeOf(sample) > time);
+        const found = chunk.samples.find((sample) => timeOf(sample) > time);
         if (found) return found;
       }
     }
@@ -173,7 +189,10 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     return null;
   }
 
-  async getSampleBefore(assetId: string, time: number): Promise<PriceData | null> {
+  async getSampleBefore(
+    assetId: string,
+    time: number
+  ): Promise<PriceData | null> {
     const containing = await this.getChunkMetaAtOrBefore(assetId, time);
     if (containing) {
       const [chunk] = await this.getChunks(assetId, [containing.from]);
@@ -183,7 +202,10 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
         }
       }
 
-      const previous = await this.getLastChunkMetaBefore(assetId, containing.from);
+      const previous = await this.getLastChunkMetaBefore(
+        assetId,
+        containing.from
+      );
       if (previous) {
         const [previousChunk] = await this.getChunks(assetId, [previous.from]);
         if (previousChunk && previousChunk.samples.length > 0) {
@@ -215,7 +237,11 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     });
   }
 
-  private async getChunkMetas(assetId: string, from: number, to: number): Promise<ChunkMeta[]> {
+  private async getChunkMetas(
+    assetId: string,
+    from: number,
+    to: number
+  ): Promise<ChunkMeta[]> {
     const containing = await this.getChunkMetaAtOrBefore(assetId, from);
     const startFrom = containing ? containing.from : from;
 
@@ -224,7 +250,9 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(CHUNK_META_STORE, 'readonly');
       const store = transaction.objectStore(CHUNK_META_STORE);
-      const request = store.getAll(IDBKeyRange.bound([assetId, startFrom], [assetId, to]));
+      const request = store.getAll(
+        IDBKeyRange.bound([assetId, startFrom], [assetId, to])
+      );
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result as ChunkMeta[]);
@@ -244,13 +272,19 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     });
   }
 
-  private async getChunkMetaAtOrBefore(assetId: string, time: number): Promise<ChunkMeta | null> {
+  private async getChunkMetaAtOrBefore(
+    assetId: string,
+    time: number
+  ): Promise<ChunkMeta | null> {
     const db = await openDatabase();
 
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(CHUNK_META_STORE, 'readonly');
       const store = transaction.objectStore(CHUNK_META_STORE);
-      const request = store.openCursor(IDBKeyRange.upperBound([assetId, time]), 'prev');
+      const request = store.openCursor(
+        IDBKeyRange.upperBound([assetId, time]),
+        'prev'
+      );
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
@@ -261,13 +295,18 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     });
   }
 
-  private async getFirstChunkMetaAfter(assetId: string, time: number): Promise<ChunkMeta | null> {
+  private async getFirstChunkMetaAfter(
+    assetId: string,
+    time: number
+  ): Promise<ChunkMeta | null> {
     const db = await openDatabase();
 
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(CHUNK_META_STORE, 'readonly');
       const store = transaction.objectStore(CHUNK_META_STORE);
-      const request = store.openCursor(IDBKeyRange.lowerBound([assetId, time], true));
+      const request = store.openCursor(
+        IDBKeyRange.lowerBound([assetId, time], true)
+      );
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
@@ -278,13 +317,19 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     });
   }
 
-  private async getLastChunkMetaBefore(assetId: string, from: number): Promise<ChunkMeta | null> {
+  private async getLastChunkMetaBefore(
+    assetId: string,
+    from: number
+  ): Promise<ChunkMeta | null> {
     const db = await openDatabase();
 
     return new Promise((resolve, reject) => {
       const transaction = db.transaction(CHUNK_META_STORE, 'readonly');
       const store = transaction.objectStore(CHUNK_META_STORE);
-      const request = store.openCursor(IDBKeyRange.upperBound([assetId, from], true), 'prev');
+      const request = store.openCursor(
+        IDBKeyRange.upperBound([assetId, from], true),
+        'prev'
+      );
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {

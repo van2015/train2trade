@@ -1,5 +1,9 @@
-import { PriceData } from '../../shared/types/asset';
-import {
+import type { PriceData } from '../../shared/types/asset';
+import { Trade } from '../models/Trade';
+import { Broker } from '../services/Broker';
+import { StrategyManager } from '../services/StrategyManager';
+import type {
+  AggregatedBar,
   BacktestInput,
   BacktestResult,
   ClosedTrade,
@@ -8,12 +12,8 @@ import {
   StrategyContext,
   TradeSpec,
 } from '../types/backtest';
-import { Trade } from '../models/Trade';
-import { Broker } from '../services/Broker';
+import { Side, TradeState } from '../types/TradeEnums';
 import { DataResampler } from './Resampler';
-import { StrategyManager } from '../services/StrategyManager';
-import { AggregatedBar } from '../types/backtest';
-import { TradeState, Side } from '../types/TradeEnums';
 
 interface PendingEntry {
   spec: TradeSpec;
@@ -54,33 +54,60 @@ export class BacktestEngine {
     return new Date(date).getTime();
   }
 
-  private entryFillReference(spec: TradeSpec, bar: PriceData): number | undefined {
+  private entryFillReference(
+    spec: TradeSpec,
+    bar: PriceData
+  ): number | undefined {
     const { order, side } = spec;
 
     if (order.type === 'market') return bar.open;
     if (order.price === undefined) return undefined;
 
     if (order.type === 'limit') {
-      if (side === Side.Long) return bar.low <= order.price ? Math.min(bar.open, order.price) : undefined;
-      return bar.high >= order.price ? Math.max(bar.open, order.price) : undefined;
+      if (side === Side.Long)
+        return bar.low <= order.price
+          ? Math.min(bar.open, order.price)
+          : undefined;
+      return bar.high >= order.price
+        ? Math.max(bar.open, order.price)
+        : undefined;
     }
 
-    if (side === Side.Long) return bar.high >= order.price ? Math.max(bar.open, order.price) : undefined;
+    if (side === Side.Long)
+      return bar.high >= order.price
+        ? Math.max(bar.open, order.price)
+        : undefined;
     return bar.low <= order.price ? Math.min(bar.open, order.price) : undefined;
   }
 
   run(input: BacktestInput): BacktestResult {
     const strategyManager = StrategyManager.getInstance();
-    const resolvedResult = strategyManager.resolveStrategy(input.strategyId, input.params ?? {});
+    const resolvedResult = strategyManager.resolveStrategy(
+      input.strategyId,
+      input.params ?? {}
+    );
     if (!resolvedResult.success) {
-      return { trades: [], invalidated: [], equityCurve: [], hasFinerData: false, error: resolvedResult.error };
+      return {
+        trades: [],
+        invalidated: [],
+        equityCurve: [],
+        hasFinerData: false,
+        error: resolvedResult.error,
+      };
     }
     const resolved = resolvedResult.value;
-    const strategyTimeframe = input.strategyTimeframe ?? resolved.definition.timeframe;
+    const strategyTimeframe =
+      input.strategyTimeframe ?? resolved.definition.timeframe;
     const resampler = new DataResampler();
     const resampleResult = resampler.resample(input.dataset, strategyTimeframe);
     if (!resampleResult.success) {
-      return { trades: [], invalidated: [], equityCurve: [], hasFinerData: false, error: resampleResult.error };
+      return {
+        trades: [],
+        invalidated: [],
+        equityCurve: [],
+        hasFinerData: false,
+        error: resampleResult.error,
+      };
     }
     const { bars, hasFinerData } = resampleResult.value;
     this.allBars = bars;
@@ -90,7 +117,12 @@ export class BacktestEngine {
     this.equityCurve = [];
 
     if (bars.length === 0) {
-      return { trades: this.closedTrades, invalidated: this.invalidated, equityCurve: this.equityCurve, hasFinerData };
+      return {
+        trades: this.closedTrades,
+        invalidated: this.invalidated,
+        equityCurve: this.equityCurve,
+        hasFinerData,
+      };
     }
 
     this.broker = new Broker(input.platform, input.initialBalance);
@@ -100,7 +132,12 @@ export class BacktestEngine {
       this.processBar(bars[s], s, bars.length, resolved, strategyManager);
     }
 
-    return { trades: this.closedTrades, invalidated: this.invalidated, equityCurve: this.equityCurve, hasFinerData };
+    return {
+      trades: this.closedTrades,
+      invalidated: this.invalidated,
+      equityCurve: this.equityCurve,
+      hasFinerData,
+    };
   }
 
   private initializeState(): void {
@@ -118,7 +155,15 @@ export class BacktestEngine {
     bar: AggregatedBar,
     index: number,
     totalBars: number,
-    resolved: { definition: { onBar: (ctx: StrategyContext, params: Record<string, number>) => TradeSpec[] }; params: Record<string, number> },
+    resolved: {
+      definition: {
+        onBar: (
+          ctx: StrategyContext,
+          params: Record<string, number>
+        ) => TradeSpec[];
+      };
+      params: Record<string, number>;
+    },
     strategyManager: StrategyManager
   ): void {
     const subBars = bar.subBars.length > 0 ? bar.subBars : [bar];
@@ -140,7 +185,11 @@ export class BacktestEngine {
   }
 
   private processCandles(sub: PriceData, time: number): void {
-    const closedTrades: { trade: Trade; sizeBefore: number; beforePnl: number }[] = [];
+    const closedTrades: {
+      trade: Trade;
+      sizeBefore: number;
+      beforePnl: number;
+    }[] = [];
 
     for (const trade of [...this.trades.values()]) {
       if (trade.state !== TradeState.Open) continue;
@@ -161,7 +210,14 @@ export class BacktestEngine {
       if (trade.size === 0) {
         closedTrades.push({ trade, sizeBefore, beforePnl });
       } else if (trade.size < sizeBefore) {
-        this.applyPartialClose(trade, sizeBefore - trade.size, beforePnl, (sizeBefore - trade.size) / sizeBefore, time, false);
+        this.applyPartialClose(
+          trade,
+          sizeBefore - trade.size,
+          beforePnl,
+          (sizeBefore - trade.size) / sizeBefore,
+          time,
+          false
+        );
       }
     }
 
@@ -170,7 +226,14 @@ export class BacktestEngine {
     }
   }
 
-  private applyPartialClose(trade: Trade, closedSize: number, beforePnl: number, portion: number, time: number, finalize: boolean): void {
+  private applyPartialClose(
+    trade: Trade,
+    closedSize: number,
+    beforePnl: number,
+    portion: number,
+    time: number,
+    finalize: boolean
+  ): void {
     this.settleFees(trade, closedSize, portion, beforePnl);
 
     if (finalize) {
@@ -183,7 +246,9 @@ export class BacktestEngine {
       const trade = this.trades.get(exit.tradeId);
       if (!trade) continue;
       const side = trade.side === Side.Long ? 'sell' : 'buy';
-      const price = this.broker.alignToTick(this.broker.fillPrice(side, sub.open, true));
+      const price = this.broker.alignToTick(
+        this.broker.fillPrice(side, sub.open, true)
+      );
       if (exit.portion >= 1) {
         this.closeTrade(trade, price, time);
       } else {
@@ -217,13 +282,27 @@ export class BacktestEngine {
 
   private generateNewSignals(
     index: number,
-    resolved: { definition: { onBar: (ctx: StrategyContext, params: Record<string, number>) => TradeSpec[] }; params: Record<string, number> },
+    resolved: {
+      definition: {
+        onBar: (
+          ctx: StrategyContext,
+          params: Record<string, number>
+        ) => TradeSpec[];
+      };
+      params: Record<string, number>;
+    },
     strategyManager: StrategyManager
   ): void {
     const bars = this.collectBarsUpToIndex(index);
-    const ctx = strategyManager.createContext(bars, index, this.openTradeViews());
+    const ctx = strategyManager.createContext(
+      bars,
+      index,
+      this.openTradeViews()
+    );
     this.evaluateContextRules(ctx);
-    const specs = strategyManager.validTradeSpecs(resolved.definition.onBar(ctx, resolved.params));
+    const specs = strategyManager.validTradeSpecs(
+      resolved.definition.onBar(ctx, resolved.params)
+    );
     for (const spec of specs) this.pendingEntries.push({ spec });
   }
 
@@ -259,7 +338,7 @@ export class BacktestEngine {
   }
 
   private openTradeViews() {
-    return [...this.trades.values()].map(trade => trade.toView());
+    return [...this.trades.values()].map((trade) => trade.toView());
   }
 
   private finalizeTrade(trade: Trade, time: number): void {
@@ -302,7 +381,12 @@ export class BacktestEngine {
     this.finalizeTrade(trade, time);
   }
 
-  private reduceTrade(trade: Trade, portion: number, price: number, time: number): void {
+  private reduceTrade(
+    trade: Trade,
+    portion: number,
+    price: number,
+    time: number
+  ): void {
     const reduceSize = trade.size * portion;
     if (reduceSize <= 0) return;
 
@@ -322,7 +406,11 @@ export class BacktestEngine {
     this.invalidated.push({ id: trade.id, side: trade.side, reason, at: time });
   }
 
-  private fillEntry(entry: PendingEntry, bar: PriceData, time: number): boolean {
+  private fillEntry(
+    entry: PendingEntry,
+    bar: PriceData,
+    time: number
+  ): boolean {
     const reference = this.entryFillReference(entry.spec, bar);
     if (reference === undefined) return false;
 
@@ -344,29 +432,52 @@ export class BacktestEngine {
     return true;
   }
 
-  private calculatePositionSize(entry: PendingEntry, price: number): { size?: number; skip: boolean } {
-    const result = this.broker.sizeFromRisk(entry.spec.risk.fraction, price, entry.spec.stopLoss, this.equity(price));
+  private calculatePositionSize(
+    entry: PendingEntry,
+    price: number
+  ): { size?: number; skip: boolean } {
+    const result = this.broker.sizeFromRisk(
+      entry.spec.risk.fraction,
+      price,
+      entry.spec.stopLoss,
+      this.equity(price)
+    );
     if (!result.success) return { skip: true };
     const size = result.value;
     if (size <= 0) return { skip: true };
     return { size, skip: false };
   }
 
-  private createTradeFromSpec(entry: PendingEntry, size: number, price: number): { id: string; trade: Trade } {
+  private createTradeFromSpec(
+    entry: PendingEntry,
+    size: number,
+    price: number
+  ): { id: string; trade: Trade } {
     this.tradeCounter += 1;
     const id = `trade-${this.tradeCounter}`;
     const trade = new Trade(id, entry.spec.side);
     trade.open(price, size);
-    if (entry.spec.stopLoss !== undefined) trade.addStopLoss(entry.spec.stopLoss, size);
-    if (entry.spec.takeProfit !== undefined) trade.addTakeProfit(entry.spec.takeProfit, size);
+    if (entry.spec.stopLoss !== undefined)
+      trade.addStopLoss(entry.spec.stopLoss, size);
+    if (entry.spec.takeProfit !== undefined)
+      trade.addTakeProfit(entry.spec.takeProfit, size);
     this.trades.set(id, trade);
     return { id, trade };
   }
 
-  private initializeTradeState(id: string, entry: PendingEntry, size: number, time: number): void {
+  private initializeTradeState(
+    id: string,
+    entry: PendingEntry,
+    size: number,
+    time: number
+  ): void {
     const entryFee = this.broker.commission(size);
     this.tradeSpecs.set(id, entry.spec);
-    this.tradeFees.set(id, { entryTotal: entryFee, entryRemaining: entryFee, exitTotal: 0 });
+    this.tradeFees.set(id, {
+      entryTotal: entryFee,
+      entryRemaining: entryFee,
+      exitTotal: 0,
+    });
     this.tradeOpenedAt.set(id, time);
     this.ruleState.set(id, {
       breakEvenDone: false,
@@ -374,7 +485,12 @@ export class BacktestEngine {
     });
   }
 
-  private settleFees(trade: Trade, closedSize: number, portion: number, beforePnl: number): void {
+  private settleFees(
+    trade: Trade,
+    closedSize: number,
+    portion: number,
+    beforePnl: number
+  ): void {
     const fees = this.tradeFees.get(trade.id);
     const entryPortion = fees ? fees.entryRemaining * portion : 0;
     const exitFee = this.broker.commission(closedSize);
@@ -384,7 +500,9 @@ export class BacktestEngine {
       fees.exitTotal += exitFee;
     }
     this.broker.releaseMargin(closedSize, trade.averageEntry);
-    this.broker.applyRealizedPnl(trade.realizedPnl - beforePnl - entryPortion - exitFee);
+    this.broker.applyRealizedPnl(
+      trade.realizedPnl - beforePnl - entryPortion - exitFee
+    );
   }
 
   private unrealizedPnl(trade: Trade, price: number): number {
@@ -416,7 +534,15 @@ export class BacktestEngine {
           break;
         }
         case 'partialTakeProfit': {
-          this.evaluatePartialTakeProfit(trade, price, rule.portion, rule.rMultiple, index, state, time);
+          this.evaluatePartialTakeProfit(
+            trade,
+            price,
+            rule.portion,
+            rule.rMultiple,
+            index,
+            state,
+            time
+          );
           break;
         }
         case 'closeWhen':
@@ -425,13 +551,18 @@ export class BacktestEngine {
     });
   }
 
-  private evaluateTrailingStop(trade: Trade, price: number, distance: number): void {
+  private evaluateTrailingStop(
+    trade: Trade,
+    price: number,
+    distance: number
+  ): void {
     const next = trade.side === Side.Long ? price - distance : price + distance;
     const sls = trade.getStopLosses();
     const current = sls[0]?.price;
 
     if (trade.side === Side.Long) {
-      if (current === undefined || next > current) this.moveStopLoss(trade, next);
+      if (current === undefined || next > current)
+        this.moveStopLoss(trade, next);
     } else if (current === undefined || next < current) {
       this.moveStopLoss(trade, next);
     }
@@ -448,7 +579,12 @@ export class BacktestEngine {
     }
   }
 
-  private evaluateBreakEvenAtR(trade: Trade, price: number, rMultiple: number, state: RuleState): void {
+  private evaluateBreakEvenAtR(
+    trade: Trade,
+    price: number,
+    rMultiple: number,
+    state: RuleState
+  ): void {
     if (state.breakEvenDone) return;
     const risk = trade.riskAmount;
     if (risk === undefined) return;
@@ -481,7 +617,8 @@ export class BacktestEngine {
       const spec = this.tradeSpecs.get(id);
       if (!spec || trade.state !== TradeState.Open) continue;
       const shouldClose = spec.rules.some(
-        rule => rule.kind === 'closeWhen' && rule.predicate(trade.toView(), ctx)
+        (rule) =>
+          rule.kind === 'closeWhen' && rule.predicate(trade.toView(), ctx)
       );
       if (shouldClose) this.pendingExits.push({ tradeId: id, portion: 1 });
     }

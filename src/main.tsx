@@ -14,7 +14,7 @@ function AppWrapper() {
     presenter
       .init()
       .then(() => setInitialized(true))
-      .catch(err => {
+      .catch((err) => {
         console.error('Failed to initialize:', err);
         setInitialized(true);
       });

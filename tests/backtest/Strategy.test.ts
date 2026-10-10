@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { TradeSpec } from '../../src/backtest/types/backtest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearStrategies,
   createContext,
@@ -9,10 +8,11 @@ import {
   resolveStrategy,
   validTradeSpecs,
 } from '../../src/backtest/services/StrategyManager';
+import type { TradeSpec } from '../../src/backtest/types/backtest';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 import { StrategyDefinitionBuilder } from '../test-helpers/strategyDefinitionBuilder';
-import { TradeViewBuilder } from '../test-helpers/tradeViewBuilder';
 import { TradeBuilder } from '../test-helpers/tradeBuilder';
+import { TradeViewBuilder } from '../test-helpers/tradeViewBuilder';
 
 function candles(closes: number[]) {
   return SamplePriceBuilder.fromCloses(closes);
@@ -43,7 +43,10 @@ describe('strategy registry', () => {
     const result = resolveStrategy('test-strategy', { period: 0 });
 
     expect(result.success).toBe(true);
-    expect(result.success && result.value.params).toEqual({ period: 1, risk: 0.01 });
+    expect(result.success && result.value.params).toEqual({
+      period: 1,
+      risk: 0.01,
+    });
   });
 
   it('rejects an unknown strategy id', () => {
@@ -84,11 +87,18 @@ describe('strategy context', () => {
 });
 
 describe('trade spec validation', () => {
-  const validLong: TradeSpec = new TradeBuilder().long().market().risk(0.01).stopLoss(90).build();
+  const validLong: TradeSpec = new TradeBuilder()
+    .long()
+    .market()
+    .risk(0.01)
+    .stopLoss(90)
+    .build();
 
   it('accepts well-formed trade specs', () => {
     expect(isValidTradeSpec(validLong)).toBe(true);
-    expect(isValidTradeSpec(new TradeBuilder().short().limit(100).risk(0.02).build())).toBe(true);
+    expect(
+      isValidTradeSpec(new TradeBuilder().short().limit(100).risk(0.02).build())
+    ).toBe(true);
     expect(
       isValidTradeSpec(
         new TradeBuilder()
@@ -106,35 +116,49 @@ describe('trade spec validation', () => {
 
   it('rejects a trade spec with a non-positive risk', () => {
     expect(
-      isValidTradeSpec(new TradeBuilder().long().market().risk(0).stopLoss(90).build())
+      isValidTradeSpec(
+        new TradeBuilder().long().market().risk(0).stopLoss(90).build()
+      )
     ).toBe(false);
   });
 
   it('rejects a limit order without a price', () => {
-    expect(isValidTradeSpec(new TradeBuilder().short().limit(NaN).build())).toBe(false);
+    expect(
+      isValidTradeSpec(new TradeBuilder().short().limit(NaN).build())
+    ).toBe(false);
   });
 
   it('rejects a trailing stop with a non-positive distance', () => {
     expect(
-      isValidTradeSpec(new TradeBuilder().long().market().trailingStop(0).build())
+      isValidTradeSpec(
+        new TradeBuilder().long().market().trailingStop(0).build()
+      )
     ).toBe(false);
   });
 
   it('rejects a partial take profit with an out-of-range portion', () => {
     expect(
-      isValidTradeSpec(new TradeBuilder().long().market().partialTakeProfit(2, 1).build())
+      isValidTradeSpec(
+        new TradeBuilder().long().market().partialTakeProfit(2, 1).build()
+      )
     ).toBe(false);
   });
 
   it('rejects a close rule without a predicate', () => {
     const spec = new TradeBuilder().long().market().build();
-    const malformed = { ...spec, rules: [{ kind: 'closeWhen' }] } as unknown as TradeSpec;
+    const malformed = {
+      ...spec,
+      rules: [{ kind: 'closeWhen' }],
+    } as unknown as TradeSpec;
 
     expect(isValidTradeSpec(malformed)).toBe(false);
   });
 
   it('filters malformed trade specs without mutating the input', () => {
-    const input: TradeSpec[] = [validLong, new TradeBuilder().long().market().risk(0).build()];
+    const input: TradeSpec[] = [
+      validLong,
+      new TradeBuilder().long().market().risk(0).build(),
+    ];
 
     const filtered = validTradeSpecs(input);
 

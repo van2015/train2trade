@@ -1,4 +1,4 @@
-import { PriceData } from '../../shared/types/asset';
+import type { PriceData } from '../../shared/types/asset';
 
 export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1D' | '1W';
 
@@ -19,10 +19,13 @@ const CONFIGS: TimeframeConfig[] = [
   { value: '1W', label: '1W', minutes: 10080, maxGapMultiplier: 1.09 },
 ];
 
-const VALUES = CONFIGS.map(c => c.value);
+const VALUES = CONFIGS.map((c) => c.value);
 const MINUTES: Record<Timeframe, number> = {} as Record<Timeframe, number>;
 const LABELS: Record<Timeframe, string> = {} as Record<Timeframe, string>;
-const MAX_GAP_MULTIPLIER: Record<Timeframe, number> = {} as Record<Timeframe, number>;
+const MAX_GAP_MULTIPLIER: Record<Timeframe, number> = {} as Record<
+  Timeframe,
+  number
+>;
 
 for (const config of CONFIGS) {
   MINUTES[config.value] = config.minutes;
@@ -71,7 +74,9 @@ class TimeframeManager {
     const histogram = this.buildGapHistogram(gaps);
     const mostCommonGap = this.findMostCommonGap(histogram);
     const tf = this.mapGapToTimeframe(mostCommonGap);
-    const confidence = histogram[mostCommonGap] ? histogram[mostCommonGap] / gaps.length : 0;
+    const confidence = histogram[mostCommonGap]
+      ? histogram[mostCommonGap] / gaps.length
+      : 0;
 
     return { tf, confidence };
   }

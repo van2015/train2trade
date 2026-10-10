@@ -1,5 +1,8 @@
-import { IndicatorId, PriceData } from '../../shared/types/asset';
-import {
+import type { IndicatorId, PriceData } from '../../shared/types/asset';
+import type { Result } from '../../shared/types/Result';
+import { normalizeParams } from '../../shared/utils/normalizeParams';
+import { computeSeries } from '../indicators/IndicatorService';
+import type {
   PriceSeriesName,
   ResolvedStrategy,
   StrategyContext,
@@ -8,11 +11,8 @@ import {
   TradeSpec,
   TradeView,
 } from '../types/backtest';
-import { computeSeries } from '../indicators/IndicatorService';
+import type { StrategyError } from '../types/StrategyError';
 import { Side } from '../types/TradeEnums';
-import { StrategyError } from '../types/StrategyError';
-import { Result } from '../../shared/types/Result';
-import { normalizeParams } from '../../shared/utils/normalizeParams';
 
 export class StrategyManager {
   private static instance: StrategyManager;
@@ -56,7 +56,13 @@ export class StrategyManager {
     if (!definition) {
       return { success: false, error: { type: 'STRATEGY_NOT_FOUND', id } };
     }
-    return { success: true, value: { definition, params: this.normalizeStrategyParams(definition, params) } };
+    return {
+      success: true,
+      value: {
+        definition,
+        params: this.normalizeStrategyParams(definition, params),
+      },
+    };
   }
 
   createContext(
@@ -69,8 +75,11 @@ export class StrategyManager {
       index,
       time: new Date(candles[index].date).getTime(),
       candle: () => candles[index],
-      series: (name: PriceSeriesName) => upTo.map(candle => candle[name]),
-      indicator: (indicatorId: IndicatorId, params: Record<string, number> = {}) => {
+      series: (name: PriceSeriesName) => upTo.map((candle) => candle[name]),
+      indicator: (
+        indicatorId: IndicatorId,
+        params: Record<string, number> = {}
+      ) => {
         const result = computeSeries({ key: 'ctx', indicatorId, params }, upTo);
         return result.success ? result.value : [];
       },
@@ -116,16 +125,28 @@ export class StrategyManager {
     ) {
       return false;
     }
-    if (spec.order.type !== 'market' && !this.isFiniteNumber(spec.order.price)) return false;
-    if (!spec.risk || !this.isFiniteNumber(spec.risk.fraction) || spec.risk.fraction <= 0) return false;
-    if (spec.stopLoss !== undefined && !this.isFiniteNumber(spec.stopLoss)) return false;
-    if (spec.takeProfit !== undefined && !this.isFiniteNumber(spec.takeProfit)) return false;
-    if (!Array.isArray(spec.rules) || !spec.rules.every(r => this.isValidRule(r))) return false;
+    if (spec.order.type !== 'market' && !this.isFiniteNumber(spec.order.price))
+      return false;
+    if (
+      !spec.risk ||
+      !this.isFiniteNumber(spec.risk.fraction) ||
+      spec.risk.fraction <= 0
+    )
+      return false;
+    if (spec.stopLoss !== undefined && !this.isFiniteNumber(spec.stopLoss))
+      return false;
+    if (spec.takeProfit !== undefined && !this.isFiniteNumber(spec.takeProfit))
+      return false;
+    if (
+      !Array.isArray(spec.rules) ||
+      !spec.rules.every((r) => this.isValidRule(r))
+    )
+      return false;
     return true;
   }
 
   validTradeSpecs(specs: TradeSpec[]): TradeSpec[] {
-    return specs.filter(spec => this.isValidTradeSpec(spec));
+    return specs.filter((spec) => this.isValidTradeSpec(spec));
   }
 }
 

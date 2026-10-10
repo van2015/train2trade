@@ -1,4 +1,4 @@
-import { PriceData } from '../../src/shared/types/asset';
+import type { PriceData } from '../../src/shared/types/asset';
 import { SamplePriceBuilder } from './samplePriceBuilder';
 
 interface CandleDraft {
@@ -57,7 +57,8 @@ export class PriceSeriesBuilder {
   }
 
   private current(): CandleDraft {
-    if (!this.draft) throw new Error('Call at(date) before setting candle values');
+    if (!this.draft)
+      throw new Error('Call at(date) before setting candle values');
     return this.draft;
   }
 

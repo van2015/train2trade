@@ -1,15 +1,36 @@
-import { useEffect, useRef, useCallback } from 'react';
+import {
+  type BarData,
+  BarSeries,
+  type CandlestickData,
+  CandlestickSeries,
+  createChart,
+  HistogramSeries,
+  type IChartApi,
+  type IPaneApi,
+  type ISeriesApi,
+  type LineData,
+  LineSeries,
+  type SeriesType,
+  type Time,
+} from 'lightweight-charts';
+import { useCallback, useEffect, useRef } from 'react';
 import { useAppPresenter } from '../../app/hooks/useAppPresenter';
-import { ChartType, IndicatorPlot, PriceData } from '../../shared/types/asset';
-import { ChartTypeSelector } from './ChartTypeSelector';
-import { TimeframeSelector } from './TimeframeSelector';
-import { IndicatorSelector } from './IndicatorSelector';
-import { getChartThemeColors } from '../utils/chartTheme';
-import { compute, getDefinition } from '../../backtest/indicators/IndicatorService';
+import {
+  compute,
+  getDefinition,
+} from '../../backtest/indicators/IndicatorService';
+import type { Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
+import type {
+  ChartType,
+  IndicatorPlot,
+  PriceData,
+} from '../../shared/types/asset';
 import { Interval } from '../../shared/utils/Interval';
+import { getChartThemeColors } from '../utils/chartTheme';
 import { createTimeLabelFormatter } from '../utils/timeLabel';
-import { Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
-import { createChart, IChartApi, IPaneApi, ISeriesApi, SeriesType, Time, LineData, CandlestickData, BarData, LineSeries, CandlestickSeries, BarSeries, HistogramSeries } from 'lightweight-charts';
+import { ChartTypeSelector } from './ChartTypeSelector';
+import { IndicatorSelector } from './IndicatorSelector';
+import { TimeframeSelector } from './TimeframeSelector';
 
 function parseTime(dateStr: string): Time {
   const date = new Date(dateStr);
@@ -17,14 +38,14 @@ function parseTime(dateStr: string): Time {
 }
 
 function toLineData(data: PriceData[]): LineData<Time>[] {
-  return data.map(d => ({
+  return data.map((d) => ({
     time: parseTime(d.date),
     value: d.close,
   }));
 }
 
 function toCandlestickData(data: PriceData[]): CandlestickData<Time>[] {
-  return data.map(d => ({
+  return data.map((d) => ({
     time: parseTime(d.date),
     open: d.open,
     high: d.high,
@@ -34,7 +55,7 @@ function toCandlestickData(data: PriceData[]): CandlestickData<Time>[] {
 }
 
 function toBarData(data: PriceData[]): BarData<Time>[] {
-  return data.map(d => ({
+  return data.map((d) => ({
     time: parseTime(d.date),
     open: d.open,
     high: d.high,
@@ -80,92 +101,102 @@ export function ChartView({ assetId }: ChartViewProps) {
   } = useAppPresenter();
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
-  const indicatorSeriesRef = useRef<Map<string, IndicatorSeriesRef[]>>(new Map());
+  const indicatorSeriesRef = useRef<Map<string, IndicatorSeriesRef[]>>(
+    new Map()
+  );
   const hasFitContentRef = useRef(false);
   const preRangeRef = useRef<Interval | null>(null);
 
-  const data = assetId
-    ? priceSample(assetId, state.selectedTimeframe)
-    : null;
+  const data = assetId ? priceSample(assetId, state.selectedTimeframe) : null;
 
   const indicatorSignature = state.activeIndicators
-    .map(indicator =>
-      `${indicator.key}:${indicator.indicatorId}:${JSON.stringify(indicator.params)}:${indicator.color ?? ''}`
+    .map(
+      (indicator) =>
+        `${indicator.key}:${indicator.indicatorId}:${JSON.stringify(indicator.params)}:${indicator.color ?? ''}`
     )
     .join('|');
 
-  const createChartInstance = useCallback((container: HTMLElement, timeframe: TimeframeType) => {
-    if (chartRef.current) {
-      chartRef.current.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-      indicatorSeriesRef.current = new Map();
-    }
-
-    const colors = getChartThemeColors();
-    const formatTime = createTimeLabelFormatter(timeframe);
-
-    chartRef.current = createChart(container, {
-      layout: {
-        background: { color: colors.chartBg },
-        textColor: colors.chartText,
-      },
-      grid: {
-        vertLines: { color: colors.chartGrid },
-        horzLines: { color: colors.chartGrid },
-      },
-      timeScale: {
-        shiftVisibleRangeOnNewBar: false,
-      },
-      width: container.clientWidth,
-      height: container.clientHeight,
-      localization: {
-        timeFormatter: (time: Time) => formatTime(Number(time)),
-      },
-    });
-
-    const handleResize = () => {
-      if (chartRef.current && container.clientWidth > 0) {
-        chartRef.current.applyOptions({ width: container.clientWidth, height: container.clientHeight });
+  const createChartInstance = useCallback(
+    (container: HTMLElement, timeframe: TimeframeType) => {
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
+        seriesRef.current = null;
+        indicatorSeriesRef.current = new Map();
       }
-    };
 
-    window.addEventListener('resize', handleResize);
+      const colors = getChartThemeColors();
+      const formatTime = createTimeLabelFormatter(timeframe);
 
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+      chartRef.current = createChart(container, {
+        layout: {
+          background: { color: colors.chartBg },
+          textColor: colors.chartText,
+        },
+        grid: {
+          vertLines: { color: colors.chartGrid },
+          horzLines: { color: colors.chartGrid },
+        },
+        timeScale: {
+          shiftVisibleRangeOnNewBar: false,
+        },
+        width: container.clientWidth,
+        height: container.clientHeight,
+        localization: {
+          timeFormatter: (time: Time) => formatTime(Number(time)),
+        },
+      });
 
-  const addSeries = useCallback((type: string): ISeriesApi<SeriesType> | null => {
-    if (!chartRef.current) return null;
+      const handleResize = () => {
+        if (chartRef.current && container.clientWidth > 0) {
+          chartRef.current.applyOptions({
+            width: container.clientWidth,
+            height: container.clientHeight,
+          });
+        }
+      };
 
-    switch (type) {
-      case 'line':
-        return chartRef.current.addSeries(LineSeries, {
-          color: '#2962FF',
-          lineWidth: 2,
-        });
-      case 'candlestick':
-        return chartRef.current.addSeries(CandlestickSeries, {
-          upColor: '#26a69a',
-          downColor: '#ef5350',
-          borderVisible: false,
-          wickUpColor: '#26a69a',
-          wickDownColor: '#ef5350',
-        });
-      case 'ohlc':
-        return chartRef.current.addSeries(BarSeries, {
-          upColor: '#26a69a',
-          downColor: '#ef5350',
-        });
-      default:
-        return chartRef.current.addSeries(LineSeries, {
-          color: '#2962FF',
-          lineWidth: 2,
-        });
-    }
-  }, []);
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+      };
+    },
+    []
+  );
+
+  const addSeries = useCallback(
+    (type: string): ISeriesApi<SeriesType> | null => {
+      if (!chartRef.current) return null;
+
+      switch (type) {
+        case 'line':
+          return chartRef.current.addSeries(LineSeries, {
+            color: '#2962FF',
+            lineWidth: 2,
+          });
+        case 'candlestick':
+          return chartRef.current.addSeries(CandlestickSeries, {
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+            borderVisible: false,
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
+          });
+        case 'ohlc':
+          return chartRef.current.addSeries(BarSeries, {
+            upColor: '#26a69a',
+            downColor: '#ef5350',
+          });
+        default:
+          return chartRef.current.addSeries(LineSeries, {
+            color: '#2962FF',
+            lineWidth: 2,
+          });
+      }
+    },
+    []
+  );
 
   const addPlotSeries = useCallback(
     (pane: IPaneApi<Time>, plot: IndicatorPlot): ISeriesApi<SeriesType> => {
@@ -188,6 +219,7 @@ export function ChartView({ assetId }: ChartViewProps) {
     };
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: indicatorSignature is a derived proxy for state.activeIndicators; timeframe changes are handled by the dedicated effect below
   useEffect(() => {
     if (!assetId || !containerRef.current) {
       if (chartRef.current) {
@@ -199,7 +231,10 @@ export function ChartView({ assetId }: ChartViewProps) {
       return;
     }
 
-    const resizeCleanup = createChartInstance(containerRef.current, state.selectedTimeframe);
+    const resizeCleanup = createChartInstance(
+      containerRef.current,
+      state.selectedTimeframe
+    );
     seriesRef.current = addSeries(state.chartType);
     indicatorSeriesRef.current = new Map();
     hasFitContentRef.current = false;
@@ -220,7 +255,10 @@ export function ChartView({ assetId }: ChartViewProps) {
         const plotsResult = compute(instance, []);
         if (plotsResult.success) {
           for (const plot of plotsResult.value) {
-            entries.push({ plotKey: plot.key, series: addPlotSeries(pane, plot) });
+            entries.push({
+              plotKey: plot.key,
+              series: addPlotSeries(pane, plot),
+            });
           }
         }
         indicatorSeriesRef.current.set(instance.key, entries);
@@ -236,21 +274,31 @@ export function ChartView({ assetId }: ChartViewProps) {
         indicatorSeriesRef.current = new Map();
       }
     };
-  }, [assetId, state.chartType, indicatorSignature, createChartInstance, addSeries, addPlotSeries]);
+  }, [
+    assetId,
+    state.chartType,
+    indicatorSignature,
+    createChartInstance,
+    addSeries,
+    addPlotSeries,
+  ]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: indicatorSignature is a derived proxy for state.activeIndicators; it changes exactly when indicator identity/params/color change
   useEffect(() => {
     if (!seriesRef.current || !data) return;
 
     seriesRef.current.setData(transformChartData(state.chartType, data) as any);
 
     for (const [instanceKey, entries] of indicatorSeriesRef.current) {
-      const instance = state.activeIndicators.find(candidate => candidate.key === instanceKey);
+      const instance = state.activeIndicators.find(
+        (candidate) => candidate.key === instanceKey
+      );
       if (!instance) continue;
       const plotsResult = compute(instance, data);
       if (!plotsResult.success) continue;
       const plots = plotsResult.value;
       for (const { plotKey, series } of entries) {
-        const plot = plots.find(candidate => candidate.key === plotKey);
+        const plot = plots.find((candidate) => candidate.key === plotKey);
         if (plot) series.setData(plot.data as any);
       }
     }
@@ -261,8 +309,8 @@ export function ChartView({ assetId }: ChartViewProps) {
       const range = getCurrentRange();
       if (range) {
         timeScale?.setVisibleRange({
-          from: range.from / 1000 as Time,
-          to: range.to / 1000 as Time,
+          from: (range.from / 1000) as Time,
+          to: (range.to / 1000) as Time,
         });
       } else {
         timeScale?.fitContent();
@@ -297,13 +345,17 @@ export function ChartView({ assetId }: ChartViewProps) {
       const fromSec = Number(range.from);
       const toSec = Number(range.to);
       if (Number.isNaN(fromSec) || Number.isNaN(toSec)) return;
-      preRangeRef.current = new Interval(Math.floor(fromSec * 1000), Math.ceil(toSec * 1000));
+      preRangeRef.current = new Interval(
+        Math.floor(fromSec * 1000),
+        Math.ceil(toSec * 1000)
+      );
     };
 
     const onPointerUp = (e: PointerEvent) => {
       if (!dragging) return;
       dragging = false;
-      const moved = Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_THRESHOLD;
+      const moved =
+        Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_THRESHOLD;
       if (!moved) return;
       const pre = preRangeRef.current;
       if (!pre) return;
@@ -312,7 +364,10 @@ export function ChartView({ assetId }: ChartViewProps) {
       const fromSec = Number(range.from);
       const toSec = Number(range.to);
       if (Number.isNaN(fromSec) || Number.isNaN(toSec)) return;
-      const post = new Interval(Math.floor(fromSec * 1000), Math.ceil(toSec * 1000));
+      const post = new Interval(
+        Math.floor(fromSec * 1000),
+        Math.ceil(toSec * 1000)
+      );
       const next = pre.movedTo(post);
       if (!next || hasCompleteData(next)) return;
       requestRange(assetId, next);
@@ -367,8 +422,12 @@ export function ChartView({ assetId }: ChartViewProps) {
         disabled={!data}
       />
       <div className="chart-container" ref={containerRef}>
-        {!data && state.selectedAssetId && <div className="chart-placeholder">Loading chart...</div>}
-        {!data && !state.selectedAssetId && <div className="chart-placeholder">Select an asset to view chart</div>}
+        {!data && state.selectedAssetId && (
+          <div className="chart-placeholder">Loading chart...</div>
+        )}
+        {!data && !state.selectedAssetId && (
+          <div className="chart-placeholder">Select an asset to view chart</div>
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { Timeframe } from '../../backtest/timeframe/Timeframe';
+import type { Timeframe } from '../../backtest/timeframe/Timeframe';
 
 export type { Timeframe };
 
@@ -65,7 +65,10 @@ export interface IndicatorSeriesSpec {
   style: IndicatorPlotStyle;
   color: string;
   colorForValue?: (value: number, index: number, candle: PriceData) => string;
-  computeValues: (candles: PriceData[], params: Record<string, number>) => (number | undefined)[];
+  computeValues: (
+    candles: PriceData[],
+    params: Record<string, number>
+  ) => (number | undefined)[];
 }
 
 export interface IndicatorDefinition {
@@ -75,5 +78,8 @@ export interface IndicatorDefinition {
   params: IndicatorParamSpec[];
   lookback: (params: Record<string, number>) => number;
   series: IndicatorSeriesSpec[];
-  computeAll?: (candles: PriceData[], params: Record<string, number>) => Record<string, (number | undefined)[]>;
+  computeAll?: (
+    candles: PriceData[],
+    params: Record<string, number>
+  ) => Record<string, (number | undefined)[]>;
 }

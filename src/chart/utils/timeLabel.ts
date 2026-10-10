@@ -11,8 +11,13 @@ export class TimeLabelFormatter {
   private readonly formatter: Intl.DateTimeFormat;
 
   constructor(timeframe: Timeframe, locale?: string) {
-    const resolvedLocale = locale ?? (typeof navigator !== 'undefined' ? navigator.language : undefined);
-    this.formatter = new Intl.DateTimeFormat(resolvedLocale, this.formatOptionsFor(timeframe));
+    const resolvedLocale =
+      locale ??
+      (typeof navigator !== 'undefined' ? navigator.language : undefined);
+    this.formatter = new Intl.DateTimeFormat(
+      resolvedLocale,
+      this.formatOptionsFor(timeframe)
+    );
   }
 
   private formatOptionsFor(timeframe: Timeframe): Intl.DateTimeFormatOptions {
