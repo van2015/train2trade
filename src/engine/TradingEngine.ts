@@ -40,6 +40,7 @@ export interface Position {
   stopLoss?: number;
   takeProfit?: number;
   entryFee?: number;
+  feeBasis?: number;
 }
 
 export class TradingEngine {
@@ -100,6 +101,7 @@ export class TradingEngine {
       stopLoss: order.stopLoss,
       takeProfit: order.takeProfit,
       entryFee,
+      feeBasis: order.size,
     };
     this.positions.push(position);
     return { success: true, value: position };
@@ -203,7 +205,8 @@ export class TradingEngine {
   closePartial(
     position: Position,
     price: number,
-    sizePercent: number
+    sizePercent: number,
+    exitFee: number = this.takerFeePercent
   ): Result<Position, EngineError> {
     const exit = this.ensurePositive(price, 'INVALID_PRICE');
     if (!exit.success) {
@@ -216,6 +219,7 @@ export class TradingEngine {
       return { success: false, error: 'INVALID_SIZE' };
     }
     const sliceSize = (position.size * sizePercent) / 100;
+    const feeScale = sliceSize / (position.feeBasis ?? position.size);
     const remainder: Position = {
       ...position,
       size: position.size - sliceSize,
@@ -225,7 +229,10 @@ export class TradingEngine {
       size: sliceSize,
       state: 'closed',
       exitPrice: price,
-      pnl: this.calcPnl(position, price),
+      pnl:
+        this.calcPnl(position, price) -
+        (position.entryFee ?? 0) * feeScale -
+        exitFee * feeScale,
     };
     const index = this.positions.indexOf(position);
     if (index >= 0) {
@@ -233,6 +240,10 @@ export class TradingEngine {
     }
     this.positions.push(slice);
     return { success: true, value: slice };
+  }
+
+  private feeScale(position: Position): number {
+    return position.size / (position.feeBasis ?? position.size);
   }
 
   private closeWithFee(
@@ -251,7 +262,10 @@ export class TradingEngine {
       ...position,
       state: 'closed',
       exitPrice: price,
-      pnl: this.calcPnl(position, price) - (position.entryFee ?? 0) - exitFee,
+      pnl:
+        this.calcPnl(position, price) -
+        (position.entryFee ?? 0) * this.feeScale(position) -
+        exitFee * this.feeScale(position),
     };
     const index = this.positions.indexOf(position);
     if (index >= 0) {

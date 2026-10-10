@@ -586,4 +586,16 @@ describe('TradingEngine', () => {
     expect(position.state).toBe('open');
     expect(engine.openPositions).toHaveLength(1);
   });
+
+  it('splits fees proportionally on partial close', () => {
+    const engine = new TradingEngine({ takerFeePercent: 1 });
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 2 }));
+
+    const slice = unwrap(engine.closePartial(position, 110, 50));
+
+    expect(slice.pnl).toBe(9);
+    const remainder = engine.openPositions[0];
+    expect(unwrap(engine.close(remainder, 110)).pnl).toBe(9);
+    expect(engine.totalPnl).toBe(18);
+  });
 });
