@@ -200,6 +200,38 @@ export class TradingEngine {
     return this.closeWithFee(position, price, this.takerFeePercent);
   }
 
+  closePartial(
+    position: Position,
+    price: number,
+    sizePercent: number
+  ): Result<Position, EngineError> {
+    const exit = this.ensurePositive(price, 'INVALID_PRICE');
+    if (!exit.success) {
+      return exit;
+    }
+    if (position.state !== 'open') {
+      return { success: false, error: 'POSITION_NOT_OPEN' };
+    }
+    const sliceSize = (position.size * sizePercent) / 100;
+    const remainder: Position = {
+      ...position,
+      size: position.size - sliceSize,
+    };
+    const slice: Position = {
+      ...position,
+      size: sliceSize,
+      state: 'closed',
+      exitPrice: price,
+      pnl: this.calcPnl(position, price),
+    };
+    const index = this.positions.indexOf(position);
+    if (index >= 0) {
+      this.positions[index] = remainder;
+    }
+    this.positions.push(slice);
+    return { success: true, value: slice };
+  }
+
   private closeWithFee(
     position: Position,
     price: number,

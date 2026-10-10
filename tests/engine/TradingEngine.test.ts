@@ -553,4 +553,22 @@ describe('TradingEngine', () => {
     expect(engine.checkEntries(94)).toHaveLength(0);
     expect(engine.cancelLimitOrder(order)).toBe(false);
   });
+
+  it('closes only part of a position, leaving the remainder open', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 2 }));
+
+    const slice = unwrap(engine.closePartial(position, 110, 50));
+
+    expect(slice.size).toBe(1);
+    expect(slice.exitPrice).toBe(110);
+    expect(slice.pnl).toBe(10);
+    expect(slice.state).toBe('closed');
+    expect(engine.openPositions).toHaveLength(1);
+    expect(engine.openPositions[0].size).toBe(1);
+    expect(engine.openPositions[0].state).toBe('open');
+    expect(engine.openPositions[0].exitPrice).toBeUndefined();
+    expect(engine.closedPositions).toHaveLength(1);
+    expect(engine.totalPnl).toBe(10);
+  });
 });
