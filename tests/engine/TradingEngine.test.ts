@@ -259,4 +259,27 @@ describe('TradingEngine', () => {
     expect(expectError(belowEntry)).toBe('INVALID_STOP_LOSS');
     expect(engine.openPositions).toHaveLength(0);
   });
+
+  it('rejects opening a long with a take profit at or below the entry price', () => {
+    const engine = new TradingEngine();
+
+    const atEntry = engine.open({
+      side: 'long',
+      price: 100,
+      size: 1,
+      takeProfit: 100,
+    });
+    const belowEntry = engine.open({
+      side: 'long',
+      price: 100,
+      size: 1,
+      takeProfit: 95,
+    });
+
+    expect(atEntry.success).toBe(false);
+    expect(expectError(atEntry)).toBe('INVALID_TAKE_PROFIT');
+    expect(belowEntry.success).toBe(false);
+    expect(expectError(belowEntry)).toBe('INVALID_TAKE_PROFIT');
+    expect(engine.openPositions).toHaveLength(0);
+  });
 });

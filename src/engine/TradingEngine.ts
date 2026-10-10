@@ -6,6 +6,7 @@ export type EngineError =
   | 'INVALID_PRICE'
   | 'INVALID_SIZE'
   | 'INVALID_STOP_LOSS'
+  | 'INVALID_TAKE_PROFIT'
   | 'POSITION_NOT_OPEN';
 
 export interface OpenOrder {
@@ -81,6 +82,13 @@ export class TradingEngine {
       if (invalidStop) {
         return { success: false, error: 'INVALID_STOP_LOSS' };
       }
+    }
+    if (
+      order.side === 'long' &&
+      order.takeProfit !== undefined &&
+      order.takeProfit <= order.price
+    ) {
+      return { success: false, error: 'INVALID_TAKE_PROFIT' };
     }
     return { success: true, value: undefined };
   }
