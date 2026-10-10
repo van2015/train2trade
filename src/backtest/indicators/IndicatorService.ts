@@ -10,6 +10,7 @@ import {
 import { Timeframe } from '../timeframe/Timeframe';
 import { Result } from '../../shared/types/Result';
 import { IndicatorError } from '../types/IndicatorError';
+import { normalizeParams as normalizeParamValues } from '../../shared/utils/normalizeParams';
 
 type Values = (number | undefined)[];
 
@@ -384,13 +385,7 @@ export class IndicatorDefinitionRegistry {
     definition: IndicatorDefinition,
     params: Record<string, number>
   ): Record<string, number> {
-    const normalized: Record<string, number> = {};
-    for (const spec of definition.params) {
-      const value = params?.[spec.key];
-      const numeric = typeof value === 'number' && Number.isFinite(value) ? value : spec.default;
-      normalized[spec.key] = spec.min !== undefined ? Math.max(spec.min, numeric) : numeric;
-    }
-    return normalized;
+    return normalizeParamValues(definition.params, params);
   }
 
   getIndicatorGroups(): {

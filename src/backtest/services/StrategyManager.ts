@@ -12,6 +12,7 @@ import { computeSeries } from '../../backtest/indicators/IndicatorService';
 import { Side } from '../types/TradeEnums';
 import { StrategyError } from '../types/StrategyError';
 import { Result } from '../../shared/types/Result';
+import { normalizeParams } from '../../shared/utils/normalizeParams';
 
 export class StrategyManager {
   private static instance: StrategyManager;
@@ -44,13 +45,7 @@ export class StrategyManager {
     definition: StrategyDefinition,
     params: Record<string, number>
   ): Record<string, number> {
-    const normalized: Record<string, number> = {};
-    for (const spec of definition.params) {
-      const value = params?.[spec.key];
-      const numeric = typeof value === 'number' && Number.isFinite(value) ? value : spec.default;
-      normalized[spec.key] = spec.min !== undefined ? Math.max(spec.min, numeric) : numeric;
-    }
-    return normalized;
+    return normalizeParams(definition.params, params);
   }
 
   resolveStrategy(
