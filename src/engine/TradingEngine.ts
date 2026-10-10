@@ -83,12 +83,14 @@ export class TradingEngine {
         return { success: false, error: 'INVALID_STOP_LOSS' };
       }
     }
-    if (
-      order.side === 'long' &&
-      order.takeProfit !== undefined &&
-      order.takeProfit <= order.price
-    ) {
-      return { success: false, error: 'INVALID_TAKE_PROFIT' };
+    if (order.takeProfit !== undefined) {
+      const invalidTakeProfit =
+        order.side === 'long'
+          ? order.takeProfit <= order.price
+          : order.takeProfit >= order.price;
+      if (invalidTakeProfit) {
+        return { success: false, error: 'INVALID_TAKE_PROFIT' };
+      }
     }
     return { success: true, value: undefined };
   }
