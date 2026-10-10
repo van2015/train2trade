@@ -142,23 +142,23 @@ class AppPresenter {
     if (!result.success) {
       const error: AppPresenterError = {
         type: 'VALIDATION_FAILED',
-        message: result.error?.message || 'Validation failed',
+        message: result.error.message || 'Validation failed',
       };
       this.error = error;
       this.notify();
       return { success: false, error };
     }
 
-    if (result.warnings && result.warnings.length > 0) {
-      this.warnings = result.warnings;
+    if (result.value.warnings.length > 0) {
+      this.warnings = result.value.warnings;
     }
 
     const assetName = name || file.name.replace(/\.[^.]+$/, '');
     try {
       await this.assetService.save(
         assetName,
-        result.data!,
-        result.detectedTimeframe!
+        result.value.data,
+        result.value.detectedTimeframe!
       );
       await this.loadAssets();
       return { success: true, value: undefined };

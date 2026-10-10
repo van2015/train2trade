@@ -8,3 +8,10 @@ export function unwrap<T, E>(result: Result<T, E>): T {
   }
   return result.value;
 }
+
+export function expectError<T, E>(result: Result<T, E>): E {
+  if (result.success) {
+    throw new Error('Expected failure but got success');
+  }
+  return result.error;
+}

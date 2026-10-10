@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateAndParse } from '../../src/shared/services/ValidationService';
+import { expectError, unwrap } from '../test-helpers/unwrap';
 
 describe('ValidationService', () => {
   describe('CSV parsing', () => {
@@ -9,9 +10,9 @@ describe('ValidationService', () => {
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
-      expect(result.data).toHaveLength(2);
-      expect(result.data?.[0].open).toBe(100);
-      expect(result.data?.[0].high).toBe(105);
+      expect(unwrap(result).data).toHaveLength(2);
+      expect(unwrap(result).data[0].open).toBe(100);
+      expect(unwrap(result).data[0].high).toBe(105);
     });
 
     it('rejects CSV missing required field', () => {
@@ -19,7 +20,7 @@ describe('ValidationService', () => {
 2024-01-01T00:00:00Z,100,105,102,1000`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Missing required field');
+      expect(expectError(result).message).toContain('Missing required field');
     });
 
     it('accepts CSV with exactly 2 rows', () => {
@@ -49,7 +50,7 @@ malformed row
 2024-01-01T00:02:00Z,100,105,98,102,1000`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
-      expect(result.data).toHaveLength(2);
+      expect(unwrap(result).data).toHaveLength(2);
     });
 
     it('handles CSV with extra columns', () => {
@@ -58,7 +59,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200,ignored`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
-      expect(result.data).toHaveLength(2);
+      expect(unwrap(result).data).toHaveLength(2);
     });
   });
 
@@ -84,14 +85,14 @@ malformed row
       ]);
       const result = validateAndParse(json, 'data.json');
       expect(result.success).toBe(true);
-      expect(result.data).toHaveLength(2);
+      expect(unwrap(result).data).toHaveLength(2);
     });
 
     it('rejects invalid JSON', () => {
       const json = `{ not valid json`;
       const result = validateAndParse(json, 'data.json');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toBe('Invalid JSON format');
+      expect(expectError(result).message).toBe('Invalid JSON format');
     });
 
     it('rejects non-array JSON root', () => {
@@ -105,7 +106,9 @@ malformed row
       });
       const result = validateAndParse(json, 'data.json');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toBe('JSON must be an array of price data');
+      expect(expectError(result).message).toBe(
+        'JSON must be an array of price data'
+      );
     });
 
     it('rejects JSON array with missing fields', () => {
@@ -114,7 +117,7 @@ malformed row
       ]);
       const result = validateAndParse(json, 'data.json');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain(
+      expect(expectError(result).message).toContain(
         'Each item must have date, open, high, low, close, volume'
       );
     });
@@ -127,7 +130,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Negative price value');
+      expect(expectError(result).message).toContain('Negative price value');
     });
 
     it('rejects negative high price', () => {
@@ -136,7 +139,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Negative price value');
+      expect(expectError(result).message).toContain('Negative price value');
     });
 
     it('rejects negative low price', () => {
@@ -145,7 +148,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Negative price value');
+      expect(expectError(result).message).toContain('Negative price value');
     });
 
     it('rejects negative close price', () => {
@@ -154,7 +157,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Negative price value');
+      expect(expectError(result).message).toContain('Negative price value');
     });
 
     it('rejects high less than low', () => {
@@ -163,7 +166,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('High is less than Low');
+      expect(expectError(result).message).toContain('High is less than Low');
     });
 
     it('rejects duplicate timestamps', () => {
@@ -172,8 +175,10 @@ malformed row
 2024-01-01T00:00:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.type).toBe('DUPLICATE_TIMESTAMP');
-      expect(result.error?.message).toContain('Duplicate timestamps found');
+      expect(expectError(result).type).toBe('DUPLICATE_TIMESTAMP');
+      expect(expectError(result).message).toContain(
+        'Duplicate timestamps found'
+      );
     });
 
     it('rejects unordered timestamps', () => {
@@ -182,8 +187,10 @@ malformed row
 2024-01-01T00:00:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.type).toBe('UNORDERED');
-      expect(result.error?.message).toContain('Data is not ordered by date');
+      expect(expectError(result).type).toBe('UNORDERED');
+      expect(expectError(result).message).toContain(
+        'Data is not ordered by date'
+      );
     });
 
     it('rejects NaN values', () => {
@@ -192,7 +199,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Invalid number');
+      expect(expectError(result).message).toContain('Invalid number');
     });
 
     it('rejects Infinity values', () => {
@@ -201,7 +208,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Invalid number');
+      expect(expectError(result).message).toContain('Invalid number');
     });
 
     it('rejects invalid volume (NaN)', () => {
@@ -210,7 +217,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Invalid volume');
+      expect(expectError(result).message).toContain('Invalid volume');
     });
   });
 
@@ -223,8 +230,10 @@ malformed row
 2024-01-01T00:06:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
-      expect(result.warnings).toBeDefined();
-      expect(result.warnings?.some((w) => w.includes('gaps'))).toBe(true);
+      expect(unwrap(result).warnings).toBeDefined();
+      expect(unwrap(result).warnings.some((w) => w.includes('gaps'))).toBe(
+        true
+      );
     });
 
     it('returns warning when timeframe confidence is low', () => {
@@ -235,9 +244,11 @@ malformed row
 2024-01-01T12:00:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
-      expect(result.warnings).toBeDefined();
+      expect(unwrap(result).warnings).toBeDefined();
       expect(
-        result.warnings?.some((w) => w.includes('Could not detect timeframe'))
+        unwrap(result).warnings.some((w) =>
+          w.includes('Could not detect timeframe')
+        )
       ).toBe(true);
     });
 
@@ -248,7 +259,7 @@ malformed row
 2024-01-01T00:02:00Z,104,110,102,106,1300`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
-      expect(result.warnings).toEqual([]);
+      expect(unwrap(result).warnings).toEqual([]);
     });
 
     it('includes detectedTimeframe in result', () => {
@@ -257,7 +268,7 @@ malformed row
 2024-01-01T00:01:00Z,102,108,100,105,1200`;
       const result = validateAndParse(csv, 'data.csv');
       expect(result.success).toBe(true);
-      expect(result.detectedTimeframe).toBe('1m');
+      expect(unwrap(result).detectedTimeframe).toBe('1m');
     });
   });
 });
