@@ -253,8 +253,8 @@ export class TradingEngine {
     const index = this.positions.indexOf(position);
     if (index >= 0) {
       this.positions[index] = remainder;
+      this.positions.push(slice);
     }
-    this.positions.push(slice);
     return { success: true, value: slice };
   }
 

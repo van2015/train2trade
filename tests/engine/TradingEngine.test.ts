@@ -611,4 +611,16 @@ describe('TradingEngine', () => {
     expect(engine.openPositions).toHaveLength(0);
     expect(engine.closedPositions).toHaveLength(1);
   });
+
+  it('ignores a partial close on a stale position reference', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+    unwrap(engine.close(position, 110));
+
+    engine.closePartial(position, 120, 50);
+
+    expect(engine.closedPositions).toHaveLength(1);
+    expect(engine.totalPnl).toBe(10);
+    expect(engine.openPositions).toHaveLength(0);
+  });
 });
