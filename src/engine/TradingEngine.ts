@@ -178,6 +178,14 @@ export class TradingEngine {
   }
 
   close(position: Position, price: number): Result<Position, EngineError> {
+    return this.closeWithFee(position, price, this.takerFeePercent);
+  }
+
+  private closeWithFee(
+    position: Position,
+    price: number,
+    exitFee: number
+  ): Result<Position, EngineError> {
     const exit = this.ensurePositive(price, 'INVALID_PRICE');
     if (!exit.success) {
       return exit;
@@ -189,10 +197,7 @@ export class TradingEngine {
       ...position,
       state: 'closed',
       exitPrice: price,
-      pnl:
-        this.calcPnl(position, price) -
-        (position.entryFee ?? 0) -
-        this.takerFeePercent,
+      pnl: this.calcPnl(position, price) - (position.entryFee ?? 0) - exitFee,
     };
     const index = this.positions.indexOf(position);
     if (index >= 0) {
@@ -202,11 +207,14 @@ export class TradingEngine {
   }
 
   closeAll(price: number): Position[] {
-    return this.closeEach(() => price);
+    return this.closeEach(() => price, this.takerFeePercent);
   }
 
   checkExits(price: number): Position[] {
-    return this.closeEach((position) => this.exitPriceAt(position, price));
+    return this.closeEach(
+      (position) => this.exitPriceAt(position, price),
+      this.makerFeePercent
+    );
   }
 
   onPrice(price: number): { entries: Position[]; exits: Position[] } {
@@ -216,13 +224,14 @@ export class TradingEngine {
   }
 
   private closeEach(
-    locateExit: (position: Position) => number | null
+    locateExit: (position: Position) => number | null,
+    exitFee: number
   ): Position[] {
     const closed: Position[] = [];
     for (const position of this.openPositions) {
       const exitPrice = locateExit(position);
       if (exitPrice !== null) {
-        const result = this.close(position, exitPrice);
+        const result = this.closeWithFee(position, exitPrice, exitFee);
         if (result.success) {
           closed.push(result.value);
         }

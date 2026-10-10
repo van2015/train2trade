@@ -506,4 +506,21 @@ describe('TradingEngine', () => {
     expect(closed.pnl).toBe(8);
     expect(engine.totalPnl).toBe(8);
   });
+
+  it('deducts the maker fee when a stop loss closes the position', () => {
+    const engine = new TradingEngine({
+      makerFeePercent: 0.5,
+      takerFeePercent: 1,
+    });
+    const position = unwrap(
+      engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 })
+    );
+
+    const exited = engine.checkExits(94);
+
+    expect(exited).toHaveLength(1);
+    expect(exited[0].pnl).toBe(-6.5);
+    expect(position.state).toBe('open');
+    expect(engine.totalPnl).toBe(-6.5);
+  });
 });
