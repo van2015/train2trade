@@ -397,4 +397,18 @@ describe('TradingEngine', () => {
     expect(engine.pendingOrders).toHaveLength(1);
     expect(engine.openPositions).toHaveLength(0);
   });
+
+  it('rejects a limit order with a non-positive price', () => {
+    const engine = new TradingEngine();
+
+    const result = engine.placeLimitOrder({
+      side: 'long',
+      limitPrice: 0,
+      size: 1,
+    });
+
+    expect(result.success).toBe(false);
+    expect(expectError(result)).toBe('INVALID_PRICE');
+    expect(engine.pendingOrders).toHaveLength(0);
+  });
 });

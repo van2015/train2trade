@@ -85,6 +85,16 @@ export class TradingEngine {
   }
 
   placeLimitOrder(order: PendingOrder): Result<PendingOrder, EngineError> {
+    const valid = this.validateOrder({
+      side: order.side,
+      price: order.limitPrice,
+      size: order.size,
+      stopLoss: order.stopLoss,
+      takeProfit: order.takeProfit,
+    });
+    if (!valid.success) {
+      return valid;
+    }
     this.pending.push(order);
     return { success: true, value: order };
   }
