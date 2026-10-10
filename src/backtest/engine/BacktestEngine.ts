@@ -171,16 +171,7 @@ export class BacktestEngine {
   }
 
   private applyPartialClose(trade: Trade, closedSize: number, beforePnl: number, portion: number, time: number, finalize: boolean): void {
-    const fees = this.tradeFees.get(trade.id);
-    const entryPortion = fees ? fees.entryRemaining * portion : 0;
-    const exitFee = this.broker.commission(closedSize);
-
-    if (fees) {
-      fees.entryRemaining -= entryPortion;
-      fees.exitTotal += exitFee;
-    }
-    this.broker.releaseMargin(closedSize, trade.averageEntry);
-    this.broker.applyRealizedPnl(trade.realizedPnl - beforePnl - entryPortion - exitFee);
+    this.settleFees(trade, closedSize, portion, beforePnl);
 
     if (finalize) {
       this.finalizeTrade(trade, time);
@@ -291,28 +282,23 @@ export class BacktestEngine {
       closedAt: time,
     });
 
-    this.trades.delete(trade.id);
-    this.tradeSpecs.delete(trade.id);
-    this.tradeFees.delete(trade.id);
-    this.tradeOpenedAt.delete(trade.id);
-    this.ruleState.delete(trade.id);
+    this.clearTradeState(trade.id);
+  }
+
+  private clearTradeState(id: string): void {
+    this.trades.delete(id);
+    this.tradeSpecs.delete(id);
+    this.tradeFees.delete(id);
+    this.tradeOpenedAt.delete(id);
+    this.ruleState.delete(id);
   }
 
   private closeTrade(trade: Trade, price: number, time: number): void {
     const size = trade.size;
-    const fees = this.tradeFees.get(trade.id);
-    const entryPortion = fees ? fees.entryRemaining : 0;
-    const exitFee = this.broker.commission(size);
     const before = trade.realizedPnl;
 
     trade.close(size, price);
-
-    if (fees) {
-      fees.entryRemaining -= entryPortion;
-      fees.exitTotal += exitFee;
-    }
-    this.broker.releaseMargin(size, trade.averageEntry);
-    this.broker.applyRealizedPnl(trade.realizedPnl - before - entryPortion - exitFee);
+    this.settleFees(trade, size, 1, before);
 
     this.finalizeTrade(trade, time);
   }
@@ -321,19 +307,10 @@ export class BacktestEngine {
     const reduceSize = trade.size * portion;
     if (reduceSize <= 0) return;
 
-    const fees = this.tradeFees.get(trade.id);
-    const entryPortion = fees ? fees.entryRemaining * portion : 0;
-    const exitFee = this.broker.commission(reduceSize);
     const before = trade.realizedPnl;
 
     trade.close(reduceSize, price);
-
-    if (fees) {
-      fees.entryRemaining -= entryPortion;
-      fees.exitTotal += exitFee;
-    }
-    this.broker.releaseMargin(reduceSize, trade.averageEntry);
-    this.broker.applyRealizedPnl(trade.realizedPnl - before - entryPortion - exitFee);
+    this.settleFees(trade, reduceSize, portion, before);
 
     if (trade.state === TradeState.Closed) {
       this.finalizeTrade(trade, time);
@@ -342,11 +319,7 @@ export class BacktestEngine {
 
   private invalidateTrade(trade: Trade, time: number, reason: string): void {
     this.broker.releaseMargin(trade.size, trade.averageEntry);
-    this.trades.delete(trade.id);
-    this.tradeSpecs.delete(trade.id);
-    this.tradeFees.delete(trade.id);
-    this.tradeOpenedAt.delete(trade.id);
-    this.ruleState.delete(trade.id);
+    this.clearTradeState(trade.id);
     this.invalidated.push({ id: trade.id, side: trade.side, reason, at: time });
   }
 
@@ -400,6 +373,19 @@ export class BacktestEngine {
       breakEvenDone: false,
       partialsTriggered: entry.spec.rules.map(() => false),
     });
+  }
+
+  private settleFees(trade: Trade, closedSize: number, portion: number, beforePnl: number): void {
+    const fees = this.tradeFees.get(trade.id);
+    const entryPortion = fees ? fees.entryRemaining * portion : 0;
+    const exitFee = this.broker.commission(closedSize);
+
+    if (fees) {
+      fees.entryRemaining -= entryPortion;
+      fees.exitTotal += exitFee;
+    }
+    this.broker.releaseMargin(closedSize, trade.averageEntry);
+    this.broker.applyRealizedPnl(trade.realizedPnl - beforePnl - entryPortion - exitFee);
   }
 
   private unrealizedPnl(trade: Trade, price: number): number {
