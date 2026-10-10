@@ -10,7 +10,7 @@ describe('AppPresenter', () => {
   let presenter: AppPresenter;
 
   beforeEach(() => {
-    (globalThis as any).indexedDB = new IDBFactory();
+    Reflect.set(globalThis, 'indexedDB', new IDBFactory());
     localStorage.clear();
     vi.restoreAllMocks();
     AssetService.getInstance().clearCache();
@@ -145,7 +145,7 @@ describe('AppPresenter', () => {
       await presenter.requestRange('asset1', new Interval(2000, 5000));
 
       expect(fetchSpy).toHaveBeenCalledWith('asset1', expect.any(Number), 1000);
-      expect((presenter as any).loadedRange).not.toBeNull();
+      expect(Reflect.get(presenter, 'loadedRange')).not.toBeNull();
     });
   });
 
@@ -189,7 +189,9 @@ describe('AppPresenter', () => {
     it('persists active indicators to localStorage', async () => {
       await presenter.addIndicator('macd');
 
-      const stored = JSON.parse(localStorage.getItem('activeIndicators')!);
+      const stored = JSON.parse(
+        localStorage.getItem('activeIndicators') ?? '[]'
+      );
       expect(stored).toHaveLength(1);
       expect(stored[0].indicatorId).toBe('macd');
     });
@@ -205,7 +207,7 @@ describe('AppPresenter', () => {
         ])
       );
 
-      (presenter as any).loadIndicatorsFromStorage();
+      presenter.loadIndicatorsFromStorage();
 
       const active = presenter.getActiveIndicators();
       expect(active).toHaveLength(1);

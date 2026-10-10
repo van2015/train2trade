@@ -179,6 +179,11 @@ body {
   color: white;
 }
 
+.asset-data-count {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
 .asset-item.selected .asset-data-count {
   color: rgba(255, 255, 255, 0.8);
 }
@@ -194,11 +199,6 @@ body {
   font-family: inherit;
   font-size: inherit;
   text-align: left;
-}
-
-.asset-data-count {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
 }
 
 .delete-btn {

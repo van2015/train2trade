@@ -158,7 +158,7 @@ class AppPresenter {
       await this.assetService.save(
         assetName,
         result.value.data,
-        result.value.detectedTimeframe!
+        result.value.detectedTimeframe
       );
       await this.loadAssets();
       return { success: true, value: undefined };

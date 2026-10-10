@@ -81,7 +81,8 @@ export class TimeframeAggregator {
 
     for (let i = 0; i < sortedStarts.length; i++) {
       const start = sortedStarts[i];
-      const bucket = buckets.get(start)!;
+      const bucket = buckets.get(start);
+      if (!bucket) continue;
       const previousEnd = i > 0 ? sortedStarts[i - 1] + targetSpan : start;
       const date = Math.max(start, previousEnd);
 

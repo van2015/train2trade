@@ -31,7 +31,7 @@ describe('IndexedDbAssetChartRepository', () => {
   let repo: IndexedDbAssetChartRepository;
 
   beforeEach(() => {
-    (globalThis as any).indexedDB = new IDBFactory();
+    Reflect.set(globalThis, 'indexedDB', new IDBFactory());
     repo = IndexedDbAssetChartRepository.getInstance();
   });
 

@@ -13,12 +13,13 @@ export function openDatabase(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result);
 
     request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      const tx = (event.target as IDBOpenDBRequest).transaction!;
+      const target = event.target as IDBOpenDBRequest;
+      const db = target.result;
+      const tx = target.transaction;
 
       if (!db.objectStoreNames.contains(ASSETS_STORE)) {
         db.createObjectStore(ASSETS_STORE, { keyPath: 'id' });
-      } else {
+      } else if (tx) {
         const store = tx.objectStore(ASSETS_STORE);
         if (!store.indexNames.contains('originalTimeframe')) {
           store.createIndex('originalTimeframe', 'originalTimeframe', {

@@ -308,7 +308,8 @@ describe('AssetService', () => {
       service.addRangeData('asset1', buildSamples(10000, 0));
       service.addRangeData('asset1', buildSamples(100, 10000 * 60000));
 
-      const result = service.priceSample('asset1', '1m', '1m')!;
+      const result = service.priceSample('asset1', '1m', '1m');
+      if (!result) throw new Error('expected price sample');
       expect(result).toHaveLength(10100);
       expect(new Date(result[0].date).getTime()).toBe(0);
       expect(new Date(result[result.length - 1].date).getTime()).toBe(

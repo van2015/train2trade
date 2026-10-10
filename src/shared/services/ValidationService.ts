@@ -17,7 +17,7 @@ export interface ValidationError {
 export interface ParseSuccess {
   data: PriceData[];
   warnings: string[];
-  detectedTimeframe?: TimeframeType;
+  detectedTimeframe: TimeframeType;
 }
 
 export type ParseResult = Result<ParseSuccess, ValidationError>;
@@ -379,7 +379,7 @@ export class DataValidator {
 
   private detectTimeframeAndGaps(data: PriceData[]): {
     warnings: string[];
-    detectedTimeframe?: TimeframeType;
+    detectedTimeframe: TimeframeType;
   } {
     const gaps = Timeframe.detectGaps(data);
     const warnings: string[] = [];

@@ -50,25 +50,25 @@ export class AppPresenterBuilder {
   }
 
   static destroy(): void {
-    (AppPresenter as any).instance = null;
+    Object.assign(AppPresenter, { instance: null });
   }
 
   build(): AppPresenter {
     AppPresenterBuilder.destroy();
     const presenter = AppPresenter.getInstance();
-    if (this.assets !== null) (presenter as any).assets = this.assets;
+    if (this.assets !== null) Object.assign(presenter, { assets: this.assets });
     if (this.loadedRange !== null)
-      (presenter as any).loadedRange = this.loadedRange;
+      Object.assign(presenter, { loadedRange: this.loadedRange });
     if (this.lastSampleTime !== null)
-      (presenter as any).lastSampleTime = this.lastSampleTime;
+      Object.assign(presenter, { lastSampleTime: this.lastSampleTime });
     if (this.selectedTimeframe !== null)
-      (presenter as any).selectedTimeframe = this.selectedTimeframe;
+      Object.assign(presenter, { selectedTimeframe: this.selectedTimeframe });
     if (this.activeIndicators !== null)
-      (presenter as any).activeIndicators = this.activeIndicators;
+      Object.assign(presenter, { activeIndicators: this.activeIndicators });
     if (this.selectedAssetId !== null)
-      (presenter as any).selectedAssetId = this.selectedAssetId;
+      Object.assign(presenter, { selectedAssetId: this.selectedAssetId });
     if (this.currentRange !== null)
-      (presenter as any).currentRange = this.currentRange;
+      Object.assign(presenter, { currentRange: this.currentRange });
     return presenter;
   }
 }

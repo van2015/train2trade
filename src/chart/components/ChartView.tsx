@@ -37,6 +37,8 @@ function parseTime(dateStr: string): Time {
   return Math.floor(date.getTime() / 1000) as Time;
 }
 
+type SeriesData = Parameters<ISeriesApi<SeriesType>['setData']>[0];
+
 function toLineData(data: PriceData[]): LineData<Time>[] {
   return data.map((d) => ({
     time: parseTime(d.date),
@@ -64,7 +66,7 @@ function toBarData(data: PriceData[]): BarData<Time>[] {
   }));
 }
 
-function transformChartData(type: ChartType, data: PriceData[]): unknown[] {
+function transformChartData(type: ChartType, data: PriceData[]): SeriesData {
   switch (type) {
     case 'line':
       return toLineData(data);
@@ -287,7 +289,7 @@ export function ChartView({ assetId }: ChartViewProps) {
   useEffect(() => {
     if (!seriesRef.current || !data) return;
 
-    seriesRef.current.setData(transformChartData(state.chartType, data) as any);
+    seriesRef.current.setData(transformChartData(state.chartType, data));
 
     for (const [instanceKey, entries] of indicatorSeriesRef.current) {
       const instance = state.activeIndicators.find(
@@ -299,7 +301,7 @@ export function ChartView({ assetId }: ChartViewProps) {
       const plots = plotsResult.value;
       for (const { plotKey, series } of entries) {
         const plot = plots.find((candidate) => candidate.key === plotKey);
-        if (plot) series.setData(plot.data as any);
+        if (plot) series.setData(plot.data as SeriesData);
       }
     }
 

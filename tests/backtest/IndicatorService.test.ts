@@ -15,6 +15,11 @@ import type {
 } from '../../src/shared/types/asset';
 import { SamplePriceBuilder } from '../test-helpers/samplePriceBuilder';
 
+function must<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('Expected value to be defined');
+  return value;
+}
+
 function candles(
   closes: number[],
   volumes?: number[],
@@ -108,9 +113,9 @@ describe('IndicatorService', () => {
         'middle',
         'lower',
       ]);
-      const middle = plots.find((plot) => plot.key === 'middle')!;
-      const upper = plots.find((plot) => plot.key === 'upper')!;
-      const lower = plots.find((plot) => plot.key === 'lower')!;
+      const middle = must(plots.find((plot) => plot.key === 'middle'));
+      const upper = must(plots.find((plot) => plot.key === 'upper'));
+      const lower = must(plots.find((plot) => plot.key === 'lower'));
 
       expect(middle.data[2].value).toBeCloseTo(2);
       expect(upper.data[2].value).toBeCloseTo(3.633, 2);
@@ -135,9 +140,11 @@ describe('IndicatorService', () => {
         candles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
       );
 
-      const macdPlot = plots.find((plot) => plot.key === 'macd')!;
-      const signalPlot = plots.find((plot) => plot.key === 'signal')!;
-      const histogramPlot = plots.find((plot) => plot.key === 'histogram')!;
+      const macdPlot = must(plots.find((plot) => plot.key === 'macd'));
+      const signalPlot = must(plots.find((plot) => plot.key === 'signal'));
+      const histogramPlot = must(
+        plots.find((plot) => plot.key === 'histogram')
+      );
 
       expect(macdPlot.data[0].value).toBeUndefined();
       expect(macdPlot.data[1].value).toBeUndefined();
@@ -258,7 +265,9 @@ describe('IndicatorService', () => {
         { fast: 2, slow: 3, signal: 2 },
         SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
       );
-      const histogram = macdSeries.find((entry) => entry.key === 'histogram')!;
+      const histogram = must(
+        macdSeries.find((entry) => entry.key === 'histogram')
+      );
       expect(histogram.values[3]).toBeCloseTo(0);
     });
   });
@@ -324,7 +333,7 @@ describe('IndicatorService', () => {
     });
 
     it('normalizes params against defaults and minimums', () => {
-      const definition = getDefinition('sma')!;
+      const definition = must(getDefinition('sma'));
 
       expect(normalizeParams(definition, {})).toEqual({ period: 20 });
       expect(normalizeParams(definition, { period: 0 })).toEqual({ period: 1 });
