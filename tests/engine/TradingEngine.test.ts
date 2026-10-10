@@ -700,4 +700,40 @@ describe('TradingEngine', () => {
     expect(engine.openPositions[0].size).toBe(1.5);
     expect(engine.openPositions[0].exitLevels).toEqual([]);
   });
+
+  it('fills multiple levels across ticks', () => {
+    const engine = new TradingEngine();
+    unwrap(
+      engine.open({
+        side: 'long',
+        price: 100,
+        size: 2,
+        exitLevels: [
+          { kind: 'tp', price: 110, sizePercent: 50 },
+          { kind: 'tp', price: 120, sizePercent: 50 },
+        ],
+      })
+    );
+
+    const first = engine.checkExits(110);
+
+    expect(first).toHaveLength(1);
+    expect(first[0].size).toBe(1);
+    expect(first[0].exitPrice).toBe(110);
+    expect(first[0].pnl).toBe(10);
+    expect(engine.openPositions[0].size).toBe(1);
+    expect(engine.openPositions[0].exitLevels).toEqual([
+      { kind: 'tp', price: 120, sizePercent: 50 },
+    ]);
+
+    const second = engine.checkExits(120);
+
+    expect(second).toHaveLength(1);
+    expect(second[0].size).toBe(0.5);
+    expect(second[0].exitPrice).toBe(120);
+    expect(second[0].pnl).toBe(20);
+    expect(engine.openPositions[0].size).toBe(0.5);
+    expect(engine.openPositions[0].exitLevels).toEqual([]);
+    expect(engine.totalPnl).toBe(30);
+  });
 });
