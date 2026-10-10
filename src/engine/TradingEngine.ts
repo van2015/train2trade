@@ -280,8 +280,8 @@ export class TradingEngine {
         exitPrice: price,
         pnl:
           this.calcPnl(position, price) -
-          (position.entryFee ?? 0) * this.feeScale(position) -
-          exitFee * this.feeScale(position),
+          (position.entryFee ?? 0) * this.feeScale(position, position.size) -
+          exitFee * this.feeScale(position, position.size),
       };
       const index = this.positions.indexOf(position);
       if (index >= 0) {
@@ -290,14 +290,6 @@ export class TradingEngine {
       return { success: true, value: closed };
     }
     const sliceSize = (position.size * sizePercent) / 100;
-    const feeScale = sliceSize / (position.feeBasis ?? position.size);
-    const remainder: Position = {
-      ...position,
-      size: position.size - sliceSize,
-      exitLevels: excludeFromRemainder
-        ? position.exitLevels?.filter((l) => l !== excludeFromRemainder)
-        : position.exitLevels,
-    };
     const slice: Position = {
       ...position,
       size: sliceSize,
@@ -305,8 +297,15 @@ export class TradingEngine {
       exitPrice: price,
       pnl:
         this.calcPnl(position, price) -
-        (position.entryFee ?? 0) * feeScale -
-        exitFee * feeScale,
+        (position.entryFee ?? 0) * this.feeScale(position, sliceSize) -
+        exitFee * this.feeScale(position, sliceSize),
+    };
+    const remainder: Position = {
+      ...position,
+      size: position.size - sliceSize,
+      exitLevels: excludeFromRemainder
+        ? position.exitLevels?.filter((l) => l !== excludeFromRemainder)
+        : position.exitLevels,
     };
     const index = this.positions.indexOf(position);
     if (index >= 0) {
@@ -316,8 +315,8 @@ export class TradingEngine {
     return { success: true, value: slice };
   }
 
-  private feeScale(position: Position): number {
-    return position.size / (position.feeBasis ?? position.size);
+  private feeScale(position: Position, sliceSize: number): number {
+    return sliceSize / (position.feeBasis ?? position.size);
   }
 
   closeAll(price: number): Position[] {
