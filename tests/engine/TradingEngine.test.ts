@@ -438,4 +438,26 @@ describe('TradingEngine', () => {
     expect(engine.pendingOrders).toHaveLength(0);
     expect(engine.openPositions).toHaveLength(1);
   });
+
+  it('fills a short limit order when price reaches it', () => {
+    const engine = new TradingEngine();
+    unwrap(
+      engine.placeLimitOrder({
+        side: 'short',
+        limitPrice: 105,
+        size: 1,
+      })
+    );
+
+    const untouched = engine.checkEntries(104);
+    expect(untouched).toHaveLength(0);
+    expect(engine.pendingOrders).toHaveLength(1);
+
+    const filled = engine.checkEntries(106);
+
+    expect(filled).toHaveLength(1);
+    expect(filled[0].side).toBe('short');
+    expect(filled[0].entryPrice).toBe(105);
+    expect(engine.pendingOrders).toHaveLength(0);
+  });
 });

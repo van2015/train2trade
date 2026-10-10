@@ -103,7 +103,11 @@ export class TradingEngine {
     const filled: Position[] = [];
     const filledOrders: PendingOrder[] = [];
     for (const order of this.pending) {
-      if (price <= order.limitPrice) {
+      const hit =
+        order.side === 'long'
+          ? price <= order.limitPrice
+          : price >= order.limitPrice;
+      if (hit) {
         const result = this.open({
           side: order.side,
           price: order.limitPrice,
