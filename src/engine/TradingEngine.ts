@@ -199,13 +199,13 @@ export class TradingEngine {
   }
 
   close(position: Position, price: number): Result<Position, EngineError> {
-    return this.closeWithFee(position, price, this.takerFeePercent);
+    return this.closePartial(position, price);
   }
 
   closePartial(
     position: Position,
     price: number,
-    sizePercent: number,
+    sizePercent: number = 100,
     exitFee: number = this.takerFeePercent
   ): Result<Position, EngineError> {
     const exit = this.ensurePositive(price, 'INVALID_PRICE');
@@ -217,6 +217,22 @@ export class TradingEngine {
     }
     if (sizePercent <= 0 || sizePercent > 100) {
       return { success: false, error: 'INVALID_SIZE' };
+    }
+    if (sizePercent === 100) {
+      const closed: Position = {
+        ...position,
+        state: 'closed',
+        exitPrice: price,
+        pnl:
+          this.calcPnl(position, price) -
+          (position.entryFee ?? 0) * this.feeScale(position) -
+          exitFee * this.feeScale(position),
+      };
+      const index = this.positions.indexOf(position);
+      if (index >= 0) {
+        this.positions[index] = closed;
+      }
+      return { success: true, value: closed };
     }
     const sliceSize = (position.size * sizePercent) / 100;
     const feeScale = sliceSize / (position.feeBasis ?? position.size);
@@ -251,27 +267,7 @@ export class TradingEngine {
     price: number,
     exitFee: number
   ): Result<Position, EngineError> {
-    const exit = this.ensurePositive(price, 'INVALID_PRICE');
-    if (!exit.success) {
-      return exit;
-    }
-    if (position.state !== 'open') {
-      return { success: false, error: 'POSITION_NOT_OPEN' };
-    }
-    const closed: Position = {
-      ...position,
-      state: 'closed',
-      exitPrice: price,
-      pnl:
-        this.calcPnl(position, price) -
-        (position.entryFee ?? 0) * this.feeScale(position) -
-        exitFee * this.feeScale(position),
-    };
-    const index = this.positions.indexOf(position);
-    if (index >= 0) {
-      this.positions[index] = closed;
-    }
-    return { success: true, value: closed };
+    return this.closePartial(position, price, 100, exitFee);
   }
 
   closeAll(price: number): Position[] {
