@@ -152,7 +152,7 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
     unwrap(engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 }));
 
-    const stopped = engine.checkStops(94);
+    const stopped = engine.checkExits(94);
 
     expect(stopped).toHaveLength(1);
     expect(stopped[0].state).toBe('closed');
@@ -165,7 +165,7 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
     unwrap(engine.open({ side: 'short', price: 100, size: 1, stopLoss: 105 }));
 
-    const stopped = engine.checkStops(106);
+    const stopped = engine.checkExits(106);
 
     expect(stopped).toHaveLength(1);
     expect(stopped[0].state).toBe('closed');
@@ -186,5 +186,18 @@ describe('TradingEngine', () => {
 
     expect(withTp.takeProfit).toBe(120);
     expect(withoutTp.takeProfit).toBeUndefined();
+  });
+
+  it('closes a long when the price reaches its take profit', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'long', price: 100, size: 1, takeProfit: 120 }));
+
+    const exited = engine.checkExits(125);
+
+    expect(exited).toHaveLength(1);
+    expect(exited[0].state).toBe('closed');
+    expect(exited[0].exitPrice).toBe(120);
+    expect(engine.openPositions).toHaveLength(0);
+    expect(engine.totalPnl).toBe(20);
   });
 });

@@ -88,18 +88,29 @@ export class TradingEngine {
     return { success: true, value: closed };
   }
 
-  checkStops(price: number): Position[] {
-    const stopped: Position[] = [];
+  checkExits(price: number): Position[] {
+    const exited: Position[] = [];
     for (const position of this.openPositions) {
-      const stopLoss = position.stopLoss;
-      if (stopLoss !== undefined && this.isStopHit(position, price)) {
-        const result = this.close(position, stopLoss);
+      const exitPrice = this.exitPriceAt(position, price);
+      if (exitPrice !== null) {
+        const result = this.close(position, exitPrice);
         if (result.success) {
-          stopped.push(result.value);
+          exited.push(result.value);
         }
       }
     }
-    return stopped;
+    return exited;
+  }
+
+  private exitPriceAt(position: Position, price: number): number | null {
+    const { stopLoss, takeProfit } = position;
+    if (stopLoss !== undefined && this.isStopHit(position, price)) {
+      return stopLoss;
+    }
+    if (takeProfit !== undefined && this.isTakeProfitHit(position, price)) {
+      return takeProfit;
+    }
+    return null;
   }
 
   private isStopHit(position: Position, price: number): boolean {
@@ -109,6 +120,13 @@ export class TradingEngine {
     return position.side === 'long'
       ? price <= position.stopLoss
       : price >= position.stopLoss;
+  }
+
+  private isTakeProfitHit(position: Position, price: number): boolean {
+    if (position.takeProfit === undefined) {
+      return false;
+    }
+    return price >= position.takeProfit;
   }
 
   private ensurePositive(
