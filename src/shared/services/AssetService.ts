@@ -1,5 +1,5 @@
-import { Timeframe } from '../../backtest/timeframe/Timeframe';
-import { TimeframeAggregator } from '../../backtest/timeframe/TimeframeAggregator';
+import { Timeframe } from '../../shared/timeframe/Timeframe';
+import { TimeframeAggregator } from '../../shared/timeframe/TimeframeAggregator';
 import { Interval } from '../../shared/utils/Interval';
 import type { AssetSummary, PriceData } from '../types/asset';
 import type { AssetChartRepository } from './repositories/AssetChartRepository';

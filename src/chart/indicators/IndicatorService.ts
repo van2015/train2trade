@@ -1,3 +1,4 @@
+import { Timeframe } from '../../shared/timeframe/Timeframe';
 import type {
   IndicatorDefinition,
   IndicatorId,
@@ -9,8 +10,7 @@ import type {
 } from '../../shared/types/asset';
 import type { Result } from '../../shared/types/Result';
 import { normalizeParams as normalizeParamValues } from '../../shared/utils/normalizeParams';
-import { Timeframe } from '../timeframe/Timeframe';
-import type { IndicatorError } from '../types/IndicatorError';
+import type { IndicatorError } from './IndicatorError';
 
 type Values = (number | undefined)[];
 

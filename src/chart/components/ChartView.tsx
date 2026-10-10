@@ -18,8 +18,8 @@ import { useAppPresenter } from '../../app/hooks/useAppPresenter';
 import {
   compute,
   getDefinition,
-} from '../../backtest/indicators/IndicatorService';
-import type { Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
+} from '../../chart/indicators/IndicatorService';
+import type { Timeframe as TimeframeType } from '../../shared/timeframe/Timeframe';
 import type {
   ChartType,
   IndicatorPlot,

@@ -7,7 +7,7 @@ import {
   getIndicatorGroups,
   maxLookback,
   normalizeParams,
-} from '../../src/backtest/indicators/IndicatorService';
+} from '../../src/chart/indicators/IndicatorService';
 import type {
   IndicatorId,
   IndicatorInstance,

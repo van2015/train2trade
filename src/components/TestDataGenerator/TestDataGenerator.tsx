@@ -1,14 +1,14 @@
 import { useCallback, useState } from 'react';
-import {
-  Timeframe,
-  type Timeframe as TimeframeType,
-} from '../../backtest/timeframe/Timeframe';
 import type { AppPresenterError } from '../../chart/presenters/AppPresenterError';
 import {
   generateCSV,
   type TestDataParams,
   validateParams,
 } from '../../services/TestDataService';
+import {
+  Timeframe,
+  type Timeframe as TimeframeType,
+} from '../../shared/timeframe/Timeframe';
 import type { Result } from '../../shared/types/Result';
 
 interface TestDataGeneratorProps {

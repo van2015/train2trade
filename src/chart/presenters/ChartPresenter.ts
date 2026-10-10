@@ -3,8 +3,8 @@ import {
   getDefinition,
   maxLookback,
   normalizeParams,
-} from '../../backtest/indicators/IndicatorService';
-import { Timeframe } from '../../backtest/timeframe/Timeframe';
+} from '../../chart/indicators/IndicatorService';
+import { Timeframe } from '../../shared/timeframe/Timeframe';
 import type {
   ChartType,
   IndicatorId,

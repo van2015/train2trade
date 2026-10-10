@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   getDefinition,
   getIndicatorGroups,
-} from '../../backtest/indicators/IndicatorService';
+} from '../../chart/indicators/IndicatorService';
 import type { IndicatorId, IndicatorInstance } from '../../shared/types/asset';
 
 interface IndicatorSelectorProps {

@@ -1,7 +1,7 @@
 import {
   Timeframe,
   type Timeframe as TimeframeType,
-} from '../../backtest/timeframe/Timeframe';
+} from '../../shared/timeframe/Timeframe';
 import type { PriceData } from '../types/asset';
 import type { Result } from '../types/Result';
 

@@ -1,7 +1,7 @@
 import {
   Timeframe,
   type Timeframe as TimeframeType,
-} from '../../backtest/timeframe/Timeframe';
+} from '../../shared/timeframe/Timeframe';
 
 interface TimeframeSelectorProps {
   value: TimeframeType;

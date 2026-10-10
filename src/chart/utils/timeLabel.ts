@@ -1,4 +1,4 @@
-import { Timeframe } from '../../backtest/timeframe/Timeframe';
+import { Timeframe } from '../../shared/timeframe/Timeframe';
 
 const DATE_OPTIONS: Intl.DateTimeFormatOptions = {
   year: 'numeric',

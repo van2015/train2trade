@@ -1,6 +1,15 @@
-import type { PriceData } from '../../shared/types/asset';
-import type { AggregatedBar } from '../types/backtest';
+import type { PriceData } from '../types/asset';
 import { Timeframe } from './Timeframe';
+
+export interface AggregatedBar {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  subBars: PriceData[];
+}
 
 export interface AggregationResult {
   bars: AggregatedBar[];

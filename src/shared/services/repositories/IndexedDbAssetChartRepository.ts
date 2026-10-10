@@ -1,4 +1,4 @@
-import type { Timeframe } from '../../../backtest/timeframe/Timeframe';
+import type { Timeframe } from '../../../shared/timeframe/Timeframe';
 import type { AssetSummary, PriceData } from '../../types/asset';
 import {
   ASSETS_STORE,

@@ -1,4 +1,4 @@
-import type { Timeframe } from '../../src/backtest/timeframe/Timeframe';
+import type { Timeframe } from '../../src/shared/timeframe/Timeframe';
 import type { PriceData } from '../../src/shared/types/asset';
 
 type CandleType = 'green' | 'red' | 'doji' | 'custom';

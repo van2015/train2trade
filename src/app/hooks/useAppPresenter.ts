@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useState } from 'react';
-import type { Timeframe as TimeframeType } from '../../backtest/timeframe/Timeframe';
+import type { Timeframe as TimeframeType } from '../../shared/timeframe/Timeframe';
 import type { IndicatorId } from '../../shared/types/asset';
 import type { Interval } from '../../shared/utils/Interval';
 import { PresenterContext } from '../context/PresenterContext';
