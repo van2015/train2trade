@@ -36,10 +36,11 @@ interface FeeState {
 }
 
 export class BacktestEngine {
+  private readonly input: BacktestInput;
+  private readonly broker: Broker;
   private closedTrades: ClosedTrade[] = [];
   private invalidated: InvalidatedTrade[] = [];
   private equityCurve: EquityPoint[] = [];
-  private broker!: Broker;
   private trades = new Map<string, Trade>();
   private tradeSpecs = new Map<string, TradeSpec>();
   private tradeFees = new Map<string, FeeState>();
@@ -49,6 +50,11 @@ export class BacktestEngine {
   private pendingExits: PendingExit[] = [];
   private tradeCounter = 0;
   private allBars: AggregatedBar[] = [];
+
+  constructor(input: BacktestInput) {
+    this.input = input;
+    this.broker = new Broker(input.platform, input.initialBalance);
+  }
 
   private toTime(date: string): number {
     return new Date(date).getTime();
@@ -80,7 +86,8 @@ export class BacktestEngine {
     return bar.low <= order.price ? Math.min(bar.open, order.price) : undefined;
   }
 
-  run(input: BacktestInput): BacktestResult {
+  run(): BacktestResult {
+    const input = this.input;
     const strategyManager = StrategyManager.getInstance();
     const resolvedResult = strategyManager.resolveStrategy(
       input.strategyId,
@@ -125,7 +132,6 @@ export class BacktestEngine {
       };
     }
 
-    this.broker = new Broker(input.platform, input.initialBalance);
     this.initializeState();
 
     for (let s = 0; s < bars.length; s++) {
@@ -626,6 +632,5 @@ export class BacktestEngine {
 }
 
 export function runBacktest(input: BacktestInput): BacktestResult {
-  const engine = new BacktestEngine();
-  return engine.run(input);
+  return new BacktestEngine(input).run();
 }
