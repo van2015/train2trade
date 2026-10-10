@@ -1,10 +1,11 @@
 import type { InvalidatedTrade, Side } from '../../src/backtest/types/backtest';
+import type { TradeError } from '../../src/backtest/types/TradeError';
 
 export class InvalidatedTradeBuilder {
   private config: InvalidatedTrade = {
     id: 'invalidated-1',
     side: 'long',
-    reason: 'ambiguous',
+    reason: { type: 'AMBIGUOUS_CANDLE', id: 'invalidated-1' },
     at: 1,
   };
 
@@ -18,7 +19,7 @@ export class InvalidatedTradeBuilder {
     return this;
   }
 
-  reason(reason: string): this {
+  reason(reason: TradeError): this {
     this.config.reason = reason;
     return this;
   }

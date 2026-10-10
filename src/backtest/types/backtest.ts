@@ -6,6 +6,7 @@ import type {
 import type { Timeframe } from '../timeframe/Timeframe';
 import type { ResampleError } from './ResampleError';
 import type { StrategyError } from './StrategyError';
+import type { TradeError } from './TradeError';
 import { Side, TradeState } from './TradeEnums';
 
 export type { ResampleError, StrategyError };
@@ -163,7 +164,7 @@ export interface ClosedTrade {
 export interface InvalidatedTrade {
   id: string;
   side: Side;
-  reason: string;
+  reason: TradeError;
   at: number;
 }
 

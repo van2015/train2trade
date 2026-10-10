@@ -13,6 +13,7 @@ import type {
   TradeSpec,
 } from '../types/backtest';
 import { Side, TradeState } from '../types/TradeEnums';
+import type { TradeError } from '../types/TradeError';
 import { DataResampler } from './Resampler';
 
 interface PendingEntry {
@@ -205,11 +206,7 @@ export class BacktestEngine {
 
       const result = trade.processCandle(sub);
       if (!result.success) {
-        const reason =
-          result.error.type === 'AMBIGUOUS_CANDLE'
-            ? 'ambiguous bar without finer data'
-            : `candle error: ${result.error.type}`;
-        this.invalidateTrade(trade, time, reason);
+        this.invalidateTrade(trade, time, result.error);
         continue;
       }
 
@@ -406,7 +403,7 @@ export class BacktestEngine {
     }
   }
 
-  private invalidateTrade(trade: Trade, time: number, reason: string): void {
+  private invalidateTrade(trade: Trade, time: number, reason: TradeError): void {
     this.broker.releaseMargin(trade.size, trade.averageEntry);
     this.clearTradeState(trade.id);
     this.invalidated.push({ id: trade.id, side: trade.side, reason, at: time });
