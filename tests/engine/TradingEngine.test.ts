@@ -484,9 +484,7 @@ describe('TradingEngine', () => {
         stopLoss: 90,
       })
     );
-    unwrap(
-      engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 })
-    );
+    unwrap(engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 }));
 
     const tick = engine.onPrice(94);
 
