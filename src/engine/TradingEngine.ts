@@ -212,6 +212,9 @@ export class TradingEngine {
     if (position.state !== 'open') {
       return { success: false, error: 'POSITION_NOT_OPEN' };
     }
+    if (sizePercent <= 0 || sizePercent > 100) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
     const sliceSize = (position.size * sizePercent) / 100;
     const remainder: Position = {
       ...position,

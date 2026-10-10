@@ -571,4 +571,19 @@ describe('TradingEngine', () => {
     expect(engine.closedPositions).toHaveLength(1);
     expect(engine.totalPnl).toBe(10);
   });
+
+  it('rejects a partial close outside the 1-100 percent range', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 2 }));
+
+    const zero = engine.closePartial(position, 110, 0);
+    const over = engine.closePartial(position, 110, 101);
+
+    expect(zero.success).toBe(false);
+    expect(expectError(zero)).toBe('INVALID_SIZE');
+    expect(over.success).toBe(false);
+    expect(expectError(over)).toBe('INVALID_SIZE');
+    expect(position.state).toBe('open');
+    expect(engine.openPositions).toHaveLength(1);
+  });
 });
