@@ -460,4 +460,17 @@ describe('TradingEngine', () => {
     expect(filled[0].entryPrice).toBe(105);
     expect(engine.pendingOrders).toHaveLength(0);
   });
+
+  it('removes filled orders and keeps the rest pending', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.placeLimitOrder({ side: 'long', limitPrice: 95, size: 1 }));
+    unwrap(engine.placeLimitOrder({ side: 'long', limitPrice: 90, size: 1 }));
+
+    const filled = engine.checkEntries(94);
+
+    expect(filled).toHaveLength(1);
+    expect(filled[0].entryPrice).toBe(95);
+    expect(engine.pendingOrders).toHaveLength(1);
+    expect(engine.pendingOrders[0].limitPrice).toBe(90);
+  });
 });
