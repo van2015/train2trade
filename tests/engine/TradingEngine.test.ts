@@ -173,4 +173,18 @@ describe('TradingEngine', () => {
     expect(engine.openPositions).toHaveLength(0);
     expect(engine.totalPnl).toBe(-5);
   });
+
+  it('stores the take profit when opening a position with one', () => {
+    const engine = new TradingEngine();
+
+    const withTp = unwrap(
+      engine.open({ side: 'long', price: 100, size: 1, takeProfit: 120 })
+    );
+    const withoutTp = unwrap(
+      engine.open({ side: 'long', price: 100, size: 1 })
+    );
+
+    expect(withTp.takeProfit).toBe(120);
+    expect(withoutTp.takeProfit).toBeUndefined();
+  });
 });

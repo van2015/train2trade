@@ -46,6 +46,11 @@ export class PositionBuilder {
     return this;
   }
 
+  takeProfit(price: number): this {
+    this.config.takeProfit = price;
+    return this;
+  }
+
   build(): Position {
     return { ...this.config };
   }

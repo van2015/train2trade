@@ -12,6 +12,7 @@ export interface OpenOrder {
   price: number;
   size: number;
   stopLoss?: number;
+  takeProfit?: number;
 }
 
 export interface Position {
@@ -22,6 +23,7 @@ export interface Position {
   exitPrice?: number;
   pnl?: number;
   stopLoss?: number;
+  takeProfit?: number;
 }
 
 export class TradingEngine {
@@ -59,6 +61,7 @@ export class TradingEngine {
       size: order.size,
       state: 'open',
       stopLoss: order.stopLoss,
+      takeProfit: order.takeProfit,
     };
     this.positions.push(position);
     return { success: true, value: position };
