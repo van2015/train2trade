@@ -26,7 +26,8 @@ export class TradingEngine {
   }
 
   close(position: Position, price: number): Position {
-    const pnl = (price - position.entryPrice) * position.size;
+    const pct = ((price - position.entryPrice) / position.entryPrice) * 100;
+    const pnl = position.side === 'short' ? -pct : pct;
     return { ...position, state: 'closed', exitPrice: price, pnl };
   }
 }

@@ -26,12 +26,33 @@ describe('TradingEngine', () => {
     expect(position.exitPrice).toBeUndefined();
   });
 
-  it('calcula el PnL al cerrar una posición larga', () => {
+  it('calculates PnL when closing a long position', () => {
     const engine = new TradingEngine();
     const position = new PositionBuilder().entryPrice(100).size(2).build();
 
     const closed = engine.close(position, 110);
 
-    expect(closed.pnl).toBe(20);
+    expect(closed.pnl).toBe(10);
+  });
+
+  it('expresses PnL as a percentage of the entry price', () => {
+    const engine = new TradingEngine();
+    const position = new PositionBuilder().entryPrice(250).size(3).build();
+
+    const closed = engine.close(position, 275);
+
+    expect(closed.pnl).toBe(10);
+  });
+
+  it('calculates PnL for a short position (closing below entry gains)', () => {
+    const engine = new TradingEngine();
+    const position = new PositionBuilder()
+      .side('short')
+      .entryPrice(100)
+      .build();
+
+    const closed = engine.close(position, 90);
+
+    expect(closed.pnl).toBe(10);
   });
 });
