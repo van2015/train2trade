@@ -48,6 +48,23 @@ export class TradingEngine {
   }
 
   open(order: OpenOrder): Result<Position, EngineError> {
+    const valid = this.validateOrder(order);
+    if (!valid.success) {
+      return valid;
+    }
+    const position: Position = {
+      side: order.side,
+      entryPrice: order.price,
+      size: order.size,
+      state: 'open',
+      stopLoss: order.stopLoss,
+      takeProfit: order.takeProfit,
+    };
+    this.positions.push(position);
+    return { success: true, value: position };
+  }
+
+  private validateOrder(order: OpenOrder): Result<void, EngineError> {
     const price = this.ensurePositive(order.price, 'INVALID_PRICE');
     if (!price.success) {
       return price;
@@ -65,16 +82,7 @@ export class TradingEngine {
         return { success: false, error: 'INVALID_STOP_LOSS' };
       }
     }
-    const position: Position = {
-      side: order.side,
-      entryPrice: order.price,
-      size: order.size,
-      state: 'open',
-      stopLoss: order.stopLoss,
-      takeProfit: order.takeProfit,
-    };
-    this.positions.push(position);
-    return { success: true, value: position };
+    return { success: true, value: undefined };
   }
 
   close(position: Position, price: number): Result<Position, EngineError> {
