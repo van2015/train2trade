@@ -598,4 +598,17 @@ describe('TradingEngine', () => {
     expect(unwrap(engine.close(remainder, 110)).pnl).toBe(9);
     expect(engine.totalPnl).toBe(18);
   });
+
+  it('rejects a partial close on a closed position', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+    const closed = unwrap(engine.close(position, 110));
+
+    const result = engine.closePartial(closed, 120, 50);
+
+    expect(result.success).toBe(false);
+    expect(expectError(result)).toBe('POSITION_NOT_OPEN');
+    expect(engine.openPositions).toHaveLength(0);
+    expect(engine.closedPositions).toHaveLength(1);
+  });
 });
