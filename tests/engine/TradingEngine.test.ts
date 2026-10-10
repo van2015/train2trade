@@ -53,11 +53,11 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
     const position = new PositionBuilder()
       .long()
-      .entryPrice(250)
+      .entryPrice(100)
       .size(3)
       .build();
 
-    const closed = engine.close(position, 275);
+    const closed = engine.close(position, 110);
 
     expect(closed.pnl).toBe(10);
   });
