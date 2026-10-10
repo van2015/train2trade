@@ -126,7 +126,9 @@ export class TradingEngine {
     if (position.takeProfit === undefined) {
       return false;
     }
-    return price >= position.takeProfit;
+    return position.side === 'long'
+      ? price >= position.takeProfit
+      : price <= position.takeProfit;
   }
 
   private ensurePositive(

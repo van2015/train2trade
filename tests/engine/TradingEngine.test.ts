@@ -200,4 +200,17 @@ describe('TradingEngine', () => {
     expect(engine.openPositions).toHaveLength(0);
     expect(engine.totalPnl).toBe(20);
   });
+
+  it('closes a short when the price reaches its take profit', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'short', price: 100, size: 1, takeProfit: 90 }));
+
+    const exited = engine.checkExits(85);
+
+    expect(exited).toHaveLength(1);
+    expect(exited[0].state).toBe('closed');
+    expect(exited[0].exitPrice).toBe(90);
+    expect(engine.openPositions).toHaveLength(0);
+    expect(engine.totalPnl).toBe(10);
+  });
 });
