@@ -496,4 +496,14 @@ describe('TradingEngine', () => {
     expect(engine.openPositions).toHaveLength(1);
     expect(engine.totalPnl).toBe(-5);
   });
+
+  it('deducts the taker fee from both executions of a round trip', () => {
+    const engine = new TradingEngine({ takerFeePercent: 1 });
+
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+    const closed = unwrap(engine.close(position, 110));
+
+    expect(closed.pnl).toBe(8);
+    expect(engine.totalPnl).toBe(8);
+  });
 });

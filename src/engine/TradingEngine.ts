@@ -25,6 +25,11 @@ export interface PendingOrder {
   takeProfit?: number;
 }
 
+export interface EngineOptions {
+  makerFeePercent?: number;
+  takerFeePercent?: number;
+}
+
 export interface Position {
   side: Side;
   entryPrice: number;
@@ -34,11 +39,19 @@ export interface Position {
   pnl?: number;
   stopLoss?: number;
   takeProfit?: number;
+  entryFee?: number;
 }
 
 export class TradingEngine {
   private readonly positions: Position[] = [];
   private readonly pending: PendingOrder[] = [];
+  private readonly makerFeePercent: number;
+  private readonly takerFeePercent: number;
+
+  constructor(options: EngineOptions = {}) {
+    this.makerFeePercent = options.makerFeePercent ?? 0;
+    this.takerFeePercent = options.takerFeePercent ?? 0;
+  }
 
   get pendingOrders(): PendingOrder[] {
     return [...this.pending];
@@ -79,6 +92,7 @@ export class TradingEngine {
       state: 'open',
       stopLoss: order.stopLoss,
       takeProfit: order.takeProfit,
+      entryFee: this.takerFeePercent,
     };
     this.positions.push(position);
     return { success: true, value: position };
@@ -175,7 +189,10 @@ export class TradingEngine {
       ...position,
       state: 'closed',
       exitPrice: price,
-      pnl: this.calcPnl(position, price),
+      pnl:
+        this.calcPnl(position, price) -
+        (position.entryFee ?? 0) -
+        this.takerFeePercent,
     };
     const index = this.positions.indexOf(position);
     if (index >= 0) {
