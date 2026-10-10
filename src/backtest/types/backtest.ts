@@ -6,8 +6,8 @@ import type {
 import type { Timeframe } from '../timeframe/Timeframe';
 import type { ResampleError } from './ResampleError';
 import type { StrategyError } from './StrategyError';
-import type { TradeError } from './TradeError';
 import { Side, TradeState } from './TradeEnums';
+import type { TradeError } from './TradeError';
 
 export type { ResampleError, StrategyError };
 export { Side, TradeState };
@@ -127,11 +127,6 @@ export interface PlatformConfig {
 }
 
 export type OrderSide = 'buy' | 'sell';
-
-export interface OrderValidation {
-  valid: boolean;
-  reason?: string;
-}
 
 export interface OrderValidationInput {
   price?: number;

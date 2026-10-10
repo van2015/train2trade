@@ -59,19 +59,21 @@ describe('Broker order validation', () => {
   it('rejects prices that are not aligned to the tick size', () => {
     const result = broker().validateOrder({ price: 100.05, size: 0.5 });
 
-    expect(result.valid).toBe(false);
+    expect(result.success).toBe(false);
+    if (!result.success)
+      expect(result.error.type).toBe('PRICE_NOT_TICK_ALIGNED');
   });
 
   it('accepts tick-aligned prices', () => {
     const result = broker().validateOrder({ price: 100.1, size: 0.5 });
 
-    expect(result.valid).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   it('rejects sizes that violate lot step or minimum', () => {
-    expect(broker().validateOrder({ size: 0.05 }).valid).toBe(false);
-    expect(broker().validateOrder({ size: 0.15 }).valid).toBe(false);
-    expect(broker().validateOrder({ size: 0.3 }).valid).toBe(true);
+    expect(broker().validateOrder({ size: 0.05 }).success).toBe(false);
+    expect(broker().validateOrder({ size: 0.15 }).success).toBe(false);
+    expect(broker().validateOrder({ size: 0.3 }).success).toBe(true);
   });
 
   it('aligns prices and sizes', () => {

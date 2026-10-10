@@ -2,7 +2,6 @@ import type { Result } from '../../shared/types/Result';
 import type { BrokerError } from '../types/BrokerError';
 import type {
   OrderSide,
-  OrderValidation,
   OrderValidationInput,
   PlatformConfig,
 } from '../types/backtest';
@@ -79,14 +78,14 @@ export class Broker {
     return Broker.roundToStep(size, this.config.lotStep);
   }
 
-  validateOrder(input: OrderValidationInput): OrderValidation {
+  validateOrder(input: OrderValidationInput): Result<void, BrokerError> {
     if (input.price !== undefined && !this.isTickAligned(input.price)) {
-      return { valid: false, reason: 'Price is not aligned to the tick size' };
+      return { success: false, error: { type: 'PRICE_NOT_TICK_ALIGNED' } };
     }
     if (!this.isSizeValid(input.size)) {
-      return { valid: false, reason: 'Size violates lot step or minimum' };
+      return { success: false, error: { type: 'SIZE_VIOLATES_LOTS' } };
     }
-    return { valid: true };
+    return { success: true, value: undefined };
   }
 
   fillPrice(

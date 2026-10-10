@@ -403,7 +403,11 @@ export class BacktestEngine {
     }
   }
 
-  private invalidateTrade(trade: Trade, time: number, reason: TradeError): void {
+  private invalidateTrade(
+    trade: Trade,
+    time: number,
+    reason: TradeError
+  ): void {
     this.broker.releaseMargin(trade.size, trade.averageEntry);
     this.clearTradeState(trade.id);
     this.invalidated.push({ id: trade.id, side: trade.side, reason, at: time });
@@ -427,7 +431,7 @@ export class BacktestEngine {
     if (sizeResult.size === undefined) return true;
     const size = sizeResult.size;
 
-    if (!this.broker.validateOrder({ price, size }).valid) return true;
+    if (!this.broker.validateOrder({ price, size }).success) return true;
 
     const { id } = this.createTradeFromSpec(entry, size, price);
     this.initializeTradeState(id, entry, size, time);
