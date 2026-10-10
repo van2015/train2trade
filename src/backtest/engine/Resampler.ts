@@ -1,7 +1,7 @@
 import { PriceData } from '../../shared/types/asset';
-import { ResampleResult, ResampleError } from '../../backtest/types/backtest';
-import { Timeframe } from '../../backtest/timeframe/Timeframe';
-import { TimeframeAggregator } from '../../backtest/timeframe/TimeframeAggregator';
+import { ResampleResult, ResampleError } from '../types/backtest';
+import { Timeframe } from '../timeframe/Timeframe';
+import { TimeframeAggregator } from '../timeframe/TimeframeAggregator';
 import { Result } from '../../shared/types/Result';
 
 export class DataResampler {

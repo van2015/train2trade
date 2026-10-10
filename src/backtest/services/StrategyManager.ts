@@ -7,8 +7,8 @@ import {
   TradeRule,
   TradeSpec,
   TradeView,
-} from '../../backtest/types/backtest';
-import { computeSeries } from '../../backtest/indicators/IndicatorService';
+} from '../types/backtest';
+import { computeSeries } from '../indicators/IndicatorService';
 import { Side } from '../types/TradeEnums';
 import { StrategyError } from '../types/StrategyError';
 import { Result } from '../../shared/types/Result';

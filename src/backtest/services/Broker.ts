@@ -3,8 +3,8 @@ import {
   OrderValidation,
   OrderValidationInput,
   PlatformConfig,
-} from '../../backtest/types/backtest';
-import { BrokerError } from '../../backtest/types/BrokerError';
+} from '../types/backtest';
+import { BrokerError } from '../types/BrokerError';
 import { Result } from '../../shared/types/Result';
 
 export class Broker {

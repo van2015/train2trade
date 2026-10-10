@@ -7,12 +7,12 @@ import {
   InvalidatedTrade,
   StrategyContext,
   TradeSpec,
-} from '../../backtest/types/backtest';
+} from '../types/backtest';
 import { Trade } from '../models/Trade';
 import { Broker } from '../services/Broker';
 import { DataResampler } from './Resampler';
 import { StrategyManager } from '../services/StrategyManager';
-import { AggregatedBar } from '../../backtest/types/backtest';
+import { AggregatedBar } from '../types/backtest';
 import { TradeState, Side } from '../types/TradeEnums';
 
 interface PendingEntry {
@@ -133,7 +133,7 @@ export class BacktestEngine {
     }
 
     if (index < totalBars - 1) {
-      this.generateNewSignals(bar, index, resolved, strategyManager);
+      this.generateNewSignals(index, resolved, strategyManager);
     }
 
     this.updateEquityCurve(bar);
@@ -216,19 +216,18 @@ export class BacktestEngine {
   }
 
   private generateNewSignals(
-    bar: AggregatedBar,
     index: number,
     resolved: { definition: { onBar: (ctx: StrategyContext, params: Record<string, number>) => TradeSpec[] }; params: Record<string, number> },
     strategyManager: StrategyManager
   ): void {
-    const bars = this.collectBarsUpToIndex(bar, index);
+    const bars = this.collectBarsUpToIndex(index);
     const ctx = strategyManager.createContext(bars, index, this.openTradeViews());
     this.evaluateContextRules(ctx);
     const specs = strategyManager.validTradeSpecs(resolved.definition.onBar(ctx, resolved.params));
     for (const spec of specs) this.pendingEntries.push({ spec });
   }
 
-  private collectBarsUpToIndex(_currentBar: AggregatedBar, index: number): PriceData[] {
+  private collectBarsUpToIndex(index: number): PriceData[] {
     return this.allBars.slice(0, index + 1);
   }
 
