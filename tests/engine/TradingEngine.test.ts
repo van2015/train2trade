@@ -28,12 +28,22 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
     const position = new PositionBuilder().long().build();
 
-    const closed = engine.close(position, 110);
+    const closed = unwrap(engine.close(position, 110));
 
     expect(closed.state).toBe('closed');
     expect(closed.exitPrice).toBe(110);
     expect(position.state).toBe('open');
     expect(position.exitPrice).toBeUndefined();
+  });
+
+  it('rejects closing a position that is already closed', () => {
+    const engine = new TradingEngine();
+    const position = new PositionBuilder().long().state('closed').build();
+
+    const result = engine.close(position, 110);
+
+    expect(result.success).toBe(false);
+    expect(expectError(result)).toBe('POSITION_NOT_OPEN');
   });
 
   it('calculates PnL when closing a long position', () => {
@@ -44,7 +54,7 @@ describe('TradingEngine', () => {
       .size(2)
       .build();
 
-    const closed = engine.close(position, 110);
+    const closed = unwrap(engine.close(position, 110));
 
     expect(closed.pnl).toBe(10);
   });
@@ -57,7 +67,7 @@ describe('TradingEngine', () => {
       .size(3)
       .build();
 
-    const closed = engine.close(position, 110);
+    const closed = unwrap(engine.close(position, 110));
 
     expect(closed.pnl).toBe(10);
   });
@@ -66,7 +76,7 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
     const position = new PositionBuilder().short().entryPrice(100).build();
 
-    const closed = engine.close(position, 90);
+    const closed = unwrap(engine.close(position, 90));
 
     expect(closed.pnl).toBe(10);
   });

@@ -2,7 +2,7 @@ import type { Result } from '../shared/types/Result';
 
 export type Side = 'long' | 'short';
 
-export type EngineError = 'INVALID_PRICE';
+export type EngineError = 'INVALID_PRICE' | 'POSITION_NOT_OPEN';
 
 export interface OpenOrder {
   side: Side;
@@ -35,9 +35,15 @@ export class TradingEngine {
     };
   }
 
-  close(position: Position, price: number): Position {
+  close(position: Position, price: number): Result<Position, EngineError> {
+    if (position.state !== 'open') {
+      return { success: false, error: 'POSITION_NOT_OPEN' };
+    }
     const pct = ((price - position.entryPrice) / position.entryPrice) * 100;
     const pnl = position.side === 'short' ? -pct : pct;
-    return { ...position, state: 'closed', exitPrice: price, pnl };
+    return {
+      success: true,
+      value: { ...position, state: 'closed', exitPrice: price, pnl },
+    };
   }
 }
