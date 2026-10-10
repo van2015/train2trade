@@ -147,4 +147,17 @@ describe('TradingEngine', () => {
     expect(withStop.stopLoss).toBe(95);
     expect(withoutStop.stopLoss).toBeUndefined();
   });
+
+  it('closes a long when the price reaches its stop loss', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 }));
+
+    const stopped = engine.checkStops(94);
+
+    expect(stopped).toHaveLength(1);
+    expect(stopped[0].state).toBe('closed');
+    expect(stopped[0].exitPrice).toBe(95);
+    expect(engine.openPositions).toHaveLength(0);
+    expect(engine.totalPnl).toBe(-5);
+  });
 });

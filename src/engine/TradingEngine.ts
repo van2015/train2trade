@@ -85,6 +85,19 @@ export class TradingEngine {
     return { success: true, value: closed };
   }
 
+  checkStops(price: number): Position[] {
+    const stopped: Position[] = [];
+    for (const position of this.openPositions) {
+      if (position.stopLoss !== undefined && price <= position.stopLoss) {
+        const result = this.close(position, position.stopLoss);
+        if (result.success) {
+          stopped.push(result.value);
+        }
+      }
+    }
+    return stopped;
+  }
+
   private ensurePositive(
     value: number,
     error: EngineError
