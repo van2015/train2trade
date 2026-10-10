@@ -192,6 +192,12 @@ export class TradingEngine {
     return this.closeEach((position) => this.exitPriceAt(position, price));
   }
 
+  onPrice(price: number): { entries: Position[]; exits: Position[] } {
+    const entries = this.checkEntries(price);
+    const exits = this.checkExits(price);
+    return { entries, exits };
+  }
+
   private closeEach(
     locateExit: (position: Position) => number | null
   ): Position[] {
