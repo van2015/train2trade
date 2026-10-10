@@ -236,4 +236,27 @@ describe('TradingEngine', () => {
     expect(expectError(aboveEntry)).toBe('INVALID_STOP_LOSS');
     expect(engine.openPositions).toHaveLength(0);
   });
+
+  it('rejects opening a short with a stop loss at or below the entry price', () => {
+    const engine = new TradingEngine();
+
+    const atEntry = engine.open({
+      side: 'short',
+      price: 100,
+      size: 1,
+      stopLoss: 100,
+    });
+    const belowEntry = engine.open({
+      side: 'short',
+      price: 100,
+      size: 1,
+      stopLoss: 95,
+    });
+
+    expect(atEntry.success).toBe(false);
+    expect(expectError(atEntry)).toBe('INVALID_STOP_LOSS');
+    expect(belowEntry.success).toBe(false);
+    expect(expectError(belowEntry)).toBe('INVALID_STOP_LOSS');
+    expect(engine.openPositions).toHaveLength(0);
+  });
 });

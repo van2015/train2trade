@@ -56,12 +56,14 @@ export class TradingEngine {
     if (!size.success) {
       return size;
     }
-    if (
-      order.side === 'long' &&
-      order.stopLoss !== undefined &&
-      order.stopLoss >= order.price
-    ) {
-      return { success: false, error: 'INVALID_STOP_LOSS' };
+    if (order.stopLoss !== undefined) {
+      const invalidStop =
+        order.side === 'long'
+          ? order.stopLoss >= order.price
+          : order.stopLoss <= order.price;
+      if (invalidStop) {
+        return { success: false, error: 'INVALID_STOP_LOSS' };
+      }
     }
     const position: Position = {
       side: order.side,
