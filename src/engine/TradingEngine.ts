@@ -9,12 +9,21 @@ export type EngineError =
   | 'INVALID_TAKE_PROFIT'
   | 'POSITION_NOT_OPEN';
 
+export type ExitLevelKind = 'tp' | 'sl';
+
+export interface ExitLevel {
+  kind: ExitLevelKind;
+  price: number;
+  sizePercent: number;
+}
+
 export interface OpenOrder {
   side: Side;
   price: number;
   size: number;
   stopLoss?: number;
   takeProfit?: number;
+  exitLevels?: ExitLevel[];
 }
 
 export interface PendingOrder {
@@ -41,6 +50,7 @@ export interface Position {
   takeProfit?: number;
   entryFee?: number;
   feeBasis?: number;
+  exitLevels?: ExitLevel[];
 }
 
 export class TradingEngine {
@@ -102,6 +112,7 @@ export class TradingEngine {
       takeProfit: order.takeProfit,
       entryFee,
       feeBasis: order.size,
+      exitLevels: order.exitLevels,
     };
     this.positions.push(position);
     return { success: true, value: position };

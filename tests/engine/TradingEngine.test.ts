@@ -623,4 +623,26 @@ describe('TradingEngine', () => {
     expect(engine.totalPnl).toBe(10);
     expect(engine.openPositions).toHaveLength(0);
   });
+
+  it('stores exit levels when opening a position', () => {
+    const engine = new TradingEngine();
+
+    const position = unwrap(
+      engine.open({
+        side: 'long',
+        price: 100,
+        size: 2,
+        exitLevels: [
+          { kind: 'tp', price: 110, sizePercent: 50 },
+          { kind: 'sl', price: 95, sizePercent: 25 },
+        ],
+      })
+    );
+
+    expect(position.exitLevels).toEqual([
+      { kind: 'tp', price: 110, sizePercent: 50 },
+      { kind: 'sl', price: 95, sizePercent: 25 },
+    ]);
+    expect(position.size).toBe(2);
+  });
 });
