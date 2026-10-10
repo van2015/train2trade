@@ -29,6 +29,12 @@ export class TradingEngine {
     return this.positions.filter((p) => p.state === 'open');
   }
 
+  get totalPnl(): number {
+    return this.positions
+      .filter((p) => p.state === 'closed')
+      .reduce((sum, p) => sum + (p.pnl ?? 0), 0);
+  }
+
   open(order: OpenOrder): Result<Position, EngineError> {
     if (order.price <= 0) {
       return { success: false, error: 'INVALID_PRICE' };

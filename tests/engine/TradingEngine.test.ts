@@ -103,4 +103,14 @@ describe('TradingEngine', () => {
 
     expect(closed.pnl).toBe(10);
   });
+
+  it('sums the PnL of closed positions into total PnL', () => {
+    const engine = new TradingEngine();
+    const long = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+    const short = unwrap(engine.open({ side: 'short', price: 100, size: 1 }));
+    unwrap(engine.close(long, 110));
+    unwrap(engine.close(short, 95));
+
+    expect(engine.totalPnl).toBe(15);
+  });
 });
