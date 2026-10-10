@@ -29,11 +29,23 @@ const cases: { id: IndicatorId; params: Record<string, number>; candles: PriceDa
   },
 ];
 
+function seriesOf(id: IndicatorId, params: Record<string, number>, candles: PriceData[]) {
+  const result = computeSeries(instance(id, params), candles);
+  expect(result.success).toBe(true);
+  return result.success ? result.value : [];
+}
+
+function plotsOf(id: IndicatorId, params: Record<string, number>, candles: PriceData[]) {
+  const result = compute(instance(id, params), candles);
+  expect(result.success).toBe(true);
+  return result.success ? result.value : [];
+}
+
 describe('IndicatorService.computeSeries', () => {
   it('returns index-aligned numeric values matching the chart plots', () => {
     for (const testCase of cases) {
-      const series = computeSeries(instance(testCase.id, testCase.params), testCase.candles);
-      const plots = compute(instance(testCase.id, testCase.params), testCase.candles);
+      const series = seriesOf(testCase.id, testCase.params, testCase.candles);
+      const plots = plotsOf(testCase.id, testCase.params, testCase.candles);
 
       expect(series.map(entry => entry.key)).toEqual(plots.map(plot => plot.key));
 
@@ -47,15 +59,16 @@ describe('IndicatorService.computeSeries', () => {
   });
 
   it('produces numeric values only, without rendering fields', () => {
-    const series = computeSeries(instance('sma', { period: 3 }), cases[0].candles);
+    const series = seriesOf('sma', { period: 3 }, cases[0].candles);
 
     expect(series).toHaveLength(1);
     expect(Object.keys(series[0]).sort()).toEqual(['key', 'values']);
   });
 
   it('omits warm-up values instead of zero-filling', () => {
-    const series = computeSeries(
-      instance('sma', { period: 3 }),
+    const series = seriesOf(
+      'sma',
+      { period: 3 },
       SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5])
     );
 
@@ -63,20 +76,15 @@ describe('IndicatorService.computeSeries', () => {
   });
 
   it('preserves per-indicator expected values', () => {
-    const smaSeries = computeSeries(
-      instance('sma', { period: 3 }),
-      SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5])
-    );
+    const smaSeries = seriesOf('sma', { period: 3 }, SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5]));
     expect(smaSeries[0].values[2]).toBeCloseTo(2);
 
-    const rsiSeries = computeSeries(
-      instance('rsi', { period: 2 }),
-      SamplePriceBuilder.fromCloses([1, 2, 1, 2, 3])
-    );
+    const rsiSeries = seriesOf('rsi', { period: 2 }, SamplePriceBuilder.fromCloses([1, 2, 1, 2, 3]));
     expect(rsiSeries[0].values[2]).toBeCloseTo(50);
 
-    const macdSeries = computeSeries(
-      instance('macd', { fast: 2, slow: 3, signal: 2 }),
+    const macdSeries = seriesOf(
+      'macd',
+      { fast: 2, slow: 3, signal: 2 },
       SamplePriceBuilder.fromCloses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     );
     const histogram = macdSeries.find(entry => entry.key === 'histogram')!;

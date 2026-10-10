@@ -8,6 +8,8 @@ import {
   PriceData,
 } from '../../shared/types/asset';
 import { Timeframe } from '../timeframe/Timeframe';
+import { Result } from '../../shared/types/Result';
+import { IndicatorError } from '../types/IndicatorError';
 
 type Values = (number | undefined)[];
 
@@ -396,38 +398,55 @@ export class IndicatorEngine {
   private registry = new IndicatorDefinitionRegistry();
   private calculator = new IndicatorCalculator();
 
-  createIndicatorInstance(id: IndicatorId): IndicatorInstance | null {
+  createIndicatorInstance(id: IndicatorId): Result<IndicatorInstance, IndicatorError> {
     const definition = this.registry.getDefinition(id);
-    if (!definition) return null;
+    if (!definition) {
+      return { success: false, error: { type: 'INDICATOR_NOT_FOUND', indicatorId: id } };
+    }
     return {
-      key: newInstanceKey(),
-      indicatorId: definition.id,
-      params: this.registry.normalizeParams(definition, {}),
+      success: true,
+      value: {
+        key: newInstanceKey(),
+        indicatorId: definition.id,
+        params: this.registry.normalizeParams(definition, {}),
+      },
     };
   }
 
-  compute(instance: IndicatorInstance, candles: PriceData[]): IndicatorPlot[] {
+  compute(instance: IndicatorInstance, candles: PriceData[]): Result<IndicatorPlot[], IndicatorError> {
     const definition = this.registry.getDefinition(instance.indicatorId);
-    if (!definition) return [];
+    if (!definition) {
+      return { success: false, error: { type: 'INDICATOR_NOT_FOUND', indicatorId: instance.indicatorId } };
+    }
     const params = this.registry.normalizeParams(definition, instance.params);
-    const series = this.computeSeries(instance, candles);
-    return definition.series.map((spec, index) => ({
-      key: spec.key,
-      label: spec.label(params),
-      style: spec.style,
-      color: spec.color,
-      data: this.calculator.toPlotPoints(candles, series[index].values, spec.colorForValue),
-    }));
+    const seriesResult = this.computeSeries(instance, candles);
+    if (!seriesResult.success) return seriesResult;
+    const series = seriesResult.value;
+    return {
+      success: true,
+      value: definition.series.map((spec, index) => ({
+        key: spec.key,
+        label: spec.label(params),
+        style: spec.style,
+        color: spec.color,
+        data: this.calculator.toPlotPoints(candles, series[index].values, spec.colorForValue),
+      })),
+    };
   }
 
-  computeSeries(instance: IndicatorInstance, candles: PriceData[]): IndicatorSeries[] {
+  computeSeries(instance: IndicatorInstance, candles: PriceData[]): Result<IndicatorSeries[], IndicatorError> {
     const definition = this.registry.getDefinition(instance.indicatorId);
-    if (!definition) return [];
+    if (!definition) {
+      return { success: false, error: { type: 'INDICATOR_NOT_FOUND', indicatorId: instance.indicatorId } };
+    }
     const params = this.registry.normalizeParams(definition, instance.params);
-    return definition.series.map(spec => ({
-      key: spec.key,
-      values: spec.computeValues(candles, params),
-    }));
+    return {
+      success: true,
+      value: definition.series.map(spec => ({
+        key: spec.key,
+        values: spec.computeValues(candles, params),
+      })),
+    };
   }
 
   maxLookback(instances: IndicatorInstance[], timeframe: Timeframe): number {
@@ -458,7 +477,7 @@ export function normalizeParams(
   return globalEngine['registry'].normalizeParams(definition, params);
 }
 
-export function createIndicatorInstance(id: IndicatorId): IndicatorInstance | null {
+export function createIndicatorInstance(id: IndicatorId): Result<IndicatorInstance, IndicatorError> {
   return globalEngine.createIndicatorInstance(id);
 }
 
@@ -469,11 +488,11 @@ export function getIndicatorGroups(): {
   return globalEngine['registry'].getIndicatorGroups();
 }
 
-export function compute(instance: IndicatorInstance, candles: PriceData[]): IndicatorPlot[] {
+export function compute(instance: IndicatorInstance, candles: PriceData[]): Result<IndicatorPlot[], IndicatorError> {
   return globalEngine.compute(instance, candles);
 }
 
-export function computeSeries(instance: IndicatorInstance, candles: PriceData[]): IndicatorSeries[] {
+export function computeSeries(instance: IndicatorInstance, candles: PriceData[]): Result<IndicatorSeries[], IndicatorError> {
   return globalEngine.computeSeries(instance, candles);
 }
 

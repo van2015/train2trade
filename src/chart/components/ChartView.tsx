@@ -217,8 +217,11 @@ export function ChartView({ assetId }: ChartViewProps) {
         if (!pane) continue;
 
         const entries: IndicatorSeriesRef[] = [];
-        for (const plot of compute(instance, [])) {
-          entries.push({ plotKey: plot.key, series: addPlotSeries(pane, plot) });
+        const plotsResult = compute(instance, []);
+        if (plotsResult.success) {
+          for (const plot of plotsResult.value) {
+            entries.push({ plotKey: plot.key, series: addPlotSeries(pane, plot) });
+          }
         }
         indicatorSeriesRef.current.set(instance.key, entries);
       }
@@ -243,7 +246,9 @@ export function ChartView({ assetId }: ChartViewProps) {
     for (const [instanceKey, entries] of indicatorSeriesRef.current) {
       const instance = state.activeIndicators.find(candidate => candidate.key === instanceKey);
       if (!instance) continue;
-      const plots = compute(instance, data);
+      const plotsResult = compute(instance, data);
+      if (!plotsResult.success) continue;
+      const plots = plotsResult.value;
       for (const { plotKey, series } of entries) {
         const plot = plots.find(candidate => candidate.key === plotKey);
         if (plot) series.setData(plot.data as any);

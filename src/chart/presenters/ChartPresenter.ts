@@ -133,9 +133,9 @@ export class ChartPresenter {
   }
 
   addIndicator(id: IndicatorId): void {
-    const instance = createIndicatorInstance(id);
-    if (!instance) return;
-    this.activeIndicators = [...this.activeIndicators, instance];
+    const result = createIndicatorInstance(id);
+    if (!result.success) return;
+    this.activeIndicators = [...this.activeIndicators, result.value];
     this.saveIndicatorsToStorage();
     this.notify();
   }

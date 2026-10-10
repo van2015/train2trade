@@ -75,8 +75,10 @@ export class StrategyManager {
       time: new Date(candles[index].date).getTime(),
       candle: () => candles[index],
       series: (name: PriceSeriesName) => upTo.map(candle => candle[name]),
-      indicator: (indicatorId: IndicatorId, params: Record<string, number> = {}) =>
-        computeSeries({ key: 'ctx', indicatorId, params }, upTo),
+      indicator: (indicatorId: IndicatorId, params: Record<string, number> = {}) => {
+        const result = computeSeries({ key: 'ctx', indicatorId, params }, upTo);
+        return result.success ? result.value : [];
+      },
       trades: () => trades,
     };
   }

@@ -30,10 +30,16 @@ function instance(
   return { key: `${indicatorId}-1`, indicatorId, params };
 }
 
+function plotsOf(indicatorId: IndicatorInstance['indicatorId'], params: Record<string, number>, data: PriceData[]) {
+  const result = compute(instance(indicatorId, params), data);
+  expect(result.success).toBe(true);
+  return result.success ? result.value : [];
+}
+
 describe('IndicatorService', () => {
   describe('compute', () => {
     it('computes SMA and omits leading values without enough data', () => {
-      const plots = compute(instance('sma', { period: 3 }), candles([1, 2, 3, 4, 5]));
+      const plots = plotsOf('sma', { period: 3 }, candles([1, 2, 3, 4, 5]));
 
       expect(plots).toHaveLength(1);
       expect(plots[0].data.map(point => point.value)).toEqual([
@@ -46,7 +52,7 @@ describe('IndicatorService', () => {
     });
 
     it('omits values as whitespace rather than zero-filling', () => {
-      const plots = compute(instance('sma', { period: 3 }), candles([1, 2, 3, 4, 5]));
+      const plots = plotsOf('sma', { period: 3 }, candles([1, 2, 3, 4, 5]));
 
       expect('value' in plots[0].data[0]).toBe(false);
       expect('value' in plots[0].data[1]).toBe(false);
@@ -54,7 +60,7 @@ describe('IndicatorService', () => {
     });
 
     it('computes EMA with an SMA seed', () => {
-      const plots = compute(instance('ema', { period: 3 }), candles([1, 2, 3, 4, 10]));
+      const plots = plotsOf('ema', { period: 3 }, candles([1, 2, 3, 4, 10]));
 
       const values = plots[0].data.map(point => point.value);
       expect(values[0]).toBeUndefined();
@@ -65,7 +71,7 @@ describe('IndicatorService', () => {
     });
 
     it('computes Bollinger Bands as three plots', () => {
-      const plots = compute(instance('bb', { period: 3, stdDev: 2 }), candles([1, 2, 3, 4, 5]));
+      const plots = plotsOf('bb', { period: 3, stdDev: 2 }, candles([1, 2, 3, 4, 5]));
 
       expect(plots.map(plot => plot.key)).toEqual(['upper', 'middle', 'lower']);
       const middle = plots.find(plot => plot.key === 'middle')!;
@@ -78,7 +84,7 @@ describe('IndicatorService', () => {
     });
 
     it('computes RSI using Wilder smoothing', () => {
-      const plots = compute(instance('rsi', { period: 2 }), candles([1, 2, 1, 2, 3]));
+      const plots = plotsOf('rsi', { period: 2 }, candles([1, 2, 1, 2, 3]));
 
       const values = plots[0].data.map(point => point.value);
       expect(values[0]).toBeUndefined();
@@ -89,8 +95,9 @@ describe('IndicatorService', () => {
     });
 
     it('computes MACD line, signal and histogram', () => {
-      const plots = compute(
-        instance('macd', { fast: 2, slow: 3, signal: 2 }),
+      const plots = plotsOf(
+        'macd',
+        { fast: 2, slow: 3, signal: 2 },
         candles([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
       );
 
@@ -108,8 +115,9 @@ describe('IndicatorService', () => {
     });
 
     it('colors volume bars by candle direction', () => {
-      const plots = compute(
-        instance('volume', {}),
+      const plots = plotsOf(
+        'volume',
+        {},
         candles([10, 10], [100, 200], [10, 11])
       );
 
@@ -148,9 +156,19 @@ describe('IndicatorService', () => {
       const first = createIndicatorInstance('sma');
       const second = createIndicatorInstance('sma');
 
-      expect(first).not.toBeNull();
-      expect(first!.params).toEqual({ period: 20 });
-      expect(second!.key).not.toBe(first!.key);
+      expect(first.success).toBe(true);
+      expect(second.success).toBe(true);
+      if (first.success && second.success) {
+        expect(first.value.params).toEqual({ period: 20 });
+        expect(second.value.key).not.toBe(first.value.key);
+      }
+    });
+
+    it('returns error for unknown indicator', () => {
+      const result = createIndicatorInstance('unknown' as IndicatorInstance['indicatorId']);
+
+      expect(result.success).toBe(false);
+      expect(!result.success && result.error.type).toBe('INDICATOR_NOT_FOUND');
     });
 
     it('groups definitions by pane', () => {
