@@ -50,18 +50,21 @@ export class TradingEngine {
     if (position.state !== 'open') {
       return { success: false, error: 'POSITION_NOT_OPEN' };
     }
-    const pct = ((price - position.entryPrice) / position.entryPrice) * 100;
-    const pnl = position.side === 'short' ? -pct : pct;
     const closed: Position = {
       ...position,
       state: 'closed',
       exitPrice: price,
-      pnl,
+      pnl: this.calcPnl(position, price),
     };
     const index = this.positions.indexOf(position);
     if (index >= 0) {
       this.positions[index] = closed;
     }
     return { success: true, value: closed };
+  }
+
+  private calcPnl(position: Position, exitPrice: number): number {
+    const pct = ((exitPrice - position.entryPrice) / position.entryPrice) * 100;
+    return position.side === 'short' ? -pct : pct;
   }
 }
