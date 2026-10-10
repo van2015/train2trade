@@ -160,4 +160,17 @@ describe('TradingEngine', () => {
     expect(engine.openPositions).toHaveLength(0);
     expect(engine.totalPnl).toBe(-5);
   });
+
+  it('closes a short when the price reaches its stop loss', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'short', price: 100, size: 1, stopLoss: 105 }));
+
+    const stopped = engine.checkStops(106);
+
+    expect(stopped).toHaveLength(1);
+    expect(stopped[0].state).toBe('closed');
+    expect(stopped[0].exitPrice).toBe(105);
+    expect(engine.openPositions).toHaveLength(0);
+    expect(engine.totalPnl).toBe(-5);
+  });
 });

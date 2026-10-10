@@ -88,7 +88,14 @@ export class TradingEngine {
   checkStops(price: number): Position[] {
     const stopped: Position[] = [];
     for (const position of this.openPositions) {
-      if (position.stopLoss !== undefined && price <= position.stopLoss) {
+      if (position.stopLoss === undefined) {
+        continue;
+      }
+      const hit =
+        position.side === 'long'
+          ? price <= position.stopLoss
+          : price >= position.stopLoss;
+      if (hit) {
         const result = this.close(position, position.stopLoss);
         if (result.success) {
           stopped.push(result.value);
