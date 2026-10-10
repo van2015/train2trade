@@ -22,7 +22,7 @@ export interface AppState {
   chartType: ChartType;
   selectedTimeframe: TimeframeType;
   activeIndicators: IndicatorInstance[];
-  error: string | null;
+  error: AppPresenterError | null;
   warnings: string[];
 }
 
@@ -38,7 +38,7 @@ class AppPresenter {
   private currentRange: Interval | null = null;
   private loadedRange: Interval | null = null;
   private lastSampleTime: number | null = null;
-  private error: string | null = null;
+  private error: AppPresenterError | null = null;
   private warnings: string[] = [];
   private listeners: Set<(state: AppState) => void> = new Set();
 
@@ -124,7 +124,7 @@ class AppPresenter {
       this.assets = await this.assetService.getSummaries();
       this.notify();
     } catch (_err) {
-      this.error = 'Failed to load assets';
+      this.error = { type: 'LOAD_FAILED', message: 'Failed to load assets' };
       this.notify();
     }
   }
@@ -144,7 +144,7 @@ class AppPresenter {
         type: 'VALIDATION_FAILED',
         message: result.error?.message || 'Validation failed',
       };
-      this.error = error.message;
+      this.error = error;
       this.notify();
       return { success: false, error };
     }
@@ -167,7 +167,7 @@ class AppPresenter {
         type: 'IMPORT_FAILED',
         message: err instanceof Error ? err.message : 'Failed to import file',
       };
-      this.error = error.message;
+      this.error = error;
       this.notify();
       return { success: false, error };
     }
@@ -220,7 +220,7 @@ class AppPresenter {
         type: 'LOAD_RANGE_FAILED',
         message: 'Failed to load asset data',
       };
-      this.error = error.message;
+      this.error = error;
       this.notify();
       return { success: false, error };
     }
@@ -243,7 +243,7 @@ class AppPresenter {
         type: 'DELETE_FAILED',
         message: 'Failed to delete asset',
       };
-      this.error = error.message;
+      this.error = error;
       this.notify();
       return { success: false, error };
     }

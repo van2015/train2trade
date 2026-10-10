@@ -55,7 +55,9 @@ function App() {
         </aside>
 
         <section className="chart-section">
-          {state.error && <div className="error-message">{state.error}</div>}
+          {state.error && (
+            <div className="error-message">{state.error.message}</div>
+          )}
           <ChartView assetId={state.selectedAssetId} />
         </section>
       </main>
