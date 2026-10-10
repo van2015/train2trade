@@ -125,28 +125,27 @@ export class TradingEngine {
   }
 
   closeAll(price: number): Position[] {
-    const closed: Position[] = [];
-    for (const position of this.openPositions) {
-      const result = this.close(position, price);
-      if (result.success) {
-        closed.push(result.value);
-      }
-    }
-    return closed;
+    return this.closeEach(() => price);
   }
 
   checkExits(price: number): Position[] {
-    const exited: Position[] = [];
+    return this.closeEach((position) => this.exitPriceAt(position, price));
+  }
+
+  private closeEach(
+    locateExit: (position: Position) => number | null
+  ): Position[] {
+    const closed: Position[] = [];
     for (const position of this.openPositions) {
-      const exitPrice = this.exitPriceAt(position, price);
+      const exitPrice = locateExit(position);
       if (exitPrice !== null) {
         const result = this.close(position, exitPrice);
         if (result.success) {
-          exited.push(result.value);
+          closed.push(result.value);
         }
       }
     }
-    return exited;
+    return closed;
   }
 
   private exitPriceAt(position: Position, price: number): number | null {
