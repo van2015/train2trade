@@ -113,4 +113,16 @@ describe('TradingEngine', () => {
 
     expect(engine.totalPnl).toBe(15);
   });
+
+  it('rejects closing a position with a non-positive price', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+
+    const result = engine.close(position, 0);
+
+    expect(result.success).toBe(false);
+    expect(expectError(result)).toBe('INVALID_PRICE');
+    expect(position.state).toBe('open');
+    expect(engine.totalPnl).toBe(0);
+  });
 });

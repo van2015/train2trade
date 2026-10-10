@@ -53,6 +53,9 @@ export class TradingEngine {
   }
 
   close(position: Position, price: number): Result<Position, EngineError> {
+    if (price <= 0) {
+      return { success: false, error: 'INVALID_PRICE' };
+    }
     if (position.state !== 'open') {
       return { success: false, error: 'POSITION_NOT_OPEN' };
     }
