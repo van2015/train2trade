@@ -329,4 +329,15 @@ describe('TradingEngine', () => {
     expect(exited[0].exitPrice).toBe(95);
     expect(engine.totalPnl).toBe(-5);
   });
+
+  it('closes the long when the price exactly equals the take profit', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'long', price: 100, size: 1, takeProfit: 120 }));
+
+    const exited = engine.checkExits(120);
+
+    expect(exited).toHaveLength(1);
+    expect(exited[0].exitPrice).toBe(120);
+    expect(engine.totalPnl).toBe(20);
+  });
 });
