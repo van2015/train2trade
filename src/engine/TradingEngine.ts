@@ -81,6 +81,13 @@ export class TradingEngine {
   }
 
   open(order: OpenOrder): Result<Position, EngineError> {
+    return this.openWithFee(order, this.takerFeePercent);
+  }
+
+  private openWithFee(
+    order: OpenOrder,
+    entryFee: number
+  ): Result<Position, EngineError> {
     const valid = this.validateOrder(order);
     if (!valid.success) {
       return valid;
@@ -92,7 +99,7 @@ export class TradingEngine {
       state: 'open',
       stopLoss: order.stopLoss,
       takeProfit: order.takeProfit,
-      entryFee: this.takerFeePercent,
+      entryFee,
     };
     this.positions.push(position);
     return { success: true, value: position };
@@ -122,13 +129,16 @@ export class TradingEngine {
           ? price <= order.limitPrice
           : price >= order.limitPrice;
       if (hit) {
-        const result = this.open({
-          side: order.side,
-          price: order.limitPrice,
-          size: order.size,
-          stopLoss: order.stopLoss,
-          takeProfit: order.takeProfit,
-        });
+        const result = this.openWithFee(
+          {
+            side: order.side,
+            price: order.limitPrice,
+            size: order.size,
+            stopLoss: order.stopLoss,
+            takeProfit: order.takeProfit,
+          },
+          this.makerFeePercent
+        );
         if (result.success) {
           filled.push(result.value);
           filledOrders.push(order);

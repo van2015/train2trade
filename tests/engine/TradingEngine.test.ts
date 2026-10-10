@@ -523,4 +523,20 @@ describe('TradingEngine', () => {
     expect(position.state).toBe('open');
     expect(engine.totalPnl).toBe(-6.5);
   });
+
+  it('deducts the maker fee when a limit order fills', () => {
+    const engine = new TradingEngine({
+      makerFeePercent: 0.5,
+      takerFeePercent: 1,
+    });
+    unwrap(engine.placeLimitOrder({ side: 'long', limitPrice: 100, size: 1 }));
+
+    const filled = engine.checkEntries(95);
+    expect(filled).toHaveLength(1);
+
+    const closed = unwrap(engine.close(filled[0], 110));
+
+    expect(closed.pnl).toBe(8.5);
+    expect(engine.totalPnl).toBe(8.5);
+  });
 });
