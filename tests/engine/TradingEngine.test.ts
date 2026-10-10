@@ -411,4 +411,31 @@ describe('TradingEngine', () => {
     expect(expectError(result)).toBe('INVALID_PRICE');
     expect(engine.pendingOrders).toHaveLength(0);
   });
+
+  it('fills a long limit order when price reaches it', () => {
+    const engine = new TradingEngine();
+    unwrap(
+      engine.placeLimitOrder({
+        side: 'long',
+        limitPrice: 95,
+        size: 1,
+        stopLoss: 90,
+        takeProfit: 130,
+      })
+    );
+
+    const untouched = engine.checkEntries(96);
+    expect(untouched).toHaveLength(0);
+    expect(engine.pendingOrders).toHaveLength(1);
+
+    const filled = engine.checkEntries(94);
+
+    expect(filled).toHaveLength(1);
+    expect(filled[0].entryPrice).toBe(95);
+    expect(filled[0].stopLoss).toBe(90);
+    expect(filled[0].takeProfit).toBe(130);
+    expect(filled[0].state).toBe('open');
+    expect(engine.pendingOrders).toHaveLength(0);
+    expect(engine.openPositions).toHaveLength(1);
+  });
 });

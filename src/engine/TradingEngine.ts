@@ -99,6 +99,30 @@ export class TradingEngine {
     return { success: true, value: order };
   }
 
+  checkEntries(price: number): Position[] {
+    const filled: Position[] = [];
+    const filledOrders: PendingOrder[] = [];
+    for (const order of this.pending) {
+      if (price <= order.limitPrice) {
+        const result = this.open({
+          side: order.side,
+          price: order.limitPrice,
+          size: order.size,
+          stopLoss: order.stopLoss,
+          takeProfit: order.takeProfit,
+        });
+        if (result.success) {
+          filled.push(result.value);
+          filledOrders.push(order);
+        }
+      }
+    }
+    for (const order of filledOrders) {
+      this.pending.splice(this.pending.indexOf(order), 1);
+    }
+    return filled;
+  }
+
   private validateOrder(order: OpenOrder): Result<void, EngineError> {
     const price = this.ensurePositive(order.price, 'INVALID_PRICE');
     if (!price.success) {
