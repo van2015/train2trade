@@ -194,6 +194,35 @@ export class TradingEngine {
     if (this.isInvalidTakeProfit(order)) {
       return { success: false, error: 'INVALID_TAKE_PROFIT' };
     }
+    if (order.exitLevels) {
+      for (const level of order.exitLevels) {
+        if (level.price <= 0) {
+          return { success: false, error: 'INVALID_PRICE' };
+        }
+        if (level.sizePercent <= 0 || level.sizePercent > 100) {
+          return { success: false, error: 'INVALID_SIZE' };
+        }
+        const invalid =
+          level.kind === 'tp'
+            ? this.isInvalidTakeProfit({
+                side: order.side,
+                price: order.price,
+                takeProfit: level.price,
+              })
+            : this.isInvalidStop({
+                side: order.side,
+                price: order.price,
+                stopLoss: level.price,
+              });
+        if (invalid) {
+          return {
+            success: false,
+            error:
+              level.kind === 'tp' ? 'INVALID_TAKE_PROFIT' : 'INVALID_STOP_LOSS',
+          };
+        }
+      }
+    }
     return { success: true, value: undefined };
   }
 

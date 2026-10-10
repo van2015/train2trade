@@ -736,4 +736,27 @@ describe('TradingEngine', () => {
     expect(engine.openPositions[0].exitLevels).toEqual([]);
     expect(engine.totalPnl).toBe(30);
   });
+
+  it('rejects invalid exit levels', () => {
+    const engine = new TradingEngine();
+
+    const badPercent = engine.open({
+      side: 'long',
+      price: 100,
+      size: 1,
+      exitLevels: [{ kind: 'tp', price: 110, sizePercent: 0 }],
+    });
+    const wrongSide = engine.open({
+      side: 'long',
+      price: 100,
+      size: 1,
+      exitLevels: [{ kind: 'tp', price: 90, sizePercent: 50 }],
+    });
+
+    expect(badPercent.success).toBe(false);
+    expect(expectError(badPercent)).toBe('INVALID_SIZE');
+    expect(wrongSide.success).toBe(false);
+    expect(expectError(wrongSide)).toBe('INVALID_TAKE_PROFIT');
+    expect(engine.openPositions).toHaveLength(0);
+  });
 });
