@@ -674,4 +674,30 @@ describe('TradingEngine', () => {
     ]);
     expect(engine.totalPnl).toBe(10);
   });
+
+  it('does not retrigger a consumed stop level', () => {
+    const engine = new TradingEngine();
+    unwrap(
+      engine.open({
+        side: 'long',
+        price: 100,
+        size: 2,
+        exitLevels: [{ kind: 'sl', price: 95, sizePercent: 25 }],
+      })
+    );
+
+    const first = engine.checkExits(94);
+
+    expect(first).toHaveLength(1);
+    expect(first[0].size).toBe(0.5);
+    expect(first[0].exitPrice).toBe(95);
+    expect(first[0].pnl).toBe(-5);
+
+    const second = engine.checkExits(94);
+
+    expect(second).toHaveLength(0);
+    expect(engine.openPositions).toHaveLength(1);
+    expect(engine.openPositions[0].size).toBe(1.5);
+    expect(engine.openPositions[0].exitLevels).toEqual([]);
+  });
 });
