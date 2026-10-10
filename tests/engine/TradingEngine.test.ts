@@ -24,6 +24,15 @@ describe('TradingEngine', () => {
     expect(expectError(result)).toBe('INVALID_PRICE');
   });
 
+  it('rejects opening a position with a non-positive size', () => {
+    const engine = new TradingEngine();
+
+    const result = engine.open({ side: 'long', price: 100, size: 0 });
+
+    expect(result.success).toBe(false);
+    expect(expectError(result)).toBe('INVALID_SIZE');
+  });
+
   it('closes an open position with the exit price', () => {
     const engine = new TradingEngine();
     const position = new PositionBuilder().long().build();
