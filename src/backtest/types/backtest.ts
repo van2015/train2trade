@@ -174,7 +174,6 @@ export interface BacktestResult {
   invalidated: InvalidatedTrade[];
   equityCurve: EquityPoint[];
   hasFinerData: boolean;
-  error?: StrategyError | ResampleError;
 }
 
 export interface PerformanceMetrics {

@@ -1,4 +1,5 @@
 import type { PriceData } from '../../shared/types/asset';
+import type { Result } from '../../shared/types/Result';
 import { Trade } from '../models/Trade';
 import { Broker } from '../services/Broker';
 import { StrategyManager } from '../services/StrategyManager';
@@ -9,7 +10,9 @@ import type {
   ClosedTrade,
   EquityPoint,
   InvalidatedTrade,
+  ResampleError,
   StrategyContext,
+  StrategyError,
   TradeSpec,
 } from '../types/backtest';
 import { Side, TradeState } from '../types/TradeEnums';
@@ -87,7 +90,7 @@ export class BacktestEngine {
     return bar.low <= order.price ? Math.min(bar.open, order.price) : undefined;
   }
 
-  run(): BacktestResult {
+  run(): Result<BacktestResult, StrategyError | ResampleError> {
     const input = this.input;
     const strategyManager = StrategyManager.getInstance();
     const resolvedResult = strategyManager.resolveStrategy(
@@ -95,13 +98,7 @@ export class BacktestEngine {
       input.params ?? {}
     );
     if (!resolvedResult.success) {
-      return {
-        trades: [],
-        invalidated: [],
-        equityCurve: [],
-        hasFinerData: false,
-        error: resolvedResult.error,
-      };
+      return { success: false, error: resolvedResult.error };
     }
     const resolved = resolvedResult.value;
     const strategyTimeframe =
@@ -109,13 +106,7 @@ export class BacktestEngine {
     const resampler = new DataResampler();
     const resampleResult = resampler.resample(input.dataset, strategyTimeframe);
     if (!resampleResult.success) {
-      return {
-        trades: [],
-        invalidated: [],
-        equityCurve: [],
-        hasFinerData: false,
-        error: resampleResult.error,
-      };
+      return { success: false, error: resampleResult.error };
     }
     const { bars, hasFinerData } = resampleResult.value;
     this.allBars = bars;
@@ -126,10 +117,13 @@ export class BacktestEngine {
 
     if (bars.length === 0) {
       return {
-        trades: this.closedTrades,
-        invalidated: this.invalidated,
-        equityCurve: this.equityCurve,
-        hasFinerData,
+        success: true,
+        value: {
+          trades: this.closedTrades,
+          invalidated: this.invalidated,
+          equityCurve: this.equityCurve,
+          hasFinerData,
+        },
       };
     }
 
@@ -140,10 +134,13 @@ export class BacktestEngine {
     }
 
     return {
-      trades: this.closedTrades,
-      invalidated: this.invalidated,
-      equityCurve: this.equityCurve,
-      hasFinerData,
+      success: true,
+      value: {
+        trades: this.closedTrades,
+        invalidated: this.invalidated,
+        equityCurve: this.equityCurve,
+        hasFinerData,
+      },
     };
   }
 
@@ -632,6 +629,8 @@ export class BacktestEngine {
   }
 }
 
-export function runBacktest(input: BacktestInput): BacktestResult {
+export function runBacktest(
+  input: BacktestInput
+): Result<BacktestResult, StrategyError | ResampleError> {
   return new BacktestEngine(input).run();
 }

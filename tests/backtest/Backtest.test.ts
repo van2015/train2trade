@@ -14,6 +14,7 @@ import { PlatformConfigBuilder } from '../test-helpers/platformConfigBuilder';
 import { PriceSeriesBuilder } from '../test-helpers/priceSeriesBuilder';
 import { StrategyDefinitionBuilder } from '../test-helpers/strategyDefinitionBuilder';
 import { TradeBuilder } from '../test-helpers/tradeBuilder';
+import { unwrap } from '../test-helpers/unwrap';
 
 function platformConfig(): PlatformConfigBuilder {
   return new PlatformConfigBuilder()
@@ -83,7 +84,7 @@ describe('runBacktest', () => {
       .low(104)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'market-once'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'market-once')));
 
     expect(result.trades).toHaveLength(1);
     expect(result.trades[0].averageEntry).toBeCloseTo(105);
@@ -118,7 +119,7 @@ describe('runBacktest', () => {
       .high(106)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'limit-once'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'limit-once')));
 
     expect(result.trades).toHaveLength(1);
     expect(result.trades[0].averageEntry).toBeCloseTo(100);
@@ -139,7 +140,7 @@ describe('runBacktest', () => {
       .low(100)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'limit-never'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'limit-never')));
 
     expect(result.trades).toHaveLength(0);
     expect(result.invalidated).toHaveLength(0);
@@ -167,7 +168,7 @@ describe('runBacktest', () => {
       .low(99)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'oco'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'oco')));
 
     expect(result.trades).toHaveLength(1);
     expect(result.trades[0].netPnl).toBeCloseTo(
@@ -197,7 +198,7 @@ describe('runBacktest', () => {
       .low(90)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'ambiguous'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'ambiguous')));
 
     expect(result.hasFinerData).toBe(false);
     expect(result.trades).toHaveLength(0);
@@ -233,7 +234,7 @@ describe('runBacktest', () => {
       .low(90)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'finer'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'finer')));
 
     expect(result.hasFinerData).toBe(true);
     expect(result.trades).toHaveLength(1);
@@ -268,7 +269,7 @@ describe('runBacktest', () => {
       .initialBalance(10000)
       .build();
 
-    const result = runBacktest(input);
+    const result = unwrap(runBacktest(input));
 
     expect(result.trades).toHaveLength(0);
   });
@@ -301,7 +302,7 @@ describe('runBacktest', () => {
       .close(109)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'trailing'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'trailing')));
 
     expect(result.trades).toHaveLength(1);
     expect(result.trades[0].averageEntry).toBeCloseTo(100);
@@ -343,7 +344,7 @@ describe('runBacktest', () => {
       .close(100)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'break-even'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'break-even')));
 
     expect(result.trades).toHaveLength(1);
     expect(result.trades[0].averageEntry).toBeCloseTo(100);
@@ -383,7 +384,7 @@ describe('runBacktest', () => {
       .close(90)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'partial'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'partial')));
 
     expect(result.trades).toHaveLength(1);
     expect(result.trades[0].size).toBeCloseTo(10);
@@ -418,7 +419,7 @@ describe('runBacktest', () => {
       .close(105)
       .build();
 
-    const result = runBacktest(baseInput(dataset, 'close-rule'));
+    const result = unwrap(runBacktest(baseInput(dataset, 'close-rule')));
 
     expect(result.trades).toHaveLength(1);
     expect(result.trades[0].netPnl).toBeCloseTo(
@@ -448,8 +449,8 @@ describe('runBacktest', () => {
       .low(99)
       .build();
 
-    const first = runBacktest(baseInput(dataset, 'deterministic'));
-    const second = runBacktest(baseInput(dataset, 'deterministic'));
+    const first = unwrap(runBacktest(baseInput(dataset, 'deterministic')));
+    const second = unwrap(runBacktest(baseInput(dataset, 'deterministic')));
 
     expect(second).toEqual(first);
   });
