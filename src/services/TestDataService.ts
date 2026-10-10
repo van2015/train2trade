@@ -3,6 +3,7 @@ import {
   type Timeframe as TimeframeType,
 } from '../backtest/timeframe/Timeframe';
 import type { PriceData } from '../shared/types/asset';
+import type { Result } from '../shared/types/Result';
 
 export interface TestDataParams {
   assetName: string;
@@ -14,12 +15,7 @@ export interface TestDataParams {
   sampleCount: number;
 }
 
-export interface ValidationResult {
-  valid: boolean;
-  errors: string[];
-}
-
-export function validateParams(params: TestDataParams): ValidationResult {
+export function validateParams(params: TestDataParams): Result<void, string[]> {
   const errors: string[] = [];
 
   if (!params.assetName || params.assetName.trim() === '') {
@@ -42,7 +38,10 @@ export function validateParams(params: TestDataParams): ValidationResult {
     errors.push('Volume values must be greater than 0');
   }
 
-  return { valid: errors.length === 0, errors };
+  if (errors.length > 0) {
+    return { success: false, error: errors };
+  }
+  return { success: true, value: undefined };
 }
 
 function randomInRange(min: number, max: number): number {

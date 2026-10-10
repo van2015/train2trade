@@ -47,8 +47,8 @@ export function TestDataGenerator({
     };
 
     const validation = validateParams(params);
-    if (!validation.valid) {
-      setErrors(validation.errors);
+    if (!validation.success) {
+      setErrors(validation.error);
       return;
     }
 
