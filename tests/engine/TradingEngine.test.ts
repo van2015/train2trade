@@ -318,4 +318,15 @@ describe('TradingEngine', () => {
     expect(engine.openPositions).toHaveLength(0);
     expect(engine.totalPnl).toBe(-10);
   });
+
+  it('closes the long when the price exactly equals the stop loss', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 }));
+
+    const exited = engine.checkExits(95);
+
+    expect(exited).toHaveLength(1);
+    expect(exited[0].exitPrice).toBe(95);
+    expect(engine.totalPnl).toBe(-5);
+  });
 });
