@@ -23,6 +23,12 @@ export interface Position {
 }
 
 export class TradingEngine {
+  private readonly positions: Position[] = [];
+
+  get openPositions(): Position[] {
+    return this.positions.filter((p) => p.state === 'open');
+  }
+
   open(order: OpenOrder): Result<Position, EngineError> {
     if (order.price <= 0) {
       return { success: false, error: 'INVALID_PRICE' };
@@ -30,15 +36,14 @@ export class TradingEngine {
     if (order.size <= 0) {
       return { success: false, error: 'INVALID_SIZE' };
     }
-    return {
-      success: true,
-      value: {
-        side: order.side,
-        entryPrice: order.price,
-        size: order.size,
-        state: 'open',
-      },
+    const position: Position = {
+      side: order.side,
+      entryPrice: order.price,
+      size: order.size,
+      state: 'open',
     };
+    this.positions.push(position);
+    return { success: true, value: position };
   }
 
   close(position: Position, price: number): Result<Position, EngineError> {
@@ -47,9 +52,16 @@ export class TradingEngine {
     }
     const pct = ((price - position.entryPrice) / position.entryPrice) * 100;
     const pnl = position.side === 'short' ? -pct : pct;
-    return {
-      success: true,
-      value: { ...position, state: 'closed', exitPrice: price, pnl },
+    const closed: Position = {
+      ...position,
+      state: 'closed',
+      exitPrice: price,
+      pnl,
     };
+    const index = this.positions.indexOf(position);
+    if (index >= 0) {
+      this.positions[index] = closed;
+    }
+    return { success: true, value: closed };
   }
 }

@@ -33,6 +33,20 @@ describe('TradingEngine', () => {
     expect(expectError(result)).toBe('INVALID_SIZE');
   });
 
+  it('tracks open positions after opening them', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+    unwrap(engine.open({ side: 'short', price: 50, size: 1 }));
+
+    expect(engine.openPositions).toHaveLength(2);
+    expect(engine.openPositions.map((p) => p.entryPrice)).toEqual([100, 50]);
+
+    const [first] = engine.openPositions;
+    unwrap(engine.close(first, 110));
+
+    expect(engine.openPositions).toHaveLength(1);
+  });
+
   it('closes an open position with the exit price', () => {
     const engine = new TradingEngine();
     const position = new PositionBuilder().long().build();
