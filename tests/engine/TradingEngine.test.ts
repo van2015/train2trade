@@ -125,4 +125,12 @@ describe('TradingEngine', () => {
     expect(position.state).toBe('open');
     expect(engine.totalPnl).toBe(0);
   });
+
+  it('calculates unrealized PnL for open positions at a given price', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+    unwrap(engine.open({ side: 'long', price: 200, size: 1 }));
+
+    expect(engine.unrealizedPnl(110)).toBe(-35);
+  });
 });

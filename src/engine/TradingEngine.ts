@@ -35,6 +35,13 @@ export class TradingEngine {
       .reduce((sum, p) => sum + (p.pnl ?? 0), 0);
   }
 
+  unrealizedPnl(price: number): number {
+    return this.openPositions.reduce(
+      (sum, p) => sum + this.calcPnl(p, price),
+      0
+    );
+  }
+
   open(order: OpenOrder): Result<Position, EngineError> {
     const price = this.ensurePositive(order.price, 'INVALID_PRICE');
     if (!price.success) {
