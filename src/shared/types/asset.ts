@@ -75,4 +75,5 @@ export interface IndicatorDefinition {
   params: IndicatorParamSpec[];
   lookback: (params: Record<string, number>) => number;
   series: IndicatorSeriesSpec[];
+  computeAll?: (candles: PriceData[], params: Record<string, number>) => Record<string, (number | undefined)[]>;
 }

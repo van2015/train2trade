@@ -214,6 +214,14 @@ const bollingerDefinition: IndicatorDefinition = {
     { key: 'stdDev', label: 'Std Dev', default: 2, min: 0 },
   ],
   lookback: params => params.period,
+  computeAll: (candles, params) => {
+    const bb = new IndicatorCalculator().bollinger(
+      candles.map(candle => candle.close),
+      params.period,
+      params.stdDev
+    );
+    return { upper: bb.upper, middle: bb.middle, lower: bb.lower };
+  },
   series: [
     {
       key: 'upper',
@@ -282,6 +290,15 @@ const macdDefinition: IndicatorDefinition = {
     { key: 'signal', label: 'Signal', default: 9, min: 1 },
   ],
   lookback: params => params.slow + params.signal,
+  computeAll: (candles, params) => {
+    const m = new IndicatorCalculator().macd(
+      candles.map(candle => candle.close),
+      params.fast,
+      params.slow,
+      params.signal
+    );
+    return { macd: m.macdLine, signal: m.signalLine, histogram: m.histogram };
+  },
   series: [
     {
       key: 'macd',
@@ -440,6 +457,13 @@ export class IndicatorEngine {
       return { success: false, error: { type: 'INDICATOR_NOT_FOUND', indicatorId: instance.indicatorId } };
     }
     const params = this.registry.normalizeParams(definition, instance.params);
+    if (definition.computeAll) {
+      const all = definition.computeAll(candles, params);
+      return {
+        success: true,
+        value: definition.series.map(spec => ({ key: spec.key, values: all[spec.key] })),
+      };
+    }
     return {
       success: true,
       value: definition.series.map(spec => ({
