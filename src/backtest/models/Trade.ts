@@ -4,12 +4,7 @@ import { TradeError } from '../types/TradeError';
 import { PriceData } from '../../shared/types/asset';
 import { Result } from '../../shared/types/Result';
 
-interface StopLossLevel {
-  price: number;
-  size: number;
-}
-
-interface TakeProfitLevel {
+interface PriceLevel {
   price: number;
   size: number;
 }
@@ -27,8 +22,8 @@ export class Trade {
   private _initialStopLoss?: number;
   private _initialAverageEntry?: number;
   private _initialSize?: number;
-  private readonly _stopLosses: StopLossLevel[] = [];
-  private readonly _takeProfits: TakeProfitLevel[] = [];
+  private readonly _stopLosses: PriceLevel[] = [];
+  private readonly _takeProfits: PriceLevel[] = [];
 
   constructor(id: string, side: Side) {
     this._state = TradeState.Pending;
@@ -149,83 +144,75 @@ export class Trade {
   }
 
   addStopLoss(price: number, size: number): Result<void, TradeError> {
-    if (this._state === TradeState.Closed) {
-      return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
-    }
-    if (size < 0) {
-      return { success: false, error: { type: 'INVALID_STOP_LOSS_SIZE', size } };
-    }
-    if (size === 0) return { success: true, value: undefined };
-
-    this._stopLosses.push({ price, size });
-    if (this._initialStopLoss === undefined) {
+    const result = this.addLevel(this._stopLosses, price, size, 'INVALID_STOP_LOSS_SIZE');
+    if (result.success && size > 0 && this._initialStopLoss === undefined) {
       this._initialStopLoss = price;
     }
-    return { success: true, value: undefined };
+    return result;
   }
 
   addTakeProfit(price: number, size: number): Result<void, TradeError> {
+    return this.addLevel(this._takeProfits, price, size, 'INVALID_TAKE_PROFIT_SIZE');
+  }
+
+  private addLevel(
+    levels: PriceLevel[],
+    price: number,
+    size: number,
+    errorType: 'INVALID_STOP_LOSS_SIZE' | 'INVALID_TAKE_PROFIT_SIZE'
+  ): Result<void, TradeError> {
     if (this._state === TradeState.Closed) {
       return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
     }
     if (size < 0) {
-      return { success: false, error: { type: 'INVALID_TAKE_PROFIT_SIZE', size } };
+      return { success: false, error: { type: errorType, size } };
     }
     if (size === 0) return { success: true, value: undefined };
 
-    this._takeProfits.push({ price, size });
+    levels.push({ price, size });
     return { success: true, value: undefined };
   }
 
   updateStopLoss(index: number, newSize: number): Result<void, TradeError> {
-    if (this._state === TradeState.Closed) {
-      return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
-    }
-    if (index < 0 || index >= this._stopLosses.length) {
-      return {
-        success: false,
-        error: { type: 'INVALID_INDEX', index, maxIndex: this._stopLosses.length - 1 },
-      };
-    }
-    if (newSize < 0) {
-      return { success: false, error: { type: 'INVALID_STOP_LOSS_SIZE', size: newSize } };
-    }
-
-    if (newSize === 0) {
-      this._stopLosses.splice(index, 1);
-    } else {
-      this._stopLosses[index].size = newSize;
-    }
-    return { success: true, value: undefined };
+    return this.updateLevel(this._stopLosses, index, newSize, 'INVALID_STOP_LOSS_SIZE');
   }
 
   updateTakeProfit(index: number, newSize: number): Result<void, TradeError> {
+    return this.updateLevel(this._takeProfits, index, newSize, 'INVALID_TAKE_PROFIT_SIZE');
+  }
+
+  private updateLevel(
+    levels: PriceLevel[],
+    index: number,
+    newSize: number,
+    errorType: 'INVALID_STOP_LOSS_SIZE' | 'INVALID_TAKE_PROFIT_SIZE'
+  ): Result<void, TradeError> {
     if (this._state === TradeState.Closed) {
       return { success: false, error: { type: 'TRADE_CLOSED', id: this.id } };
     }
-    if (index < 0 || index >= this._takeProfits.length) {
+    if (index < 0 || index >= levels.length) {
       return {
         success: false,
-        error: { type: 'INVALID_INDEX', index, maxIndex: this._takeProfits.length - 1 },
+        error: { type: 'INVALID_INDEX', index, maxIndex: levels.length - 1 },
       };
     }
     if (newSize < 0) {
-      return { success: false, error: { type: 'INVALID_TAKE_PROFIT_SIZE', size: newSize } };
+      return { success: false, error: { type: errorType, size: newSize } };
     }
 
     if (newSize === 0) {
-      this._takeProfits.splice(index, 1);
+      levels.splice(index, 1);
     } else {
-      this._takeProfits[index].size = newSize;
+      levels[index].size = newSize;
     }
     return { success: true, value: undefined };
   }
 
-  getStopLosses(): readonly StopLossLevel[] {
+  getStopLosses(): readonly PriceLevel[] {
     return this._stopLosses;
   }
 
-  getTakeProfits(): readonly TakeProfitLevel[] {
+  getTakeProfits(): readonly PriceLevel[] {
     return this._takeProfits;
   }
 
@@ -249,8 +236,8 @@ export class Trade {
       return { success: false, error: { type: 'AMBIGUOUS_CANDLE', id: this.id } };
     }
 
-    if (slHit) this._executeStopLosses(bar, long);
-    if (tpHit) this._executeTakeProfits(bar, long);
+    if (slHit) this.executeLevels(this._stopLosses, bar, long, true);
+    if (tpHit) this.executeLevels(this._takeProfits, bar, long, false);
     return { success: true, value: undefined };
   }
 
@@ -308,44 +295,27 @@ export class Trade {
     return side === Side.Long ? 1 : -1;
   }
 
-  private _executeStopLosses(bar: PriceData, long: boolean): void {
-    for (const sl of [...this._stopLosses]) {
+  private executeLevels(levels: PriceLevel[], bar: PriceData, long: boolean, isStopLoss: boolean): void {
+    for (const level of [...levels]) {
       if (this._state !== TradeState.Open) break;
-      const triggered = long ? bar.low <= sl.price : bar.high >= sl.price;
+      const triggered = isStopLoss
+        ? long
+          ? bar.low <= level.price
+          : bar.high >= level.price
+        : long
+          ? bar.high >= level.price
+          : bar.low <= level.price;
       if (!triggered) continue;
 
-      const closeSize = Math.min(sl.size, this._size);
+      const closeSize = Math.min(level.size, this._size);
       this._realizedPnl +=
-        (sl.price - this._averageEntry) * closeSize * Trade.directionFactor(this.side);
+        (level.price - this._averageEntry) * closeSize * Trade.directionFactor(this.side);
       this._size -= closeSize;
 
-      sl.size -= closeSize;
-      if (sl.size === 0) {
-        const idx = this._stopLosses.indexOf(sl);
-        if (idx !== -1) this._stopLosses.splice(idx, 1);
-      }
-
-      if (this._size === 0) {
-        this._state = TradeState.Closed;
-      }
-    }
-  }
-
-  private _executeTakeProfits(bar: PriceData, long: boolean): void {
-    for (const tp of [...this._takeProfits]) {
-      if (this._state !== TradeState.Open) break;
-      const triggered = long ? bar.high >= tp.price : bar.low <= tp.price;
-      if (!triggered) continue;
-
-      const closeSize = Math.min(tp.size, this._size);
-      this._realizedPnl +=
-        (tp.price - this._averageEntry) * closeSize * Trade.directionFactor(this.side);
-      this._size -= closeSize;
-
-      tp.size -= closeSize;
-      if (tp.size === 0) {
-        const idx = this._takeProfits.indexOf(tp);
-        if (idx !== -1) this._takeProfits.splice(idx, 1);
+      level.size -= closeSize;
+      if (level.size === 0) {
+        const idx = levels.indexOf(level);
+        if (idx !== -1) levels.splice(idx, 1);
       }
 
       if (this._size === 0) {
