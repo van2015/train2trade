@@ -305,4 +305,17 @@ describe('TradingEngine', () => {
     expect(expectError(aboveEntry)).toBe('INVALID_TAKE_PROFIT');
     expect(engine.openPositions).toHaveLength(0);
   });
+
+  it('closes all positions hit in the same tick', () => {
+    const engine = new TradingEngine();
+    unwrap(engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 }));
+    unwrap(engine.open({ side: 'long', price: 100, size: 1, stopLoss: 95 }));
+
+    const exited = engine.checkExits(94);
+
+    expect(exited).toHaveLength(2);
+    expect(exited.map((p) => p.exitPrice)).toEqual([95, 95]);
+    expect(engine.openPositions).toHaveLength(0);
+    expect(engine.totalPnl).toBe(-10);
+  });
 });
