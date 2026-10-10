@@ -213,4 +213,27 @@ describe('TradingEngine', () => {
     expect(engine.openPositions).toHaveLength(0);
     expect(engine.totalPnl).toBe(10);
   });
+
+  it('rejects opening a long with a stop loss at or above the entry price', () => {
+    const engine = new TradingEngine();
+
+    const atEntry = engine.open({
+      side: 'long',
+      price: 100,
+      size: 1,
+      stopLoss: 100,
+    });
+    const aboveEntry = engine.open({
+      side: 'long',
+      price: 100,
+      size: 1,
+      stopLoss: 105,
+    });
+
+    expect(atEntry.success).toBe(false);
+    expect(expectError(atEntry)).toBe('INVALID_STOP_LOSS');
+    expect(aboveEntry.success).toBe(false);
+    expect(expectError(aboveEntry)).toBe('INVALID_STOP_LOSS');
+    expect(engine.openPositions).toHaveLength(0);
+  });
 });

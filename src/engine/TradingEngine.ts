@@ -5,6 +5,7 @@ export type Side = 'long' | 'short';
 export type EngineError =
   | 'INVALID_PRICE'
   | 'INVALID_SIZE'
+  | 'INVALID_STOP_LOSS'
   | 'POSITION_NOT_OPEN';
 
 export interface OpenOrder {
@@ -54,6 +55,13 @@ export class TradingEngine {
     const size = this.ensurePositive(order.size, 'INVALID_SIZE');
     if (!size.success) {
       return size;
+    }
+    if (
+      order.side === 'long' &&
+      order.stopLoss !== undefined &&
+      order.stopLoss >= order.price
+    ) {
+      return { success: false, error: 'INVALID_STOP_LOSS' };
     }
     const position: Position = {
       side: order.side,
