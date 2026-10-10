@@ -1,4 +1,8 @@
+import type { Result } from '../shared/types/Result';
+
 export type Side = 'long' | 'short';
+
+export type EngineError = 'INVALID_PRICE';
 
 export interface OpenOrder {
   side: Side;
@@ -16,12 +20,18 @@ export interface Position {
 }
 
 export class TradingEngine {
-  open(order: OpenOrder): Position {
+  open(order: OpenOrder): Result<Position, EngineError> {
+    if (order.price <= 0) {
+      return { success: false, error: 'INVALID_PRICE' };
+    }
     return {
-      side: order.side,
-      entryPrice: order.price,
-      size: order.size,
-      state: 'open',
+      success: true,
+      value: {
+        side: order.side,
+        entryPrice: order.price,
+        size: order.size,
+        state: 'open',
+      },
     };
   }
 

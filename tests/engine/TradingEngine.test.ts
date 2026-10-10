@@ -1,17 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import { TradingEngine } from '../../src/engine/TradingEngine';
 import { PositionBuilder } from '../test-helpers/positionBuilder';
+import { expectError, unwrap } from '../test-helpers/unwrap';
 
 describe('TradingEngine', () => {
   it('opens a long position with the given price and size', () => {
     const engine = new TradingEngine();
 
-    const position = engine.open({ side: 'long', price: 100, size: 1 });
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
 
     expect(position.side).toBe('long');
     expect(position.entryPrice).toBe(100);
     expect(position.size).toBe(1);
     expect(position.state).toBe('open');
+  });
+
+  it('rejects opening a position with a non-positive price', () => {
+    const engine = new TradingEngine();
+
+    const result = engine.open({ side: 'long', price: 0, size: 1 });
+
+    expect(result.success).toBe(false);
+    expect(expectError(result)).toBe('INVALID_PRICE');
   });
 
   it('closes an open position with the exit price', () => {
