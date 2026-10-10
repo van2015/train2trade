@@ -7,6 +7,7 @@ export type EngineError =
   | 'INVALID_SIZE'
   | 'INVALID_STOP_LOSS'
   | 'INVALID_TAKE_PROFIT'
+  | 'DUPLICATE_EXIT_LEVEL'
   | 'POSITION_NOT_OPEN';
 
 export type ExitLevelKind = 'tp' | 'sl';
@@ -195,7 +196,12 @@ export class TradingEngine {
       return { success: false, error: 'INVALID_TAKE_PROFIT' };
     }
     if (order.exitLevels) {
+      const seenPrices = new Set<number>();
       for (const level of order.exitLevels) {
+        if (seenPrices.has(level.price)) {
+          return { success: false, error: 'DUPLICATE_EXIT_LEVEL' };
+        }
+        seenPrices.add(level.price);
         if (level.price <= 0) {
           return { success: false, error: 'INVALID_PRICE' };
         }
@@ -207,11 +213,13 @@ export class TradingEngine {
             ? this.isInvalidTakeProfit({
                 side: order.side,
                 price: order.price,
+                size: order.size,
                 takeProfit: level.price,
               })
             : this.isInvalidStop({
                 side: order.side,
                 price: order.price,
+                size: order.size,
                 stopLoss: level.price,
               });
         if (invalid) {

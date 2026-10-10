@@ -759,4 +759,33 @@ describe('TradingEngine', () => {
     expect(expectError(wrongSide)).toBe('INVALID_TAKE_PROFIT');
     expect(engine.openPositions).toHaveLength(0);
   });
+
+  it('rejects duplicate exit levels', () => {
+    const engine = new TradingEngine();
+
+    const duplicateTp = engine.open({
+      side: 'long',
+      price: 100,
+      size: 1,
+      exitLevels: [
+        { kind: 'tp', price: 110, sizePercent: 50 },
+        { kind: 'tp', price: 110, sizePercent: 25 },
+      ],
+    });
+    const duplicateSl = engine.open({
+      side: 'long',
+      price: 100,
+      size: 1,
+      exitLevels: [
+        { kind: 'sl', price: 95, sizePercent: 25 },
+        { kind: 'sl', price: 95, sizePercent: 10 },
+      ],
+    });
+
+    expect(duplicateTp.success).toBe(false);
+    expect(expectError(duplicateTp)).toBe('DUPLICATE_EXIT_LEVEL');
+    expect(duplicateSl.success).toBe(false);
+    expect(expectError(duplicateSl)).toBe('DUPLICATE_EXIT_LEVEL');
+    expect(engine.openPositions).toHaveLength(0);
+  });
 });
