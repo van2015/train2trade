@@ -155,6 +155,18 @@ export abstract class Order {
     return sliceSize / (this.feeBasis ?? this.size);
   }
 
+  protected calcClosedPnl(
+    exitPrice: number,
+    sliceSize: number,
+    exitFee: number
+  ): number {
+    return (
+      this.pnlAt(exitPrice) -
+      (this.entryFee ?? 0) * this.feeScale(sliceSize) -
+      exitFee * this.feeScale(sliceSize)
+    );
+  }
+
   fill(price: number, fee: number): Order {
     return this.instantiate('open', price, this.size, {
       stopLoss: this.stopLoss,
@@ -172,43 +184,28 @@ export abstract class Order {
     basis: number,
     excludeFromRemainder?: ExitLevel
   ): { closed: Order; remainder?: Order } {
-    if (sizePercent === 100) {
-      const closedPnl =
-        this.pnlAt(exitPrice) -
-        (this.entryFee ?? 0) * this.feeScale(this.size) -
-        exitFee * this.feeScale(this.size);
-      const closed = this.instantiate('closed', this.price, this.size, {
-        stopLoss: this.stopLoss,
-        takeProfit: this.takeProfit,
-        exitLevels: this.exitLevels,
-        entryFee: this.entryFee,
-        feeBasis: basis,
-        exitPrice,
-        pnl: closedPnl,
-      });
-      return { closed };
-    }
-    const sliceSize = (this.size * sizePercent) / 100;
-    const sliceClosedPnl =
-      this.pnlAt(exitPrice) -
-      (this.entryFee ?? 0) * this.feeScale(sliceSize) -
-      exitFee * this.feeScale(sliceSize);
-    const closed = this.instantiate('closed', this.price, sliceSize, {
+    const targetSize =
+      sizePercent === 100 ? this.size : (this.size * sizePercent) / 100;
+    const closedPnl = this.calcClosedPnl(exitPrice, targetSize, exitFee);
+    const closed = this.instantiate('closed', this.price, targetSize, {
       stopLoss: this.stopLoss,
       takeProfit: this.takeProfit,
       exitLevels: this.exitLevels,
       entryFee: this.entryFee,
       feeBasis: basis,
       exitPrice,
-      pnl: sliceClosedPnl,
+      pnl: closedPnl,
     });
+    if (sizePercent === 100) {
+      return { closed };
+    }
     const remainderExitLevels = excludeFromRemainder
       ? this.exitLevels?.filter((l) => l !== excludeFromRemainder)
       : this.exitLevels;
     const remainder = this.instantiate(
       'open',
       this.price,
-      this.size - sliceSize,
+      this.size - targetSize,
       {
         stopLoss: this.stopLoss,
         takeProfit: this.takeProfit,
