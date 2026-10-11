@@ -276,15 +276,9 @@ export class TradingEngine {
     exitFee: number = this.takerFeePercent,
     excludeFromRemainder?: ExitLevel
   ): Result<Position, EngineError> {
-    const exit = this.ensurePositive(price, 'INVALID_PRICE');
-    if (!exit.success) {
-      return exit;
-    }
-    if (position.state !== 'open') {
-      return { success: false, error: 'POSITION_NOT_OPEN' };
-    }
-    if (sizePercent <= 0 || sizePercent > 100) {
-      return { success: false, error: 'INVALID_SIZE' };
+    const valid = this.validateClose(position, price, sizePercent);
+    if (!valid.success) {
+      return valid;
     }
     if (sizePercent === 100) {
       const closed: Position = {
@@ -333,6 +327,24 @@ export class TradingEngine {
       (position.entryFee ?? 0) * this.feeScale(position, sliceSize) -
       exitFee * this.feeScale(position, sliceSize)
     );
+  }
+
+  private validateClose(
+    position: Position,
+    price: number,
+    sizePercent: number
+  ): Result<void, EngineError> {
+    const exit = this.ensurePositive(price, 'INVALID_PRICE');
+    if (!exit.success) {
+      return exit;
+    }
+    if (position.state !== 'open') {
+      return { success: false, error: 'POSITION_NOT_OPEN' };
+    }
+    if (sizePercent <= 0 || sizePercent > 100) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
+    return { success: true, value: undefined };
   }
 
   private feeScale(position: Position, sliceSize: number): number {
