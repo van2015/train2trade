@@ -68,13 +68,4 @@ export class LongOrder extends Order {
   ): Order {
     return new LongOrder(state, price, size, opts);
   }
-  fill(price: number, fee: number): LongOrder {
-    return new LongOrder('open', price, this.size, {
-      stopLoss: this.stopLoss,
-      takeProfit: this.takeProfit,
-      exitLevels: this.exitLevels,
-      entryFee: fee,
-      feeBasis: this.size,
-    });
-  }
 }

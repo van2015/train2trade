@@ -68,13 +68,4 @@ export class ShortOrder extends Order {
   ): Order {
     return new ShortOrder(state, price, size, opts);
   }
-  fill(price: number, fee: number): ShortOrder {
-    return new ShortOrder('open', price, this.size, {
-      stopLoss: this.stopLoss,
-      takeProfit: this.takeProfit,
-      exitLevels: this.exitLevels,
-      entryFee: fee,
-      feeBasis: this.size,
-    });
-  }
 }

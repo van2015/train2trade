@@ -155,7 +155,15 @@ export abstract class Order {
     return sliceSize / (this.feeBasis ?? this.size);
   }
 
-  abstract fill(price: number, fee: number): Order;
+  fill(price: number, fee: number): Order {
+    return this.instantiate('open', price, this.size, {
+      stopLoss: this.stopLoss,
+      takeProfit: this.takeProfit,
+      exitLevels: this.exitLevels,
+      entryFee: fee,
+      feeBasis: this.size,
+    });
+  }
 
   close(
     exitPrice: number,
