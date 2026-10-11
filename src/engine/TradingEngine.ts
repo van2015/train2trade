@@ -1,7 +1,5 @@
 import type { Result } from '../shared/types/Result';
 
-export type Side = 'long' | 'short';
-
 export type EngineError =
   | 'INVALID_PRICE'
   | 'INVALID_SIZE'
@@ -18,27 +16,221 @@ export interface ExitLevel {
   sizePercent: number;
 }
 
-interface ExitTarget {
-  price: number;
-  sizePercent: number | null;
-  level?: ExitLevel;
+export type OrderState = 'pending' | 'open' | 'closed';
+
+const _longBrand = Symbol('LongOrder');
+const _shortBrand = Symbol('ShortOrder');
+
+export abstract class Order {
+  readonly state: OrderState;
+  readonly price: number;
+  readonly size: number;
+  readonly stopLoss?: number;
+  readonly takeProfit?: number;
+  readonly exitLevels?: ExitLevel[];
+  readonly entryFee?: number;
+  readonly feeBasis?: number;
+  readonly exitPrice?: number;
+  readonly pnl?: number;
+
+  abstract readonly _brand: symbol;
+  abstract side(): 'long' | 'short';
+  abstract isTpHit(price: number): boolean;
+  abstract isSlHit(price: number): boolean;
+  abstract pnlAt(exitPrice: number): number;
+  abstract isValidStopLoss(): boolean;
+  abstract isValidTakeProfit(): boolean;
+  abstract canOpen(): boolean;
+
+  protected constructor(
+    state: OrderState,
+    price: number,
+    size: number,
+    opts?: {
+      stopLoss?: number;
+      takeProfit?: number;
+      exitLevels?: ExitLevel[];
+      entryFee?: number;
+      feeBasis?: number;
+      exitPrice?: number;
+      pnl?: number;
+    }
+  ) {
+    this.state = state;
+    this.price = price;
+    this.size = size;
+    this.stopLoss = opts?.stopLoss;
+    this.takeProfit = opts?.takeProfit;
+    this.exitLevels = opts?.exitLevels;
+    this.entryFee = opts?.entryFee;
+    this.feeBasis = opts?.feeBasis;
+    this.exitPrice = opts?.exitPrice;
+    this.pnl = opts?.pnl;
+  }
+
+  isValidLevel(level: ExitLevel): boolean {
+    if (level.price <= 0) return false;
+    if (level.sizePercent <= 0 || level.sizePercent > 100) return false;
+    if (level.kind === 'tp') {
+      return this.side() === 'long'
+        ? level.price > this.price
+        : level.price < this.price;
+    }
+    return this.side() === 'long'
+      ? level.price < this.price
+      : level.price > this.price;
+  }
+
+  levelError(level: ExitLevel): EngineError | null {
+    if (level.price <= 0) return 'INVALID_PRICE';
+    if (level.sizePercent <= 0 || level.sizePercent > 100)
+      return 'INVALID_SIZE';
+    if (level.kind === 'tp') {
+      const valid =
+        this.side() === 'long'
+          ? level.price > this.price
+          : level.price < this.price;
+      return valid ? null : 'INVALID_TAKE_PROFIT';
+    }
+    const valid =
+      this.side() === 'long'
+        ? level.price < this.price
+        : level.price > this.price;
+    return valid ? null : 'INVALID_STOP_LOSS';
+  }
+
+  abstract fill(price: number, fee: number): Order;
+  abstract close(exitPrice: number, fee: number, basis: number): Order;
 }
 
-export interface OpenOrder {
-  side: Side;
-  price: number;
-  size: number;
-  stopLoss?: number;
-  takeProfit?: number;
-  exitLevels?: ExitLevel[];
+export class LongOrder extends Order {
+  readonly _brand = _longBrand;
+  constructor(
+    state: OrderState,
+    price: number,
+    size: number,
+    opts?: {
+      stopLoss?: number;
+      takeProfit?: number;
+      exitLevels?: ExitLevel[];
+      entryFee?: number;
+      feeBasis?: number;
+      exitPrice?: number;
+      pnl?: number;
+    }
+  ) {
+    super(state, price, size, opts);
+  }
+  side() {
+    return 'long' as const;
+  }
+  isTpHit(price: number) {
+    return price >= this.price;
+  }
+  isSlHit(price: number) {
+    return price <= this.price;
+  }
+  pnlAt(exitPrice: number) {
+    return ((exitPrice - this.price) / this.price) * 100;
+  }
+  isValidStopLoss() {
+    return this.stopLoss === undefined || this.stopLoss < this.price;
+  }
+  isValidTakeProfit() {
+    return this.takeProfit === undefined || this.takeProfit > this.price;
+  }
+  canOpen() {
+    return this.isValidStopLoss() && this.isValidTakeProfit();
+  }
+  fill(price: number, fee: number): LongOrder {
+    return new LongOrder('open', price, this.size, {
+      stopLoss: this.stopLoss,
+      takeProfit: this.takeProfit,
+      exitLevels: this.exitLevels,
+      entryFee: fee,
+      feeBasis: this.size,
+    });
+  }
+  close(exitPrice: number, fee: number, basis: number): LongOrder {
+    const pnl =
+      this.pnlAt(exitPrice) -
+      (this.entryFee ?? 0) * (this.size / basis) -
+      fee * (this.size / basis);
+    return new LongOrder('closed', this.price, this.size, {
+      stopLoss: this.stopLoss,
+      takeProfit: this.takeProfit,
+      exitLevels: this.exitLevels,
+      entryFee: this.entryFee,
+      feeBasis: basis,
+      exitPrice,
+      pnl,
+    });
+  }
 }
 
-export interface PendingOrder {
-  side: Side;
-  limitPrice: number;
-  size: number;
-  stopLoss?: number;
-  takeProfit?: number;
+export class ShortOrder extends Order {
+  readonly _brand = _shortBrand;
+  constructor(
+    state: OrderState,
+    price: number,
+    size: number,
+    opts?: {
+      stopLoss?: number;
+      takeProfit?: number;
+      exitLevels?: ExitLevel[];
+      entryFee?: number;
+      feeBasis?: number;
+      exitPrice?: number;
+      pnl?: number;
+    }
+  ) {
+    super(state, price, size, opts);
+  }
+  side() {
+    return 'short' as const;
+  }
+  isTpHit(price: number) {
+    return price <= this.price;
+  }
+  isSlHit(price: number) {
+    return price >= this.price;
+  }
+  pnlAt(exitPrice: number) {
+    return -((exitPrice - this.price) / this.price) * 100;
+  }
+  isValidStopLoss() {
+    return this.stopLoss === undefined || this.stopLoss > this.price;
+  }
+  isValidTakeProfit() {
+    return this.takeProfit === undefined || this.takeProfit < this.price;
+  }
+  canOpen() {
+    return this.isValidStopLoss() && this.isValidTakeProfit();
+  }
+  fill(price: number, fee: number): ShortOrder {
+    return new ShortOrder('open', price, this.size, {
+      stopLoss: this.stopLoss,
+      takeProfit: this.takeProfit,
+      exitLevels: this.exitLevels,
+      entryFee: fee,
+      feeBasis: this.size,
+    });
+  }
+  close(exitPrice: number, fee: number, basis: number): ShortOrder {
+    const pnl =
+      this.pnlAt(exitPrice) -
+      (this.entryFee ?? 0) * (this.size / basis) -
+      fee * (this.size / basis);
+    return new ShortOrder('closed', this.price, this.size, {
+      stopLoss: this.stopLoss,
+      takeProfit: this.takeProfit,
+      exitLevels: this.exitLevels,
+      entryFee: this.entryFee,
+      feeBasis: basis,
+      exitPrice,
+      pnl,
+    });
+  }
 }
 
 export interface EngineOptions {
@@ -46,23 +238,8 @@ export interface EngineOptions {
   takerFeePercent?: number;
 }
 
-export interface Position {
-  side: Side;
-  entryPrice: number;
-  size: number;
-  state: 'open' | 'closed';
-  exitPrice?: number;
-  pnl?: number;
-  stopLoss?: number;
-  takeProfit?: number;
-  entryFee?: number;
-  feeBasis?: number;
-  exitLevels?: ExitLevel[];
-}
-
 export class TradingEngine {
-  private readonly positions: Position[] = [];
-  private readonly pending: PendingOrder[] = [];
+  private readonly orders: Order[] = [];
   private readonly makerFeePercent: number;
   private readonly takerFeePercent: number;
 
@@ -71,319 +248,199 @@ export class TradingEngine {
     this.takerFeePercent = options.takerFeePercent ?? 0;
   }
 
-  get pendingOrders(): PendingOrder[] {
-    return [...this.pending];
+  get pendingOrders(): Order[] {
+    return this.orders.filter((o) => o.state === 'pending');
   }
 
-  get openPositions(): Position[] {
-    return this.positions.filter((p) => p.state === 'open');
+  get openPositions(): Order[] {
+    return this.orders.filter((o) => o.state === 'open');
   }
 
-  get closedPositions(): Position[] {
-    return this.positions.filter((p) => p.state === 'closed');
+  get closedPositions(): Order[] {
+    return this.orders.filter((o) => o.state === 'closed');
   }
 
   get totalPnl(): number {
-    return this.closedPositions.reduce((sum, p) => sum + (p.pnl ?? 0), 0);
+    return this.closedPositions.reduce((sum, o) => sum + (o.pnl ?? 0), 0);
   }
 
   unrealizedPnl(price: number): number {
-    return this.openPositions.reduce(
-      (sum, p) => sum + this.calcPnl(p, price),
-      0
-    );
+    return this.openPositions.reduce((sum, o) => sum + o.pnlAt(price), 0);
   }
 
   equity(price: number): number {
     return this.totalPnl + this.unrealizedPnl(price);
   }
 
-  open(order: OpenOrder): Result<Position, EngineError> {
-    return this.openWithFee(order, this.takerFeePercent);
-  }
-
-  private openWithFee(
-    order: OpenOrder,
-    entryFee: number
-  ): Result<Position, EngineError> {
+  open(input: {
+    side: 'long' | 'short';
+    price: number;
+    size: number;
+    stopLoss?: number;
+    takeProfit?: number;
+    exitLevels?: ExitLevel[];
+  }): Result<Order, EngineError> {
+    const order =
+      input.side === 'long'
+        ? new LongOrder('open', input.price, input.size, {
+            stopLoss: input.stopLoss,
+            takeProfit: input.takeProfit,
+            exitLevels: input.exitLevels,
+            entryFee: this.takerFeePercent,
+            feeBasis: input.size,
+          })
+        : new ShortOrder('open', input.price, input.size, {
+            stopLoss: input.stopLoss,
+            takeProfit: input.takeProfit,
+            exitLevels: input.exitLevels,
+            entryFee: this.takerFeePercent,
+            feeBasis: input.size,
+          });
     const valid = this.validateOrder(order);
     if (!valid.success) {
       return valid;
     }
-    const position: Position = {
-      side: order.side,
-      entryPrice: order.price,
-      size: order.size,
-      state: 'open',
-      stopLoss: order.stopLoss,
-      takeProfit: order.takeProfit,
-      entryFee,
-      feeBasis: order.size,
-      exitLevels: order.exitLevels,
-    };
-    this.positions.push(position);
-    return { success: true, value: position };
-  }
-
-  placeLimitOrder(order: PendingOrder): Result<PendingOrder, EngineError> {
-    const valid = this.validateOrder({
-      side: order.side,
-      price: order.limitPrice,
-      size: order.size,
-      stopLoss: order.stopLoss,
-      takeProfit: order.takeProfit,
-    });
-    if (!valid.success) {
-      return valid;
-    }
-    this.pending.push(order);
+    this.orders.push(order);
     return { success: true, value: order };
   }
 
-  cancelLimitOrder(order: PendingOrder): boolean {
-    const index = this.pending.indexOf(order);
-    if (index < 0) {
+  placeLimitOrder(input: {
+    side: 'long' | 'short';
+    limitPrice: number;
+    size: number;
+    stopLoss?: number;
+    takeProfit?: number;
+    exitLevels?: ExitLevel[];
+  }): Result<Order, EngineError> {
+    const Ctor = input.side === 'long' ? LongOrder : ShortOrder;
+    const pending = new (Ctor as typeof LongOrder)(
+      'pending',
+      input.limitPrice,
+      input.size,
+      { stopLoss: input.stopLoss, takeProfit: input.takeProfit }
+    );
+    const valid = this.validateOrder(pending);
+    if (!valid.success) {
+      return valid;
+    }
+    this.orders.push(pending);
+    return { success: true, value: pending };
+  }
+
+  cancelLimitOrder(order: Order): boolean {
+    const index = this.orders.indexOf(order);
+    if (index < 0 || order.state !== 'pending') {
       return false;
     }
-    this.pending.splice(index, 1);
+    this.orders.splice(index, 1);
     return true;
   }
 
-  checkEntries(price: number): Position[] {
-    const filled: Position[] = [];
-    const filledOrders: PendingOrder[] = [];
-    for (const order of this.pending) {
-      const hit =
-        order.side === 'long'
-          ? price <= order.limitPrice
-          : price >= order.limitPrice;
-      if (hit) {
-        const result = this.openWithFee(
-          {
-            side: order.side,
-            price: order.limitPrice,
-            size: order.size,
-            stopLoss: order.stopLoss,
-            takeProfit: order.takeProfit,
-          },
-          this.makerFeePercent
-        );
-        if (result.success) {
-          filled.push(result.value);
-          filledOrders.push(order);
-        }
-      }
-    }
-    for (const order of filledOrders) {
-      this.pending.splice(this.pending.indexOf(order), 1);
+  checkEntries(price: number): Order[] {
+    const toFill = this.pendingOrders.filter((o) =>
+      o.side() === 'long' ? price <= o.price : price >= o.price
+    );
+    const filled: Order[] = [];
+    for (const order of toFill) {
+      const index = this.orders.indexOf(order);
+      if (index < 0) continue;
+      const opened = order.fill(order.price, this.makerFeePercent);
+      this.orders[index] = opened;
+      filled.push(opened);
     }
     return filled;
   }
 
-  private validateOrder(order: OpenOrder): Result<void, EngineError> {
-    const price = this.ensurePositive(order.price, 'INVALID_PRICE');
-    if (!price.success) {
-      return price;
-    }
-    const size = this.ensurePositive(order.size, 'INVALID_SIZE');
-    if (!size.success) {
-      return size;
-    }
-    if (this.isInvalidStop(order)) {
-      return { success: false, error: 'INVALID_STOP_LOSS' };
-    }
-    if (this.isInvalidTakeProfit(order)) {
-      return { success: false, error: 'INVALID_TAKE_PROFIT' };
-    }
-    if (order.exitLevels) {
-      const seenPrices = new Set<number>();
-      for (const level of order.exitLevels) {
-        const levelValid = this.validateExitLevel(
-          level,
-          order.side,
-          order.price,
-          order.size
-        );
-        if (!levelValid.success) {
-          return levelValid;
-        }
-        if (seenPrices.has(level.price)) {
-          return { success: false, error: 'DUPLICATE_EXIT_LEVEL' };
-        }
-        seenPrices.add(level.price);
-      }
-    }
-    return { success: true, value: undefined };
-  }
-
-  private isInvalidStop(order: OpenOrder): boolean {
-    if (order.stopLoss === undefined) {
-      return false;
-    }
-    return order.side === 'long'
-      ? order.stopLoss >= order.price
-      : order.stopLoss <= order.price;
-  }
-
-  private isInvalidTakeProfit(order: OpenOrder): boolean {
-    if (order.takeProfit === undefined) {
-      return false;
-    }
-    return order.side === 'long'
-      ? order.takeProfit <= order.price
-      : order.takeProfit >= order.price;
-  }
-
-  private validateExitLevel(
-    level: ExitLevel,
-    side: Side,
-    price: number,
-    size: number
-  ): Result<void, EngineError> {
-    if (level.price <= 0) {
-      return { success: false, error: 'INVALID_PRICE' };
-    }
-    if (level.sizePercent <= 0 || level.sizePercent > 100) {
-      return { success: false, error: 'INVALID_SIZE' };
-    }
-    const invalid =
-      level.kind === 'tp'
-        ? this.isInvalidTakeProfit({
-            side,
-            price,
-            size,
-            takeProfit: level.price,
-          })
-        : this.isInvalidStop({ side, price, size, stopLoss: level.price });
-    if (invalid) {
-      return {
-        success: false,
-        error:
-          level.kind === 'tp' ? 'INVALID_TAKE_PROFIT' : 'INVALID_STOP_LOSS',
-      };
-    }
-    return { success: true, value: undefined };
-  }
-
-  close(position: Position, price: number): Result<Position, EngineError> {
-    return this.closePartial(position, price);
+  close(order: Order, price: number): Result<Order, EngineError> {
+    return this.closePartial(order, price);
   }
 
   closePartial(
-    position: Position,
+    order: Order,
     price: number,
     sizePercent: number = 100,
     exitFee: number = this.takerFeePercent,
     excludeFromRemainder?: ExitLevel
-  ): Result<Position, EngineError> {
-    const valid = this.validateClose(position, price, sizePercent);
+  ): Result<Order, EngineError> {
+    const valid = this.validateClose(order, price, sizePercent);
     if (!valid.success) {
       return valid;
     }
+    const Ctor = order.side() === 'long' ? LongOrder : ShortOrder;
+    const slicePnl =
+      order.pnlAt(price) -
+      (order.entryFee ?? 0) * this.feeScale(order, order.size) -
+      exitFee * this.feeScale(order, order.size);
     if (sizePercent === 100) {
-      const closed: Position = {
-        ...position,
-        state: 'closed',
+      const closed = new Ctor('closed', order.price, order.size, {
+        stopLoss: order.stopLoss,
+        takeProfit: order.takeProfit,
+        exitLevels: order.exitLevels,
+        entryFee: order.entryFee,
+        feeBasis: order.feeBasis,
         exitPrice: price,
-        pnl: this.calcClosePnl(position, price, exitFee, position.size),
-      };
-      const index = this.positions.indexOf(position);
+        pnl: slicePnl,
+      });
+      const index = this.orders.indexOf(order);
       if (index >= 0) {
-        this.positions[index] = closed;
+        this.orders[index] = closed;
       }
       return { success: true, value: closed };
     }
-    const sliceSize = (position.size * sizePercent) / 100;
-    const slice: Position = {
-      ...position,
-      size: sliceSize,
-      state: 'closed',
+    const sliceSize = (order.size * sizePercent) / 100;
+    const sliceClosedPnl =
+      order.pnlAt(price) -
+      (order.entryFee ?? 0) * this.feeScale(order, sliceSize) -
+      exitFee * this.feeScale(order, sliceSize);
+    const slice = new Ctor('closed', order.price, sliceSize, {
+      stopLoss: order.stopLoss,
+      takeProfit: order.takeProfit,
+      exitLevels: order.exitLevels,
+      entryFee: order.entryFee,
+      feeBasis: order.feeBasis,
       exitPrice: price,
-      pnl: this.calcClosePnl(position, price, exitFee, sliceSize),
-    };
-    const remainder: Position = {
-      ...position,
-      size: position.size - sliceSize,
-      exitLevels: excludeFromRemainder
-        ? position.exitLevels?.filter((l) => l !== excludeFromRemainder)
-        : position.exitLevels,
-    };
-    const index = this.positions.indexOf(position);
+      pnl: sliceClosedPnl,
+    });
+    const remainderExitLevels = excludeFromRemainder
+      ? order.exitLevels?.filter((l) => l !== excludeFromRemainder)
+      : order.exitLevels;
+    const remainder = new Ctor('open', order.price, order.size - sliceSize, {
+      stopLoss: order.stopLoss,
+      takeProfit: order.takeProfit,
+      exitLevels: remainderExitLevels,
+      entryFee: order.entryFee,
+      feeBasis: order.feeBasis,
+    });
+    const index = this.orders.indexOf(order);
     if (index >= 0) {
-      this.positions[index] = remainder;
-      this.positions.push(slice);
+      this.orders[index] = remainder;
+      this.orders.push(slice);
     }
     return { success: true, value: slice };
   }
 
-  private calcClosePnl(
-    position: Position,
-    price: number,
-    exitFee: number,
-    sliceSize: number
-  ): number {
-    return (
-      this.calcPnl(position, price) -
-      (position.entryFee ?? 0) * this.feeScale(position, sliceSize) -
-      exitFee * this.feeScale(position, sliceSize)
-    );
-  }
-
-  private validateClose(
-    position: Position,
-    price: number,
-    sizePercent: number
-  ): Result<void, EngineError> {
-    const exit = this.ensurePositive(price, 'INVALID_PRICE');
-    if (!exit.success) {
-      return exit;
+  closeAll(price: number): Order[] {
+    const closed: Order[] = [];
+    for (const order of this.openPositions) {
+      const result = this.closePartial(order, price);
+      if (result.success) {
+        closed.push(result.value);
+      }
     }
-    if (position.state !== 'open') {
-      return { success: false, error: 'POSITION_NOT_OPEN' };
-    }
-    if (sizePercent <= 0 || sizePercent > 100) {
-      return { success: false, error: 'INVALID_SIZE' };
-    }
-    return { success: true, value: undefined };
+    return closed;
   }
 
-  private feeScale(position: Position, sliceSize: number): number {
-    return sliceSize / (position.feeBasis ?? position.size);
-  }
-
-  closeAll(price: number): Position[] {
-    return this.closeEach(
-      () => ({ price, sizePercent: null }),
-      this.takerFeePercent
-    );
-  }
-
-  checkExits(price: number): Position[] {
-    return this.closeEach(
-      (position) => this.exitAt(position, price),
-      this.makerFeePercent
-    );
-  }
-
-  onPrice(price: number): { entries: Position[]; exits: Position[] } {
-    const entries = this.checkEntries(price);
-    const exits = this.checkExits(price);
-    return { entries, exits };
-  }
-
-  private closeEach(
-    locateExit: (position: Position) => ExitTarget | null,
-    exitFee: number
-  ): Position[] {
-    const closed: Position[] = [];
-    for (const position of this.openPositions) {
-      const target = locateExit(position);
+  checkExits(price: number, orders?: Order[]): Order[] {
+    const closed: Order[] = [];
+    const toCheck = orders ?? this.openPositions;
+    for (const order of toCheck) {
+      const target = this.exitAt(order, price);
       if (target !== null) {
         const result = this.closePartial(
-          position,
+          order,
           target.price,
           target.sizePercent ?? 100,
-          exitFee,
+          this.makerFeePercent,
           target.level
         );
         if (result.success) {
@@ -394,46 +451,91 @@ export class TradingEngine {
     return closed;
   }
 
-  private exitAt(position: Position, price: number): ExitTarget | null {
-    const levels = position.exitLevels;
+  onPrice(price: number): { entries: Order[]; exits: Order[] } {
+    const preExistingOpen = this.orders.filter((o) => o.state === 'open');
+    const entries = this.checkEntries(price);
+    const exits = this.checkExits(price, preExistingOpen);
+    return { entries, exits };
+  }
+
+  private validateOrder(order: Order): Result<void, EngineError> {
+    const price = this.ensurePositive(order.price, 'INVALID_PRICE');
+    if (!price.success) {
+      return price;
+    }
+    const size = this.ensurePositive(order.size, 'INVALID_SIZE');
+    if (!size.success) {
+      return size;
+    }
+    if (!order.isValidStopLoss()) {
+      return { success: false, error: 'INVALID_STOP_LOSS' };
+    }
+    if (!order.isValidTakeProfit()) {
+      return { success: false, error: 'INVALID_TAKE_PROFIT' };
+    }
+    if (order.exitLevels) {
+      const seenPrices = new Set<number>();
+      for (const level of order.exitLevels) {
+        const levelErr = order.levelError(level);
+        if (levelErr !== null) {
+          return { success: false, error: levelErr };
+        }
+        if (seenPrices.has(level.price)) {
+          return { success: false, error: 'DUPLICATE_EXIT_LEVEL' };
+        }
+        seenPrices.add(level.price);
+      }
+    }
+    return { success: true, value: undefined };
+  }
+
+  private validateClose(
+    order: Order,
+    price: number,
+    sizePercent: number
+  ): Result<void, EngineError> {
+    const exit = this.ensurePositive(price, 'INVALID_PRICE');
+    if (!exit.success) {
+      return exit;
+    }
+    if (order.state !== 'open') {
+      return { success: false, error: 'POSITION_NOT_OPEN' };
+    }
+    if (sizePercent <= 0 || sizePercent > 100) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
+    return { success: true, value: undefined };
+  }
+
+  private feeScale(order: Order, sliceSize: number): number {
+    return sliceSize / (order.feeBasis ?? order.size);
+  }
+
+  private exitAt(
+    order: Order,
+    price: number
+  ): {
+    price: number;
+    sizePercent: number | null;
+    level?: ExitLevel;
+  } | null {
+    const levels = order.exitLevels;
     if (levels) {
       for (const level of levels) {
-        if (
-          this.hitAt(position.side, price, level.price, level.kind === 'tp')
-        ) {
+        const hit =
+          level.kind === 'tp' ? order.isTpHit(price) : order.isSlHit(price);
+        if (hit) {
           return { price: level.price, sizePercent: level.sizePercent, level };
         }
       }
     }
-    const { stopLoss, takeProfit } = position;
-    if (
-      stopLoss !== undefined &&
-      this.hitAt(position.side, price, stopLoss, false)
-    ) {
-      return { price: stopLoss, sizePercent: null };
+    if (order.stopLoss !== undefined && order.isSlHit(price)) {
+      return { price: order.stopLoss, sizePercent: null };
     }
-    if (
-      takeProfit !== undefined &&
-      this.hitAt(position.side, price, takeProfit, true)
-    ) {
-      return { price: takeProfit, sizePercent: null };
+    if (order.takeProfit !== undefined && order.isTpHit(price)) {
+      return { price: order.takeProfit, sizePercent: null };
     }
     return null;
-  }
-
-  private hitAt(
-    side: Side,
-    price: number,
-    threshold: number,
-    favorTp: boolean
-  ): boolean {
-    return favorTp
-      ? side === 'long'
-        ? price >= threshold
-        : price <= threshold
-      : side === 'long'
-        ? price <= threshold
-        : price >= threshold;
   }
 
   private ensurePositive(
@@ -443,10 +545,5 @@ export class TradingEngine {
     return value <= 0
       ? { success: false, error }
       : { success: true, value: undefined };
-  }
-
-  private calcPnl(position: Position, exitPrice: number): number {
-    const pct = ((exitPrice - position.entryPrice) / position.entryPrice) * 100;
-    return position.side === 'short' ? -pct : pct;
   }
 }

@@ -9,8 +9,8 @@ describe('TradingEngine', () => {
 
     const position = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
 
-    expect(position.side).toBe('long');
-    expect(position.entryPrice).toBe(100);
+    expect(position.side()).toBe('long');
+    expect(position.price).toBe(100);
     expect(position.size).toBe(1);
     expect(position.state).toBe('open');
   });
@@ -39,7 +39,7 @@ describe('TradingEngine', () => {
     unwrap(engine.open({ side: 'short', price: 50, size: 1 }));
 
     expect(engine.openPositions).toHaveLength(2);
-    expect(engine.openPositions.map((p) => p.entryPrice)).toEqual([100, 50]);
+    expect(engine.openPositions.map((p) => p.price)).toEqual([100, 50]);
 
     const [first] = engine.openPositions;
     unwrap(engine.close(first, 110));
@@ -61,7 +61,7 @@ describe('TradingEngine', () => {
 
   it('rejects closing a position that is already closed', () => {
     const engine = new TradingEngine();
-    const position = new PositionBuilder().long().state('closed').build();
+    const position = new PositionBuilder().long().build('closed');
 
     const result = engine.close(position, 110);
 
@@ -391,7 +391,7 @@ describe('TradingEngine', () => {
       })
     );
 
-    expect(pending.limitPrice).toBe(95);
+    expect(pending.price).toBe(95);
     expect(pending.stopLoss).toBe(90);
     expect(pending.takeProfit).toBe(130);
     expect(engine.pendingOrders).toHaveLength(1);
@@ -431,7 +431,7 @@ describe('TradingEngine', () => {
     const filled = engine.checkEntries(94);
 
     expect(filled).toHaveLength(1);
-    expect(filled[0].entryPrice).toBe(95);
+    expect(filled[0].price).toBe(95);
     expect(filled[0].stopLoss).toBe(90);
     expect(filled[0].takeProfit).toBe(130);
     expect(filled[0].state).toBe('open');
@@ -456,8 +456,8 @@ describe('TradingEngine', () => {
     const filled = engine.checkEntries(106);
 
     expect(filled).toHaveLength(1);
-    expect(filled[0].side).toBe('short');
-    expect(filled[0].entryPrice).toBe(105);
+    expect(filled[0].side()).toBe('short');
+    expect(filled[0].price).toBe(105);
     expect(engine.pendingOrders).toHaveLength(0);
   });
 
@@ -469,9 +469,9 @@ describe('TradingEngine', () => {
     const filled = engine.checkEntries(94);
 
     expect(filled).toHaveLength(1);
-    expect(filled[0].entryPrice).toBe(95);
+    expect(filled[0].price).toBe(95);
     expect(engine.pendingOrders).toHaveLength(1);
-    expect(engine.pendingOrders[0].limitPrice).toBe(90);
+    expect(engine.pendingOrders[0].price).toBe(90);
   });
 
   it('fills entries and checks exits in a single tick', () => {
@@ -489,7 +489,7 @@ describe('TradingEngine', () => {
     const tick = engine.onPrice(94);
 
     expect(tick.entries).toHaveLength(1);
-    expect(tick.entries[0].entryPrice).toBe(95);
+    expect(tick.entries[0].price).toBe(95);
     expect(tick.exits).toHaveLength(1);
     expect(tick.exits[0].exitPrice).toBe(95);
     expect(engine.pendingOrders).toHaveLength(0);
