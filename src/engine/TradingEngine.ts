@@ -41,6 +41,10 @@ export abstract class Order {
   abstract isValidStopLoss(): boolean;
   abstract isValidTakeProfit(): boolean;
   abstract canOpen(): boolean;
+  abstract isTpDirectionValid(price: number): boolean;
+  abstract isSlDirectionValid(price: number): boolean;
+  abstract tpError(price: number): EngineError | null;
+  abstract slError(price: number): EngineError | null;
 
   protected constructor(
     state: OrderState,
@@ -71,32 +75,18 @@ export abstract class Order {
   isValidLevel(level: ExitLevel): boolean {
     if (level.price <= 0) return false;
     if (level.sizePercent <= 0 || level.sizePercent > 100) return false;
-    if (level.kind === 'tp') {
-      return this.side() === 'long'
-        ? level.price > this.price
-        : level.price < this.price;
-    }
-    return this.side() === 'long'
-      ? level.price < this.price
-      : level.price > this.price;
+    return level.kind === 'tp'
+      ? this.isTpDirectionValid(level.price)
+      : this.isSlDirectionValid(level.price);
   }
 
   levelError(level: ExitLevel): EngineError | null {
     if (level.price <= 0) return 'INVALID_PRICE';
     if (level.sizePercent <= 0 || level.sizePercent > 100)
       return 'INVALID_SIZE';
-    if (level.kind === 'tp') {
-      const valid =
-        this.side() === 'long'
-          ? level.price > this.price
-          : level.price < this.price;
-      return valid ? null : 'INVALID_TAKE_PROFIT';
-    }
-    const valid =
-      this.side() === 'long'
-        ? level.price < this.price
-        : level.price > this.price;
-    return valid ? null : 'INVALID_STOP_LOSS';
+    return level.kind === 'tp'
+      ? this.tpError(level.price)
+      : this.slError(level.price);
   }
 
   abstract fill(price: number, fee: number): Order;
@@ -141,6 +131,18 @@ export class LongOrder extends Order {
   }
   canOpen() {
     return this.isValidStopLoss() && this.isValidTakeProfit();
+  }
+  isTpDirectionValid(price: number): boolean {
+    return price > this.price;
+  }
+  isSlDirectionValid(price: number): boolean {
+    return price < this.price;
+  }
+  tpError(price: number): EngineError | null {
+    return this.isTpDirectionValid(price) ? null : 'INVALID_TAKE_PROFIT';
+  }
+  slError(price: number): EngineError | null {
+    return this.isSlDirectionValid(price) ? null : 'INVALID_STOP_LOSS';
   }
   fill(price: number, fee: number): LongOrder {
     return new LongOrder('open', price, this.size, {
@@ -206,6 +208,18 @@ export class ShortOrder extends Order {
   }
   canOpen() {
     return this.isValidStopLoss() && this.isValidTakeProfit();
+  }
+  isTpDirectionValid(price: number): boolean {
+    return price < this.price;
+  }
+  isSlDirectionValid(price: number): boolean {
+    return price > this.price;
+  }
+  tpError(price: number): EngineError | null {
+    return this.isTpDirectionValid(price) ? null : 'INVALID_TAKE_PROFIT';
+  }
+  slError(price: number): EngineError | null {
+    return this.isSlDirectionValid(price) ? null : 'INVALID_STOP_LOSS';
   }
   fill(price: number, fee: number): ShortOrder {
     return new ShortOrder('open', price, this.size, {
