@@ -69,7 +69,7 @@ export class TradingEngine {
       entryFee: this.takerFeePercent,
       feeBasis: input.size,
     });
-    const valid = this.validateOrder(order);
+    const valid = order.validateOpen();
     if (!valid.success) {
       return valid;
     }
@@ -94,7 +94,7 @@ export class TradingEngine {
         takeProfit: input.takeProfit,
       }
     );
-    const valid = this.validateOrder(pending);
+    const valid = pending.validateOpen();
     if (!valid.success) {
       return valid;
     }
@@ -137,7 +137,7 @@ export class TradingEngine {
     exitFee: number = this.takerFeePercent,
     excludeFromRemainder?: ExitLevel
   ): Result<Order, EngineError> {
-    const valid = this.validateClose(order, price, sizePercent);
+    const valid = order.validateClose(price, sizePercent);
     if (!valid.success) {
       return valid;
     }
@@ -233,66 +233,8 @@ export class TradingEngine {
     return { entries, exits };
   }
 
-  private validateOrder(order: Order): Result<void, EngineError> {
-    const price = this.ensurePositive(order.price, 'INVALID_PRICE');
-    if (!price.success) {
-      return price;
-    }
-    const size = this.ensurePositive(order.size, 'INVALID_SIZE');
-    if (!size.success) {
-      return size;
-    }
-    if (!order.isValidStopLoss()) {
-      return { success: false, error: 'INVALID_STOP_LOSS' };
-    }
-    if (!order.isValidTakeProfit()) {
-      return { success: false, error: 'INVALID_TAKE_PROFIT' };
-    }
-    if (order.exitLevels) {
-      const seenPrices = new Set<number>();
-      for (const level of order.exitLevels) {
-        const levelErr = order.levelError(level);
-        if (levelErr !== null) {
-          return { success: false, error: levelErr };
-        }
-        if (seenPrices.has(level.price)) {
-          return { success: false, error: 'DUPLICATE_EXIT_LEVEL' };
-        }
-        seenPrices.add(level.price);
-      }
-    }
-    return { success: true, value: undefined };
-  }
-
-  private validateClose(
-    order: Order,
-    price: number,
-    sizePercent: number
-  ): Result<void, EngineError> {
-    const exit = this.ensurePositive(price, 'INVALID_PRICE');
-    if (!exit.success) {
-      return exit;
-    }
-    if (order.state !== 'open') {
-      return { success: false, error: 'POSITION_NOT_OPEN' };
-    }
-    if (sizePercent <= 0 || sizePercent > 100) {
-      return { success: false, error: 'INVALID_SIZE' };
-    }
-    return { success: true, value: undefined };
-  }
-
   private feeScale(order: Order, sliceSize: number): number {
     return sliceSize / (order.feeBasis ?? order.size);
-  }
-
-  private ensurePositive(
-    value: number,
-    error: EngineError
-  ): Result<void, EngineError> {
-    return value <= 0
-      ? { success: false, error }
-      : { success: true, value: undefined };
   }
 }
 

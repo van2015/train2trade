@@ -1,4 +1,4 @@
-import type { EngineError, ExitLevel, OrderState } from './types';
+import type { EngineError, ExitLevel, OrderState, Result } from './types';
 
 export const _longBrand = Symbol('LongOrder');
 export const _shortBrand = Symbol('ShortOrder');
@@ -93,6 +93,48 @@ export abstract class Order {
       return { price: this.takeProfit, sizePercent: null };
     }
     return null;
+  }
+
+  validateOpen(): Result<void, EngineError> {
+    if (this.price <= 0) {
+      return { success: false, error: 'INVALID_PRICE' };
+    }
+    if (this.size <= 0) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
+    if (!this.isValidStopLoss()) {
+      return { success: false, error: 'INVALID_STOP_LOSS' };
+    }
+    if (!this.isValidTakeProfit()) {
+      return { success: false, error: 'INVALID_TAKE_PROFIT' };
+    }
+    if (this.exitLevels) {
+      const seen = new Set<number>();
+      for (const level of this.exitLevels) {
+        const err = this.levelError(level);
+        if (err !== null) {
+          return { success: false, error: err };
+        }
+        if (seen.has(level.price)) {
+          return { success: false, error: 'DUPLICATE_EXIT_LEVEL' };
+        }
+        seen.add(level.price);
+      }
+    }
+    return { success: true, value: undefined };
+  }
+
+  validateClose(price: number, sizePercent: number): Result<void, EngineError> {
+    if (price <= 0) {
+      return { success: false, error: 'INVALID_PRICE' };
+    }
+    if (this.state !== 'open') {
+      return { success: false, error: 'POSITION_NOT_OPEN' };
+    }
+    if (sizePercent <= 0 || sizePercent > 100) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
+    return { success: true, value: undefined };
   }
 
   abstract fill(price: number, fee: number): Order;
