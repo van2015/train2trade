@@ -291,10 +291,7 @@ export class TradingEngine {
         ...position,
         state: 'closed',
         exitPrice: price,
-        pnl:
-          this.calcPnl(position, price) -
-          (position.entryFee ?? 0) * this.feeScale(position, position.size) -
-          exitFee * this.feeScale(position, position.size),
+        pnl: this.calcClosePnl(position, price, exitFee, position.size),
       };
       const index = this.positions.indexOf(position);
       if (index >= 0) {
@@ -308,10 +305,7 @@ export class TradingEngine {
       size: sliceSize,
       state: 'closed',
       exitPrice: price,
-      pnl:
-        this.calcPnl(position, price) -
-        (position.entryFee ?? 0) * this.feeScale(position, sliceSize) -
-        exitFee * this.feeScale(position, sliceSize),
+      pnl: this.calcClosePnl(position, price, exitFee, sliceSize),
     };
     const remainder: Position = {
       ...position,
@@ -326,6 +320,19 @@ export class TradingEngine {
       this.positions.push(slice);
     }
     return { success: true, value: slice };
+  }
+
+  private calcClosePnl(
+    position: Position,
+    price: number,
+    exitFee: number,
+    sliceSize: number
+  ): number {
+    return (
+      this.calcPnl(position, price) -
+      (position.entryFee ?? 0) * this.feeScale(position, sliceSize) -
+      exitFee * this.feeScale(position, sliceSize)
+    );
   }
 
   private feeScale(position: Position, sliceSize: number): number {
