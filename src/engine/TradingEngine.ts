@@ -399,32 +399,36 @@ export class TradingEngine {
     level: ExitLevel,
     price: number
   ): boolean {
-    if (level.kind === 'tp') {
-      return position.side === 'long'
-        ? price >= level.price
-        : price <= level.price;
-    }
-    return position.side === 'long'
-      ? price <= level.price
-      : price >= level.price;
+    return this.hitAt(position.side, price, level.price, level.kind === 'tp');
   }
 
   private isStopHit(position: Position, price: number): boolean {
     if (position.stopLoss === undefined) {
       return false;
     }
-    return position.side === 'long'
-      ? price <= position.stopLoss
-      : price >= position.stopLoss;
+    return this.hitAt(position.side, price, position.stopLoss, false);
   }
 
   private isTakeProfitHit(position: Position, price: number): boolean {
     if (position.takeProfit === undefined) {
       return false;
     }
-    return position.side === 'long'
-      ? price >= position.takeProfit
-      : price <= position.takeProfit;
+    return this.hitAt(position.side, price, position.takeProfit, true);
+  }
+
+  private hitAt(
+    side: Side,
+    price: number,
+    threshold: number,
+    favorTp: boolean
+  ): boolean {
+    return favorTp
+      ? side === 'long'
+        ? price >= threshold
+        : price <= threshold
+      : side === 'long'
+        ? price <= threshold
+        : price >= threshold;
   }
 
   private ensurePositive(
