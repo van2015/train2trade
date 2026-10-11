@@ -386,41 +386,27 @@ export class TradingEngine {
     const levels = position.exitLevels;
     if (levels) {
       for (const level of levels) {
-        if (this.isLevelHit(position, level, price)) {
+        if (
+          this.hitAt(position.side, price, level.price, level.kind === 'tp')
+        ) {
           return { price: level.price, sizePercent: level.sizePercent, level };
         }
       }
     }
     const { stopLoss, takeProfit } = position;
-    if (stopLoss !== undefined && this.isStopHit(position, price)) {
+    if (
+      stopLoss !== undefined &&
+      this.hitAt(position.side, price, stopLoss, false)
+    ) {
       return { price: stopLoss, sizePercent: null };
     }
-    if (takeProfit !== undefined && this.isTakeProfitHit(position, price)) {
+    if (
+      takeProfit !== undefined &&
+      this.hitAt(position.side, price, takeProfit, true)
+    ) {
       return { price: takeProfit, sizePercent: null };
     }
     return null;
-  }
-
-  private isLevelHit(
-    position: Position,
-    level: ExitLevel,
-    price: number
-  ): boolean {
-    return this.hitAt(position.side, price, level.price, level.kind === 'tp');
-  }
-
-  private isStopHit(position: Position, price: number): boolean {
-    if (position.stopLoss === undefined) {
-      return false;
-    }
-    return this.hitAt(position.side, price, position.stopLoss, false);
-  }
-
-  private isTakeProfitHit(position: Position, price: number): boolean {
-    if (position.takeProfit === undefined) {
-      return false;
-    }
-    return this.hitAt(position.side, price, position.takeProfit, true);
   }
 
   private hitAt(
