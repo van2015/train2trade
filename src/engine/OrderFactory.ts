@@ -3,8 +3,17 @@ import type { Order } from './Order';
 import { ShortOrder } from './ShortOrder';
 import type { ExitLevel } from './types';
 
+const constructors = {
+  long: LongOrder,
+  short: ShortOrder,
+} as const;
+
+export { constructors };
+
+export type OrderSide = keyof typeof constructors;
+
 export function createOpenOrder(
-  side: 'long' | 'short',
+  side: OrderSide,
   price: number,
   size: number,
   opts?: {
@@ -15,13 +24,11 @@ export function createOpenOrder(
     feeBasis?: number;
   }
 ): Order {
-  return side === 'long'
-    ? new LongOrder('open', price, size, opts)
-    : new ShortOrder('open', price, size, opts);
+  return new constructors[side]('open', price, size, opts);
 }
 
 export function createPendingOrder(
-  side: 'long' | 'short',
+  side: OrderSide,
   limitPrice: number,
   size: number,
   opts?: {
@@ -30,7 +37,5 @@ export function createPendingOrder(
     exitLevels?: ExitLevel[];
   }
 ): Order {
-  return side === 'long'
-    ? new LongOrder('pending', limitPrice, size, opts)
-    : new ShortOrder('pending', limitPrice, size, opts);
+  return new constructors[side]('pending', limitPrice, size, opts);
 }

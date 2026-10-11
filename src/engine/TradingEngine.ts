@@ -10,10 +10,12 @@ export type {
   OrderState,
 } from './types';
 
-import { LongOrder } from './LongOrder';
 import type { Order } from './Order';
-import { createOpenOrder, createPendingOrder } from './OrderFactory';
-import { ShortOrder } from './ShortOrder';
+import {
+  constructors,
+  createOpenOrder,
+  createPendingOrder,
+} from './OrderFactory';
 import type { EngineError, ExitLevel, Result } from './types';
 
 export interface EngineOptions {
@@ -142,7 +144,7 @@ export class TradingEngine {
     if (!valid.success) {
       return valid;
     }
-    const Ctor = order.side() === 'long' ? LongOrder : ShortOrder;
+    const Ctor = constructors[order.side()];
     const slicePnl =
       order.pnlAt(price) -
       (order.entryFee ?? 0) * this.feeScale(order, order.size) -
