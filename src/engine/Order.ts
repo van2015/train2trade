@@ -27,6 +27,20 @@ export abstract class Order {
   abstract isSlDirectionValid(price: number): boolean;
   abstract tpError(price: number): EngineError | null;
   abstract slError(price: number): EngineError | null;
+  abstract instantiate(
+    state: 'open' | 'closed',
+    price: number,
+    size: number,
+    opts: {
+      stopLoss?: number;
+      takeProfit?: number;
+      exitLevels?: ExitLevel[];
+      entryFee?: number;
+      feeBasis?: number;
+      exitPrice?: number;
+      pnl?: number;
+    }
+  ): Order;
 
   protected constructor(
     state: OrderState,
@@ -142,11 +156,59 @@ export abstract class Order {
   }
 
   abstract fill(price: number, fee: number): Order;
-  abstract close(
+
+  close(
     exitPrice: number,
     sizePercent: number,
     exitFee: number,
     basis: number,
     excludeFromRemainder?: ExitLevel
-  ): { closed: Order; remainder?: Order };
+  ): { closed: Order; remainder?: Order } {
+    if (sizePercent === 100) {
+      const closedPnl =
+        this.pnlAt(exitPrice) -
+        (this.entryFee ?? 0) * this.feeScale(this.size) -
+        exitFee * this.feeScale(this.size);
+      const closed = this.instantiate('closed', this.price, this.size, {
+        stopLoss: this.stopLoss,
+        takeProfit: this.takeProfit,
+        exitLevels: this.exitLevels,
+        entryFee: this.entryFee,
+        feeBasis: basis,
+        exitPrice,
+        pnl: closedPnl,
+      });
+      return { closed };
+    }
+    const sliceSize = (this.size * sizePercent) / 100;
+    const sliceClosedPnl =
+      this.pnlAt(exitPrice) -
+      (this.entryFee ?? 0) * this.feeScale(sliceSize) -
+      exitFee * this.feeScale(sliceSize);
+    const closed = this.instantiate('closed', this.price, sliceSize, {
+      stopLoss: this.stopLoss,
+      takeProfit: this.takeProfit,
+      exitLevels: this.exitLevels,
+      entryFee: this.entryFee,
+      feeBasis: basis,
+      exitPrice,
+      pnl: sliceClosedPnl,
+    });
+    const remainderExitLevels = excludeFromRemainder
+      ? this.exitLevels?.filter((l) => l !== excludeFromRemainder)
+      : this.exitLevels;
+    const remainder = this.instantiate(
+      'open',
+      this.price,
+      this.size - sliceSize,
+      {
+        stopLoss: this.stopLoss,
+        takeProfit: this.takeProfit,
+        exitLevels: remainderExitLevels,
+        entryFee: this.entryFee,
+        feeBasis: basis,
+      }
+    );
+    return { closed, remainder };
+  }
 }

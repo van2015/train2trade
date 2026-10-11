@@ -52,6 +52,22 @@ export class LongOrder extends Order {
   slError(price: number): EngineError | null {
     return this.isSlDirectionValid(price) ? null : 'INVALID_STOP_LOSS';
   }
+  instantiate(
+    state: 'open' | 'closed',
+    price: number,
+    size: number,
+    opts: {
+      stopLoss?: number;
+      takeProfit?: number;
+      exitLevels?: ExitLevel[];
+      entryFee?: number;
+      feeBasis?: number;
+      exitPrice?: number;
+      pnl?: number;
+    }
+  ): Order {
+    return new LongOrder(state, price, size, opts);
+  }
   fill(price: number, fee: number): LongOrder {
     return new LongOrder('open', price, this.size, {
       stopLoss: this.stopLoss,
@@ -60,54 +76,5 @@ export class LongOrder extends Order {
       entryFee: fee,
       feeBasis: this.size,
     });
-  }
-  close(
-    exitPrice: number,
-    sizePercent: number,
-    exitFee: number,
-    basis: number,
-    excludeFromRemainder?: ExitLevel
-  ): { closed: LongOrder; remainder?: LongOrder } {
-    if (sizePercent === 100) {
-      const closedPnl =
-        this.pnlAt(exitPrice) -
-        (this.entryFee ?? 0) * this.feeScale(this.size) -
-        exitFee * this.feeScale(this.size);
-      const closed = new LongOrder('closed', this.price, this.size, {
-        stopLoss: this.stopLoss,
-        takeProfit: this.takeProfit,
-        exitLevels: this.exitLevels,
-        entryFee: this.entryFee,
-        feeBasis: basis,
-        exitPrice,
-        pnl: closedPnl,
-      });
-      return { closed };
-    }
-    const sliceSize = (this.size * sizePercent) / 100;
-    const sliceClosedPnl =
-      this.pnlAt(exitPrice) -
-      (this.entryFee ?? 0) * this.feeScale(sliceSize) -
-      exitFee * this.feeScale(sliceSize);
-    const closed = new LongOrder('closed', this.price, sliceSize, {
-      stopLoss: this.stopLoss,
-      takeProfit: this.takeProfit,
-      exitLevels: this.exitLevels,
-      entryFee: this.entryFee,
-      feeBasis: basis,
-      exitPrice,
-      pnl: sliceClosedPnl,
-    });
-    const remainderExitLevels = excludeFromRemainder
-      ? this.exitLevels?.filter((l) => l !== excludeFromRemainder)
-      : this.exitLevels;
-    const remainder = new LongOrder('open', this.price, this.size - sliceSize, {
-      stopLoss: this.stopLoss,
-      takeProfit: this.takeProfit,
-      exitLevels: remainderExitLevels,
-      entryFee: this.entryFee,
-      feeBasis: basis,
-    });
-    return { closed, remainder };
   }
 }
