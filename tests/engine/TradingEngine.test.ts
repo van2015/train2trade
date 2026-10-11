@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TradingEngine } from '../../src/engine/TradingEngine';
-import { PositionBuilder } from '../test-helpers/positionBuilder';
+import { anOrder, PositionBuilder } from '../test-helpers/positionBuilder';
 import { expectError, unwrap } from '../test-helpers/unwrap';
 
 describe('TradingEngine', () => {
@@ -49,7 +49,7 @@ describe('TradingEngine', () => {
 
   it('closes an open position with the exit price', () => {
     const engine = new TradingEngine();
-    const position = new PositionBuilder().long().build();
+    const position = new PositionBuilder().long().buildOrder();
 
     const closed = unwrap(engine.close(position, 110));
 
@@ -61,7 +61,7 @@ describe('TradingEngine', () => {
 
   it('rejects closing a position that is already closed', () => {
     const engine = new TradingEngine();
-    const position = new PositionBuilder().long().build('closed');
+    const position = new PositionBuilder().long().buildOrder('closed');
 
     const result = engine.close(position, 110);
 
@@ -75,7 +75,7 @@ describe('TradingEngine', () => {
       .long()
       .entryPrice(100)
       .size(2)
-      .build();
+      .buildOrder();
 
     const closed = unwrap(engine.close(position, 110));
 
@@ -88,7 +88,7 @@ describe('TradingEngine', () => {
       .long()
       .entryPrice(100)
       .size(3)
-      .build();
+      .buildOrder();
 
     const closed = unwrap(engine.close(position, 110));
 
@@ -97,7 +97,7 @@ describe('TradingEngine', () => {
 
   it('calculates PnL for a short position (closing below entry gains)', () => {
     const engine = new TradingEngine();
-    const position = new PositionBuilder().short().entryPrice(100).build();
+    const position = new PositionBuilder().short().entryPrice(100).buildOrder();
 
     const closed = unwrap(engine.close(position, 90));
 
@@ -792,16 +792,16 @@ describe('TradingEngine', () => {
   it('removes an exit level by index', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open({
-        side: 'long',
-        price: 100,
-        size: 2,
-        exitLevels: [
-          { kind: 'tp', price: 110, sizePercent: 50 },
-          { kind: 'sl', price: 95, sizePercent: 25 },
-          { kind: 'tp', price: 120, sizePercent: 25 },
-        ],
-      })
+      engine.open(
+        anOrder()
+          .long()
+          .entryPrice(100)
+          .size(2)
+          .addTP(110, 50)
+          .addSL(95, 25)
+          .addTP(120, 25)
+          .build('open')
+      )
     );
 
     expect(position.exitLevels).toHaveLength(3);
