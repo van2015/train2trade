@@ -91,6 +91,38 @@ export abstract class Order {
 
   abstract fill(price: number, fee: number): Order;
   abstract close(exitPrice: number, fee: number, basis: number): Order;
+
+  static open(
+    side: 'long' | 'short',
+    price: number,
+    size: number,
+    opts?: {
+      stopLoss?: number;
+      takeProfit?: number;
+      exitLevels?: ExitLevel[];
+      entryFee?: number;
+      feeBasis?: number;
+    }
+  ): Order {
+    return side === 'long'
+      ? new LongOrder('open', price, size, opts)
+      : new ShortOrder('open', price, size, opts);
+  }
+
+  static pending(
+    side: 'long' | 'short',
+    limitPrice: number,
+    size: number,
+    opts?: {
+      stopLoss?: number;
+      takeProfit?: number;
+      exitLevels?: ExitLevel[];
+    }
+  ): Order {
+    return side === 'long'
+      ? new LongOrder('pending', limitPrice, size, opts)
+      : new ShortOrder('pending', limitPrice, size, opts);
+  }
 }
 
 export class LongOrder extends Order {
@@ -294,22 +326,13 @@ export class TradingEngine {
     takeProfit?: number;
     exitLevels?: ExitLevel[];
   }): Result<Order, EngineError> {
-    const order =
-      input.side === 'long'
-        ? new LongOrder('open', input.price, input.size, {
-            stopLoss: input.stopLoss,
-            takeProfit: input.takeProfit,
-            exitLevels: input.exitLevels,
-            entryFee: this.takerFeePercent,
-            feeBasis: input.size,
-          })
-        : new ShortOrder('open', input.price, input.size, {
-            stopLoss: input.stopLoss,
-            takeProfit: input.takeProfit,
-            exitLevels: input.exitLevels,
-            entryFee: this.takerFeePercent,
-            feeBasis: input.size,
-          });
+    const order = Order.open(input.side, input.price, input.size, {
+      stopLoss: input.stopLoss,
+      takeProfit: input.takeProfit,
+      exitLevels: input.exitLevels,
+      entryFee: this.takerFeePercent,
+      feeBasis: input.size,
+    });
     const valid = this.validateOrder(order);
     if (!valid.success) {
       return valid;
@@ -326,13 +349,10 @@ export class TradingEngine {
     takeProfit?: number;
     exitLevels?: ExitLevel[];
   }): Result<Order, EngineError> {
-    const Ctor = input.side === 'long' ? LongOrder : ShortOrder;
-    const pending = new (Ctor as typeof LongOrder)(
-      'pending',
-      input.limitPrice,
-      input.size,
-      { stopLoss: input.stopLoss, takeProfit: input.takeProfit }
-    );
+    const pending = Order.pending(input.side, input.limitPrice, input.size, {
+      stopLoss: input.stopLoss,
+      takeProfit: input.takeProfit,
+    });
     const valid = this.validateOrder(pending);
     if (!valid.success) {
       return valid;
