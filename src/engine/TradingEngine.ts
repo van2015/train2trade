@@ -11,11 +11,7 @@ export type {
 } from './types';
 
 import type { Order } from './Order';
-import {
-  constructors,
-  createOpenOrder,
-  createPendingOrder,
-} from './OrderFactory';
+import { createOpenOrder, createPendingOrder } from './OrderFactory';
 import type { EngineError, ExitLevel, Result } from './types';
 
 export interface EngineOptions {
@@ -144,57 +140,21 @@ export class TradingEngine {
     if (!valid.success) {
       return valid;
     }
-    const Ctor = constructors[order.side()];
-    const slicePnl =
-      order.pnlAt(price) -
-      (order.entryFee ?? 0) * this.feeScale(order, order.size) -
-      exitFee * this.feeScale(order, order.size);
-    if (sizePercent === 100) {
-      const closed = new Ctor('closed', order.price, order.size, {
-        stopLoss: order.stopLoss,
-        takeProfit: order.takeProfit,
-        exitLevels: order.exitLevels,
-        entryFee: order.entryFee,
-        feeBasis: order.feeBasis,
-        exitPrice: price,
-        pnl: slicePnl,
-      });
-      const index = this.orders.indexOf(order);
-      if (index >= 0) {
-        this.orders[index] = closed;
-      }
-      return { success: true, value: closed };
-    }
-    const sliceSize = (order.size * sizePercent) / 100;
-    const sliceClosedPnl =
-      order.pnlAt(price) -
-      (order.entryFee ?? 0) * this.feeScale(order, sliceSize) -
-      exitFee * this.feeScale(order, sliceSize);
-    const slice = new Ctor('closed', order.price, sliceSize, {
-      stopLoss: order.stopLoss,
-      takeProfit: order.takeProfit,
-      exitLevels: order.exitLevels,
-      entryFee: order.entryFee,
-      feeBasis: order.feeBasis,
-      exitPrice: price,
-      pnl: sliceClosedPnl,
-    });
-    const remainderExitLevels = excludeFromRemainder
-      ? order.exitLevels?.filter((l) => l !== excludeFromRemainder)
-      : order.exitLevels;
-    const remainder = new Ctor('open', order.price, order.size - sliceSize, {
-      stopLoss: order.stopLoss,
-      takeProfit: order.takeProfit,
-      exitLevels: remainderExitLevels,
-      entryFee: order.entryFee,
-      feeBasis: order.feeBasis,
-    });
+    const { closed, remainder } = order.close(
+      price,
+      sizePercent,
+      exitFee,
+      order.feeBasis ?? order.size,
+      excludeFromRemainder
+    );
     const index = this.orders.indexOf(order);
     if (index >= 0) {
-      this.orders[index] = remainder;
-      this.orders.push(slice);
+      this.orders[index] = remainder ?? closed;
+      if (remainder) {
+        this.orders.push(closed);
+      }
     }
-    return { success: true, value: slice };
+    return { success: true, value: closed };
   }
 
   closeAll(price: number): Order[] {
@@ -234,9 +194,5 @@ export class TradingEngine {
     const entries = this.checkEntries(price);
     const exits = this.checkExits(price, preExistingOpen);
     return { entries, exits };
-  }
-
-  private feeScale(order: Order, sliceSize: number): number {
-    return sliceSize / (order.feeBasis ?? order.size);
   }
 }

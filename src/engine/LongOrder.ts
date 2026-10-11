@@ -61,19 +61,53 @@ export class LongOrder extends Order {
       feeBasis: this.size,
     });
   }
-  close(exitPrice: number, fee: number, basis: number): LongOrder {
-    const pnl =
+  close(
+    exitPrice: number,
+    sizePercent: number,
+    exitFee: number,
+    basis: number,
+    excludeFromRemainder?: ExitLevel
+  ): { closed: LongOrder; remainder?: LongOrder } {
+    if (sizePercent === 100) {
+      const closedPnl =
+        this.pnlAt(exitPrice) -
+        (this.entryFee ?? 0) * this.feeScale(this.size) -
+        exitFee * this.feeScale(this.size);
+      const closed = new LongOrder('closed', this.price, this.size, {
+        stopLoss: this.stopLoss,
+        takeProfit: this.takeProfit,
+        exitLevels: this.exitLevels,
+        entryFee: this.entryFee,
+        feeBasis: basis,
+        exitPrice,
+        pnl: closedPnl,
+      });
+      return { closed };
+    }
+    const sliceSize = (this.size * sizePercent) / 100;
+    const sliceClosedPnl =
       this.pnlAt(exitPrice) -
-      (this.entryFee ?? 0) * (this.size / basis) -
-      fee * (this.size / basis);
-    return new LongOrder('closed', this.price, this.size, {
+      (this.entryFee ?? 0) * this.feeScale(sliceSize) -
+      exitFee * this.feeScale(sliceSize);
+    const closed = new LongOrder('closed', this.price, sliceSize, {
       stopLoss: this.stopLoss,
       takeProfit: this.takeProfit,
       exitLevels: this.exitLevels,
       entryFee: this.entryFee,
       feeBasis: basis,
       exitPrice,
-      pnl,
+      pnl: sliceClosedPnl,
     });
+    const remainderExitLevels = excludeFromRemainder
+      ? this.exitLevels?.filter((l) => l !== excludeFromRemainder)
+      : this.exitLevels;
+    const remainder = new LongOrder('open', this.price, this.size - sliceSize, {
+      stopLoss: this.stopLoss,
+      takeProfit: this.takeProfit,
+      exitLevels: remainderExitLevels,
+      entryFee: this.entryFee,
+      feeBasis: basis,
+    });
+    return { closed, remainder };
   }
 }

@@ -137,6 +137,16 @@ export abstract class Order {
     return { success: true, value: undefined };
   }
 
+  protected feeScale(sliceSize: number): number {
+    return sliceSize / (this.feeBasis ?? this.size);
+  }
+
   abstract fill(price: number, fee: number): Order;
-  abstract close(exitPrice: number, fee: number, basis: number): Order;
+  abstract close(
+    exitPrice: number,
+    sizePercent: number,
+    exitFee: number,
+    basis: number,
+    excludeFromRemainder?: ExitLevel
+  ): { closed: Order; remainder?: Order };
 }
