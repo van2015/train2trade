@@ -78,21 +78,17 @@ export class TradingEngine {
 
   placeLimitOrder(input: {
     side: 'long' | 'short';
-    limitPrice: number;
+    price: number;
     size: number;
     stopLoss?: number;
     takeProfit?: number;
     exitLevels?: ExitLevel[];
   }): Result<Order, EngineError> {
-    const pending = createPendingOrder(
-      input.side,
-      input.limitPrice,
-      input.size,
-      {
-        stopLoss: input.stopLoss,
-        takeProfit: input.takeProfit,
-      }
-    );
+    const pending = createPendingOrder(input.side, input.price, input.size, {
+      stopLoss: input.stopLoss,
+      takeProfit: input.takeProfit,
+      exitLevels: input.exitLevels,
+    });
     const valid = pending.validateOpen();
     if (!valid.success) {
       return valid;

@@ -51,7 +51,7 @@ export class PositionBuilder {
     return this.side('short');
   }
 
-  entryPrice(price: number): this {
+  price(price: number): this {
     this._price = price;
     return this;
   }

@@ -8,7 +8,7 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
 
     expect(position.side()).toBe('long');
@@ -20,7 +20,7 @@ describe('TradingEngine', () => {
   it('rejects opening a position with a non-positive price', () => {
     const engine = new TradingEngine();
 
-    const result = engine.open(anOrder().long().entryPrice(0).size(1).build());
+    const result = engine.open(anOrder().long().price(0).size(1).build());
 
     expect(result.success).toBe(false);
     expect(expectError(result)).toBe('INVALID_PRICE');
@@ -29,9 +29,7 @@ describe('TradingEngine', () => {
   it('rejects opening a position with a non-positive size', () => {
     const engine = new TradingEngine();
 
-    const result = engine.open(
-      anOrder().long().entryPrice(100).size(0).build()
-    );
+    const result = engine.open(anOrder().long().price(100).size(0).build());
 
     expect(result.success).toBe(false);
     expect(expectError(result)).toBe('INVALID_SIZE');
@@ -39,8 +37,8 @@ describe('TradingEngine', () => {
 
   it('tracks open positions after opening them', () => {
     const engine = new TradingEngine();
-    unwrap(engine.open(anOrder().long().entryPrice(100).size(1).build()));
-    unwrap(engine.open(anOrder().short().entryPrice(50).size(1).build()));
+    unwrap(engine.open(anOrder().long().price(100).size(1).build()));
+    unwrap(engine.open(anOrder().short().price(50).size(1).build()));
 
     expect(engine.openPositions).toHaveLength(2);
     expect(engine.openPositions.map((p) => p.price)).toEqual([100, 50]);
@@ -77,7 +75,7 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
     const position = new PositionBuilder()
       .long()
-      .entryPrice(100)
+      .price(100)
       .size(2)
       .buildOrder();
 
@@ -90,7 +88,7 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
     const position = new PositionBuilder()
       .long()
-      .entryPrice(100)
+      .price(100)
       .size(3)
       .buildOrder();
 
@@ -101,7 +99,7 @@ describe('TradingEngine', () => {
 
   it('calculates PnL for a short position (closing below entry gains)', () => {
     const engine = new TradingEngine();
-    const position = new PositionBuilder().short().entryPrice(100).buildOrder();
+    const position = new PositionBuilder().short().price(100).buildOrder();
 
     const closed = unwrap(engine.close(position, 90));
 
@@ -111,10 +109,10 @@ describe('TradingEngine', () => {
   it('sums the PnL of closed positions into total PnL', () => {
     const engine = new TradingEngine();
     const long = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
     const short = unwrap(
-      engine.open(anOrder().short().entryPrice(100).size(1).build())
+      engine.open(anOrder().short().price(100).size(1).build())
     );
     unwrap(engine.close(long, 110));
     unwrap(engine.close(short, 95));
@@ -125,7 +123,7 @@ describe('TradingEngine', () => {
   it('rejects closing a position with a non-positive price', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
 
     const result = engine.close(position, 0);
@@ -138,8 +136,8 @@ describe('TradingEngine', () => {
 
   it('calculates unrealized PnL for open positions at a given price', () => {
     const engine = new TradingEngine();
-    unwrap(engine.open(anOrder().long().entryPrice(100).size(1).build()));
-    unwrap(engine.open(anOrder().long().entryPrice(200).size(1).build()));
+    unwrap(engine.open(anOrder().long().price(100).size(1).build()));
+    unwrap(engine.open(anOrder().long().price(200).size(1).build()));
 
     expect(engine.unrealizedPnl(110)).toBe(-35);
   });
@@ -148,10 +146,10 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const withStop = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).stopLoss(95).build())
+      engine.open(anOrder().long().price(100).size(1).stopLoss(95).build())
     );
     const withoutStop = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
 
     expect(withStop.stopLoss).toBe(95);
@@ -161,7 +159,7 @@ describe('TradingEngine', () => {
   it('closes a long when the price reaches its stop loss', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).stopLoss(95).build())
+      engine.open(anOrder().long().price(100).size(1).stopLoss(95).build())
     );
 
     const stopped = engine.checkExits(94);
@@ -176,9 +174,7 @@ describe('TradingEngine', () => {
   it('closes a short when the price reaches its stop loss', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.open(
-        anOrder().short().entryPrice(100).size(1).stopLoss(105).build()
-      )
+      engine.open(anOrder().short().price(100).size(1).stopLoss(105).build())
     );
 
     const stopped = engine.checkExits(106);
@@ -194,12 +190,10 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const withTp = unwrap(
-      engine.open(
-        anOrder().long().entryPrice(100).size(1).takeProfit(120).build()
-      )
+      engine.open(anOrder().long().price(100).size(1).takeProfit(120).build())
     );
     const withoutTp = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
 
     expect(withTp.takeProfit).toBe(120);
@@ -209,9 +203,7 @@ describe('TradingEngine', () => {
   it('closes a long when the price reaches its take profit', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.open(
-        anOrder().long().entryPrice(100).size(1).takeProfit(120).build()
-      )
+      engine.open(anOrder().long().price(100).size(1).takeProfit(120).build())
     );
 
     const exited = engine.checkExits(125);
@@ -226,9 +218,7 @@ describe('TradingEngine', () => {
   it('closes a short when the price reaches its take profit', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.open(
-        anOrder().short().entryPrice(100).size(1).takeProfit(90).build()
-      )
+      engine.open(anOrder().short().price(100).size(1).takeProfit(90).build())
     );
 
     const exited = engine.checkExits(85);
@@ -244,10 +234,10 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const atEntry = engine.open(
-      anOrder().long().entryPrice(100).size(1).stopLoss(100).build()
+      anOrder().long().price(100).size(1).stopLoss(100).build()
     );
     const aboveEntry = engine.open(
-      anOrder().long().entryPrice(100).size(1).stopLoss(105).build()
+      anOrder().long().price(100).size(1).stopLoss(105).build()
     );
 
     expect(atEntry.success).toBe(false);
@@ -261,10 +251,10 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const atEntry = engine.open(
-      anOrder().short().entryPrice(100).size(1).stopLoss(100).build()
+      anOrder().short().price(100).size(1).stopLoss(100).build()
     );
     const belowEntry = engine.open(
-      anOrder().short().entryPrice(100).size(1).stopLoss(95).build()
+      anOrder().short().price(100).size(1).stopLoss(95).build()
     );
 
     expect(atEntry.success).toBe(false);
@@ -278,10 +268,10 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const atEntry = engine.open(
-      anOrder().long().entryPrice(100).size(1).takeProfit(100).build()
+      anOrder().long().price(100).size(1).takeProfit(100).build()
     );
     const belowEntry = engine.open(
-      anOrder().long().entryPrice(100).size(1).takeProfit(95).build()
+      anOrder().long().price(100).size(1).takeProfit(95).build()
     );
 
     expect(atEntry.success).toBe(false);
@@ -295,10 +285,10 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const atEntry = engine.open(
-      anOrder().short().entryPrice(100).size(1).takeProfit(100).build()
+      anOrder().short().price(100).size(1).takeProfit(100).build()
     );
     const aboveEntry = engine.open(
-      anOrder().short().entryPrice(100).size(1).takeProfit(105).build()
+      anOrder().short().price(100).size(1).takeProfit(105).build()
     );
 
     expect(atEntry.success).toBe(false);
@@ -311,10 +301,10 @@ describe('TradingEngine', () => {
   it('closes all positions hit in the same tick', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).stopLoss(95).build())
+      engine.open(anOrder().long().price(100).size(1).stopLoss(95).build())
     );
     unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).stopLoss(95).build())
+      engine.open(anOrder().long().price(100).size(1).stopLoss(95).build())
     );
 
     const exited = engine.checkExits(94);
@@ -328,7 +318,7 @@ describe('TradingEngine', () => {
   it('closes the long when the price exactly equals the stop loss', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).stopLoss(95).build())
+      engine.open(anOrder().long().price(100).size(1).stopLoss(95).build())
     );
 
     const exited = engine.checkExits(95);
@@ -341,9 +331,7 @@ describe('TradingEngine', () => {
   it('closes the long when the price exactly equals the take profit', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.open(
-        anOrder().long().entryPrice(100).size(1).takeProfit(120).build()
-      )
+      engine.open(anOrder().long().price(100).size(1).takeProfit(120).build())
     );
 
     const exited = engine.checkExits(120);
@@ -356,10 +344,10 @@ describe('TradingEngine', () => {
   it('exposes closed positions as history', () => {
     const engine = new TradingEngine();
     const first = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
     unwrap(engine.close(first, 110));
-    unwrap(engine.open(anOrder().long().entryPrice(100).size(1).build()));
+    unwrap(engine.open(anOrder().long().price(100).size(1).build()));
 
     expect(engine.closedPositions).toHaveLength(1);
     expect(engine.closedPositions[0].exitPrice).toBe(110);
@@ -369,8 +357,8 @@ describe('TradingEngine', () => {
 
   it('closes every open position at the given price', () => {
     const engine = new TradingEngine();
-    unwrap(engine.open(anOrder().long().entryPrice(100).size(1).build()));
-    unwrap(engine.open(anOrder().long().entryPrice(100).size(1).build()));
+    unwrap(engine.open(anOrder().long().price(100).size(1).build()));
+    unwrap(engine.open(anOrder().long().price(100).size(1).build()));
 
     const closed = engine.closeAll(110);
 
@@ -384,10 +372,10 @@ describe('TradingEngine', () => {
   it('combines realized and unrealized PnL into equity at a given price', () => {
     const engine = new TradingEngine();
     const closedOne = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
     unwrap(engine.close(closedOne, 110));
-    unwrap(engine.open(anOrder().long().entryPrice(100).size(1).build()));
+    unwrap(engine.open(anOrder().long().price(100).size(1).build()));
 
     expect(engine.equity(110)).toBe(20);
   });
@@ -398,7 +386,7 @@ describe('TradingEngine', () => {
     const pending = unwrap(
       engine.placeLimitOrder({
         side: 'long',
-        limitPrice: 95,
+        price: 95,
         size: 1,
         stopLoss: 90,
         takeProfit: 130,
@@ -417,7 +405,7 @@ describe('TradingEngine', () => {
 
     const result = engine.placeLimitOrder({
       side: 'long',
-      limitPrice: 0,
+      price: 0,
       size: 1,
     });
 
@@ -431,7 +419,7 @@ describe('TradingEngine', () => {
     unwrap(
       engine.placeLimitOrder({
         side: 'long',
-        limitPrice: 95,
+        price: 95,
         size: 1,
         stopLoss: 90,
         takeProfit: 130,
@@ -458,7 +446,7 @@ describe('TradingEngine', () => {
     unwrap(
       engine.placeLimitOrder({
         side: 'short',
-        limitPrice: 105,
+        price: 105,
         size: 1,
       })
     );
@@ -477,8 +465,8 @@ describe('TradingEngine', () => {
 
   it('removes filled orders and keeps the rest pending', () => {
     const engine = new TradingEngine();
-    unwrap(engine.placeLimitOrder({ side: 'long', limitPrice: 95, size: 1 }));
-    unwrap(engine.placeLimitOrder({ side: 'long', limitPrice: 90, size: 1 }));
+    unwrap(engine.placeLimitOrder({ side: 'long', price: 95, size: 1 }));
+    unwrap(engine.placeLimitOrder({ side: 'long', price: 90, size: 1 }));
 
     const filled = engine.checkEntries(94);
 
@@ -493,13 +481,13 @@ describe('TradingEngine', () => {
     unwrap(
       engine.placeLimitOrder({
         side: 'long',
-        limitPrice: 95,
+        price: 95,
         size: 1,
         stopLoss: 90,
       })
     );
     unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).stopLoss(95).build())
+      engine.open(anOrder().long().price(100).size(1).stopLoss(95).build())
     );
 
     const tick = engine.onPrice(94);
@@ -517,7 +505,7 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine({ takerFeePercent: 1 });
 
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
     const closed = unwrap(engine.close(position, 110));
 
@@ -531,7 +519,7 @@ describe('TradingEngine', () => {
       takerFeePercent: 1,
     });
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).stopLoss(95).build())
+      engine.open(anOrder().long().price(100).size(1).stopLoss(95).build())
     );
 
     const exited = engine.checkExits(94);
@@ -547,7 +535,7 @@ describe('TradingEngine', () => {
       makerFeePercent: 0.5,
       takerFeePercent: 1,
     });
-    unwrap(engine.placeLimitOrder({ side: 'long', limitPrice: 100, size: 1 }));
+    unwrap(engine.placeLimitOrder({ side: 'long', price: 100, size: 1 }));
 
     const filled = engine.checkEntries(95);
     expect(filled).toHaveLength(1);
@@ -561,7 +549,7 @@ describe('TradingEngine', () => {
   it('cancels a pending limit order', () => {
     const engine = new TradingEngine();
     const order = unwrap(
-      engine.placeLimitOrder({ side: 'long', limitPrice: 95, size: 1 })
+      engine.placeLimitOrder({ side: 'long', price: 95, size: 1 })
     );
 
     const cancelled = engine.cancelLimitOrder(order);
@@ -575,7 +563,7 @@ describe('TradingEngine', () => {
   it('closes only part of a position, leaving the remainder open', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(2).build())
+      engine.open(anOrder().long().price(100).size(2).build())
     );
 
     const slice = unwrap(engine.closePartial(position, 110, 50));
@@ -595,7 +583,7 @@ describe('TradingEngine', () => {
   it('rejects a partial close outside the 1-100 percent range', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(2).build())
+      engine.open(anOrder().long().price(100).size(2).build())
     );
 
     const zero = engine.closePartial(position, 110, 0);
@@ -612,7 +600,7 @@ describe('TradingEngine', () => {
   it('splits fees proportionally on partial close', () => {
     const engine = new TradingEngine({ takerFeePercent: 1 });
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(2).build())
+      engine.open(anOrder().long().price(100).size(2).build())
     );
 
     const slice = unwrap(engine.closePartial(position, 110, 50));
@@ -626,7 +614,7 @@ describe('TradingEngine', () => {
   it('rejects a partial close on a closed position', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
     const closed = unwrap(engine.close(position, 110));
 
@@ -641,7 +629,7 @@ describe('TradingEngine', () => {
   it('ignores a partial close on a stale position reference', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
     unwrap(engine.close(position, 110));
 
@@ -657,13 +645,7 @@ describe('TradingEngine', () => {
 
     const position = unwrap(
       engine.open(
-        anOrder()
-          .long()
-          .entryPrice(100)
-          .size(2)
-          .addTP(110, 50)
-          .addSL(95, 25)
-          .build()
+        anOrder().long().price(100).size(2).addTP(110, 50).addSL(95, 25).build()
       )
     );
 
@@ -678,13 +660,7 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
     unwrap(
       engine.open(
-        anOrder()
-          .long()
-          .entryPrice(100)
-          .size(2)
-          .addTP(110, 50)
-          .addSL(95, 25)
-          .build()
+        anOrder().long().price(100).size(2).addTP(110, 50).addSL(95, 25).build()
       )
     );
 
@@ -706,9 +682,7 @@ describe('TradingEngine', () => {
   it('does not retrigger a consumed stop level', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.open(
-        anOrder().long().entryPrice(100).size(2).addSL(95, 25).build()
-      )
+      engine.open(anOrder().long().price(100).size(2).addSL(95, 25).build())
     );
 
     const first = engine.checkExits(94);
@@ -732,7 +706,7 @@ describe('TradingEngine', () => {
       engine.open(
         anOrder()
           .long()
-          .entryPrice(100)
+          .price(100)
           .size(2)
           .addTP(110, 50)
           .addTP(120, 50)
@@ -766,10 +740,10 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const badPercent = engine.open(
-      anOrder().long().entryPrice(100).size(1).addTP(110, 0).build()
+      anOrder().long().price(100).size(1).addTP(110, 0).build()
     );
     const wrongSide = engine.open(
-      anOrder().long().entryPrice(100).size(1).addTP(90, 50).build()
+      anOrder().long().price(100).size(1).addTP(90, 50).build()
     );
 
     expect(badPercent.success).toBe(false);
@@ -783,22 +757,10 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const duplicateTp = engine.open(
-      anOrder()
-        .long()
-        .entryPrice(100)
-        .size(1)
-        .addTP(110, 50)
-        .addTP(110, 25)
-        .build()
+      anOrder().long().price(100).size(1).addTP(110, 50).addTP(110, 25).build()
     );
     const duplicateSl = engine.open(
-      anOrder()
-        .long()
-        .entryPrice(100)
-        .size(1)
-        .addSL(95, 25)
-        .addSL(95, 10)
-        .build()
+      anOrder().long().price(100).size(1).addSL(95, 25).addSL(95, 10).build()
     );
 
     expect(duplicateTp.success).toBe(false);
@@ -814,7 +776,7 @@ describe('TradingEngine', () => {
       engine.open(
         anOrder()
           .long()
-          .entryPrice(100)
+          .price(100)
           .size(2)
           .addTP(110, 50)
           .addSL(95, 25)
@@ -839,7 +801,7 @@ describe('TradingEngine', () => {
   it('rejects removeExitLevel when order has no exit levels', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
 
     const result = engine.removeExitLevel(position, 0);
@@ -851,9 +813,7 @@ describe('TradingEngine', () => {
   it('rejects removeExitLevel with out of range index', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(
-        anOrder().long().entryPrice(100).size(1).addTP(110, 50).build()
-      )
+      engine.open(anOrder().long().price(100).size(1).addTP(110, 50).build())
     );
 
     const result = engine.removeExitLevel(position, 5);
@@ -865,7 +825,7 @@ describe('TradingEngine', () => {
   it('rejects removeExitLevel on closed order', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(anOrder().long().entryPrice(100).size(1).build())
+      engine.open(anOrder().long().price(100).size(1).build())
     );
     const closed = unwrap(engine.close(position, 110));
 
@@ -879,13 +839,7 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
     const position = unwrap(
       engine.open(
-        anOrder()
-          .long()
-          .entryPrice(100)
-          .size(2)
-          .addTP(110, 50)
-          .addSL(95, 25)
-          .build()
+        anOrder().long().price(100).size(2).addTP(110, 50).addSL(95, 25).build()
       )
     );
 
@@ -906,9 +860,7 @@ describe('TradingEngine', () => {
   it('rejects moveExitLevel with out of range index', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(
-        anOrder().long().entryPrice(100).size(1).addTP(110, 50).build()
-      )
+      engine.open(anOrder().long().price(100).size(1).addTP(110, 50).build())
     );
 
     const result = engine.moveExitLevel(position, 5, 105);
@@ -920,9 +872,7 @@ describe('TradingEngine', () => {
   it('rejects moveExitLevel with invalid price', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(
-        anOrder().long().entryPrice(100).size(1).addTP(110, 50).build()
-      )
+      engine.open(anOrder().long().price(100).size(1).addTP(110, 50).build())
     );
 
     const result = engine.moveExitLevel(position, 0, -10);
@@ -934,9 +884,7 @@ describe('TradingEngine', () => {
   it('rejects moveExitLevel on closed order', () => {
     const engine = new TradingEngine();
     const position = unwrap(
-      engine.open(
-        anOrder().long().entryPrice(100).size(1).addTP(110, 50).build()
-      )
+      engine.open(anOrder().long().price(100).size(1).addTP(110, 50).build())
     );
     const closed = unwrap(engine.close(position, 110));
 
