@@ -1,307 +1,19 @@
-import type { Result } from '../shared/types/Result';
+export type { Result } from '../shared/types/Result';
+export { LongOrder } from './LongOrder';
 
-export type EngineError =
-  | 'INVALID_PRICE'
-  | 'INVALID_SIZE'
-  | 'INVALID_STOP_LOSS'
-  | 'INVALID_TAKE_PROFIT'
-  | 'DUPLICATE_EXIT_LEVEL'
-  | 'POSITION_NOT_OPEN';
+export { Order } from './Order';
+export { ShortOrder } from './ShortOrder';
+export type {
+  EngineError,
+  ExitLevel,
+  ExitLevelKind,
+  OrderState,
+} from './types';
 
-export type ExitLevelKind = 'tp' | 'sl';
-
-export interface ExitLevel {
-  kind: ExitLevelKind;
-  price: number;
-  sizePercent: number;
-}
-
-export type OrderState = 'pending' | 'open' | 'closed';
-
-const _longBrand = Symbol('LongOrder');
-const _shortBrand = Symbol('ShortOrder');
-
-export abstract class Order {
-  readonly state: OrderState;
-  readonly price: number;
-  readonly size: number;
-  readonly stopLoss?: number;
-  readonly takeProfit?: number;
-  readonly exitLevels?: ExitLevel[];
-  readonly entryFee?: number;
-  readonly feeBasis?: number;
-  readonly exitPrice?: number;
-  readonly pnl?: number;
-
-  abstract readonly _brand: symbol;
-  abstract side(): 'long' | 'short';
-  abstract isTpHit(price: number): boolean;
-  abstract isSlHit(price: number): boolean;
-  abstract pnlAt(exitPrice: number): number;
-  abstract isValidStopLoss(): boolean;
-  abstract isValidTakeProfit(): boolean;
-  abstract canOpen(): boolean;
-  abstract isTpDirectionValid(price: number): boolean;
-  abstract isSlDirectionValid(price: number): boolean;
-  abstract tpError(price: number): EngineError | null;
-  abstract slError(price: number): EngineError | null;
-
-  protected constructor(
-    state: OrderState,
-    price: number,
-    size: number,
-    opts?: {
-      stopLoss?: number;
-      takeProfit?: number;
-      exitLevels?: ExitLevel[];
-      entryFee?: number;
-      feeBasis?: number;
-      exitPrice?: number;
-      pnl?: number;
-    }
-  ) {
-    this.state = state;
-    this.price = price;
-    this.size = size;
-    this.stopLoss = opts?.stopLoss;
-    this.takeProfit = opts?.takeProfit;
-    this.exitLevels = opts?.exitLevels;
-    this.entryFee = opts?.entryFee;
-    this.feeBasis = opts?.feeBasis;
-    this.exitPrice = opts?.exitPrice;
-    this.pnl = opts?.pnl;
-  }
-
-  isValidLevel(level: ExitLevel): boolean {
-    if (level.price <= 0) return false;
-    if (level.sizePercent <= 0 || level.sizePercent > 100) return false;
-    return level.kind === 'tp'
-      ? this.isTpDirectionValid(level.price)
-      : this.isSlDirectionValid(level.price);
-  }
-
-  levelError(level: ExitLevel): EngineError | null {
-    if (level.price <= 0) return 'INVALID_PRICE';
-    if (level.sizePercent <= 0 || level.sizePercent > 100)
-      return 'INVALID_SIZE';
-    return level.kind === 'tp'
-      ? this.tpError(level.price)
-      : this.slError(level.price);
-  }
-
-  exitTargetAt(price: number): {
-    price: number;
-    sizePercent: number | null;
-    level?: ExitLevel;
-  } | null {
-    const levels = this.exitLevels;
-    if (levels) {
-      for (const level of levels) {
-        const hit =
-          level.kind === 'tp' ? this.isTpHit(price) : this.isSlHit(price);
-        if (hit) {
-          return { price: level.price, sizePercent: level.sizePercent, level };
-        }
-      }
-    }
-    if (this.stopLoss !== undefined && this.isSlHit(price)) {
-      return { price: this.stopLoss, sizePercent: null };
-    }
-    if (this.takeProfit !== undefined && this.isTpHit(price)) {
-      return { price: this.takeProfit, sizePercent: null };
-    }
-    return null;
-  }
-
-  abstract fill(price: number, fee: number): Order;
-  abstract close(exitPrice: number, fee: number, basis: number): Order;
-
-  static open(
-    side: 'long' | 'short',
-    price: number,
-    size: number,
-    opts?: {
-      stopLoss?: number;
-      takeProfit?: number;
-      exitLevels?: ExitLevel[];
-      entryFee?: number;
-      feeBasis?: number;
-    }
-  ): Order {
-    return side === 'long'
-      ? new LongOrder('open', price, size, opts)
-      : new ShortOrder('open', price, size, opts);
-  }
-
-  static pending(
-    side: 'long' | 'short',
-    limitPrice: number,
-    size: number,
-    opts?: {
-      stopLoss?: number;
-      takeProfit?: number;
-      exitLevels?: ExitLevel[];
-    }
-  ): Order {
-    return side === 'long'
-      ? new LongOrder('pending', limitPrice, size, opts)
-      : new ShortOrder('pending', limitPrice, size, opts);
-  }
-}
-
-export class LongOrder extends Order {
-  readonly _brand = _longBrand;
-  constructor(
-    state: OrderState,
-    price: number,
-    size: number,
-    opts?: {
-      stopLoss?: number;
-      takeProfit?: number;
-      exitLevels?: ExitLevel[];
-      entryFee?: number;
-      feeBasis?: number;
-      exitPrice?: number;
-      pnl?: number;
-    }
-  ) {
-    super(state, price, size, opts);
-  }
-  side() {
-    return 'long' as const;
-  }
-  isTpHit(price: number) {
-    return price >= this.price;
-  }
-  isSlHit(price: number) {
-    return price <= this.price;
-  }
-  pnlAt(exitPrice: number) {
-    return ((exitPrice - this.price) / this.price) * 100;
-  }
-  isValidStopLoss() {
-    return this.stopLoss === undefined || this.stopLoss < this.price;
-  }
-  isValidTakeProfit() {
-    return this.takeProfit === undefined || this.takeProfit > this.price;
-  }
-  canOpen() {
-    return this.isValidStopLoss() && this.isValidTakeProfit();
-  }
-  isTpDirectionValid(price: number): boolean {
-    return price > this.price;
-  }
-  isSlDirectionValid(price: number): boolean {
-    return price < this.price;
-  }
-  tpError(price: number): EngineError | null {
-    return this.isTpDirectionValid(price) ? null : 'INVALID_TAKE_PROFIT';
-  }
-  slError(price: number): EngineError | null {
-    return this.isSlDirectionValid(price) ? null : 'INVALID_STOP_LOSS';
-  }
-  fill(price: number, fee: number): LongOrder {
-    return new LongOrder('open', price, this.size, {
-      stopLoss: this.stopLoss,
-      takeProfit: this.takeProfit,
-      exitLevels: this.exitLevels,
-      entryFee: fee,
-      feeBasis: this.size,
-    });
-  }
-  close(exitPrice: number, fee: number, basis: number): LongOrder {
-    const pnl =
-      this.pnlAt(exitPrice) -
-      (this.entryFee ?? 0) * (this.size / basis) -
-      fee * (this.size / basis);
-    return new LongOrder('closed', this.price, this.size, {
-      stopLoss: this.stopLoss,
-      takeProfit: this.takeProfit,
-      exitLevels: this.exitLevels,
-      entryFee: this.entryFee,
-      feeBasis: basis,
-      exitPrice,
-      pnl,
-    });
-  }
-}
-
-export class ShortOrder extends Order {
-  readonly _brand = _shortBrand;
-  constructor(
-    state: OrderState,
-    price: number,
-    size: number,
-    opts?: {
-      stopLoss?: number;
-      takeProfit?: number;
-      exitLevels?: ExitLevel[];
-      entryFee?: number;
-      feeBasis?: number;
-      exitPrice?: number;
-      pnl?: number;
-    }
-  ) {
-    super(state, price, size, opts);
-  }
-  side() {
-    return 'short' as const;
-  }
-  isTpHit(price: number) {
-    return price <= this.price;
-  }
-  isSlHit(price: number) {
-    return price >= this.price;
-  }
-  pnlAt(exitPrice: number) {
-    return -((exitPrice - this.price) / this.price) * 100;
-  }
-  isValidStopLoss() {
-    return this.stopLoss === undefined || this.stopLoss > this.price;
-  }
-  isValidTakeProfit() {
-    return this.takeProfit === undefined || this.takeProfit < this.price;
-  }
-  canOpen() {
-    return this.isValidStopLoss() && this.isValidTakeProfit();
-  }
-  isTpDirectionValid(price: number): boolean {
-    return price < this.price;
-  }
-  isSlDirectionValid(price: number): boolean {
-    return price > this.price;
-  }
-  tpError(price: number): EngineError | null {
-    return this.isTpDirectionValid(price) ? null : 'INVALID_TAKE_PROFIT';
-  }
-  slError(price: number): EngineError | null {
-    return this.isSlDirectionValid(price) ? null : 'INVALID_STOP_LOSS';
-  }
-  fill(price: number, fee: number): ShortOrder {
-    return new ShortOrder('open', price, this.size, {
-      stopLoss: this.stopLoss,
-      takeProfit: this.takeProfit,
-      exitLevels: this.exitLevels,
-      entryFee: fee,
-      feeBasis: this.size,
-    });
-  }
-  close(exitPrice: number, fee: number, basis: number): ShortOrder {
-    const pnl =
-      this.pnlAt(exitPrice) -
-      (this.entryFee ?? 0) * (this.size / basis) -
-      fee * (this.size / basis);
-    return new ShortOrder('closed', this.price, this.size, {
-      stopLoss: this.stopLoss,
-      takeProfit: this.takeProfit,
-      exitLevels: this.exitLevels,
-      entryFee: this.entryFee,
-      feeBasis: basis,
-      exitPrice,
-      pnl,
-    });
-  }
-}
+import { LongOrder } from './LongOrder';
+import type { Order } from './Order';
+import { ShortOrder } from './ShortOrder';
+import type { EngineError, ExitLevel, Result } from './types';
 
 export interface EngineOptions {
   makerFeePercent?: number;
@@ -350,7 +62,7 @@ export class TradingEngine {
     takeProfit?: number;
     exitLevels?: ExitLevel[];
   }): Result<Order, EngineError> {
-    const order = Order.open(input.side, input.price, input.size, {
+    const order = createOpenOrder(input.side, input.price, input.size, {
       stopLoss: input.stopLoss,
       takeProfit: input.takeProfit,
       exitLevels: input.exitLevels,
@@ -373,10 +85,15 @@ export class TradingEngine {
     takeProfit?: number;
     exitLevels?: ExitLevel[];
   }): Result<Order, EngineError> {
-    const pending = Order.pending(input.side, input.limitPrice, input.size, {
-      stopLoss: input.stopLoss,
-      takeProfit: input.takeProfit,
-    });
+    const pending = createPendingOrder(
+      input.side,
+      input.limitPrice,
+      input.size,
+      {
+        stopLoss: input.stopLoss,
+        takeProfit: input.takeProfit,
+      }
+    );
     const valid = this.validateOrder(pending);
     if (!valid.success) {
       return valid;
@@ -577,4 +294,36 @@ export class TradingEngine {
       ? { success: false, error }
       : { success: true, value: undefined };
   }
+}
+
+function createOpenOrder(
+  side: 'long' | 'short',
+  price: number,
+  size: number,
+  opts?: {
+    stopLoss?: number;
+    takeProfit?: number;
+    exitLevels?: ExitLevel[];
+    entryFee?: number;
+    feeBasis?: number;
+  }
+): Order {
+  return side === 'long'
+    ? new LongOrder('open', price, size, opts)
+    : new ShortOrder('open', price, size, opts);
+}
+
+function createPendingOrder(
+  side: 'long' | 'short',
+  limitPrice: number,
+  size: number,
+  opts?: {
+    stopLoss?: number;
+    takeProfit?: number;
+    exitLevels?: ExitLevel[];
+  }
+): Order {
+  return side === 'long'
+    ? new LongOrder('pending', limitPrice, size, opts)
+    : new ShortOrder('pending', limitPrice, size, opts);
 }
