@@ -12,6 +12,7 @@ export type {
 
 import { LongOrder } from './LongOrder';
 import type { Order } from './Order';
+import { createOpenOrder, createPendingOrder } from './OrderFactory';
 import { ShortOrder } from './ShortOrder';
 import type { EngineError, ExitLevel, Result } from './types';
 
@@ -236,36 +237,4 @@ export class TradingEngine {
   private feeScale(order: Order, sliceSize: number): number {
     return sliceSize / (order.feeBasis ?? order.size);
   }
-}
-
-function createOpenOrder(
-  side: 'long' | 'short',
-  price: number,
-  size: number,
-  opts?: {
-    stopLoss?: number;
-    takeProfit?: number;
-    exitLevels?: ExitLevel[];
-    entryFee?: number;
-    feeBasis?: number;
-  }
-): Order {
-  return side === 'long'
-    ? new LongOrder('open', price, size, opts)
-    : new ShortOrder('open', price, size, opts);
-}
-
-function createPendingOrder(
-  side: 'long' | 'short',
-  limitPrice: number,
-  size: number,
-  opts?: {
-    stopLoss?: number;
-    takeProfit?: number;
-    exitLevels?: ExitLevel[];
-  }
-): Order {
-  return side === 'long'
-    ? new LongOrder('pending', limitPrice, size, opts)
-    : new ShortOrder('pending', limitPrice, size, opts);
 }
