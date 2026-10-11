@@ -788,4 +788,98 @@ describe('TradingEngine', () => {
     expect(expectError(duplicateSl)).toBe('DUPLICATE_EXIT_LEVEL');
     expect(engine.openPositions).toHaveLength(0);
   });
+
+  it('removes an exit level by index', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(
+      engine.open({
+        side: 'long',
+        price: 100,
+        size: 2,
+        exitLevels: [
+          { kind: 'tp', price: 110, sizePercent: 50 },
+          { kind: 'sl', price: 95, sizePercent: 25 },
+          { kind: 'tp', price: 120, sizePercent: 25 },
+        ],
+      })
+    );
+
+    expect(position.exitLevels).toHaveLength(3);
+
+    const modified = unwrap(engine.removeExitLevel(position, 1));
+
+    expect(modified.exitLevels).toHaveLength(2);
+    expect(modified.exitLevels).toEqual([
+      { kind: 'tp', price: 110, sizePercent: 50 },
+      { kind: 'tp', price: 120, sizePercent: 25 },
+    ]);
+    expect(position.exitLevels).toHaveLength(3);
+    expect(engine.openPositions[0]).toBe(modified);
+  });
+
+  it('rejects removeExitLevel when order has no exit levels', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+
+    const result = engine.removeExitLevel(position, 0);
+
+    expect(result.success).toBe(false);
+    expect(expectError(result)).toBe('INVALID_SIZE');
+  });
+
+  it('rejects removeExitLevel with out of range index', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(
+      engine.open({
+        side: 'long',
+        price: 100,
+        size: 1,
+        exitLevels: [{ kind: 'tp', price: 110, sizePercent: 50 }],
+      })
+    );
+
+    const result = engine.removeExitLevel(position, 5);
+
+    expect(result.success).toBe(false);
+    expect(expectError(result)).toBe('INVALID_SIZE');
+  });
+
+  it('rejects removeExitLevel on closed order', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(engine.open({ side: 'long', price: 100, size: 1 }));
+    const closed = unwrap(engine.close(position, 110));
+
+    const result = engine.removeExitLevel(closed, 0);
+
+    expect(result.success).toBe(false);
+    expect(expectError(result)).toBe('POSITION_NOT_OPEN');
+  });
+
+  it('moves an exit level to a new price', () => {
+    const engine = new TradingEngine();
+    const position = unwrap(
+      engine.open({
+        side: 'long',
+        price: 100,
+        size: 2,
+        exitLevels: [
+          { kind: 'tp', price: 110, sizePercent: 50 },
+          { kind: 'sl', price: 95, sizePercent: 25 },
+        ],
+      })
+    );
+
+    const modified = unwrap(engine.moveExitLevel(position, 0, 105));
+
+    expect(modified.exitLevels).toHaveLength(2);
+    expect(modified.exitLevels).toEqual([
+      { kind: 'tp', price: 105, sizePercent: 50 },
+      { kind: 'sl', price: 95, sizePercent: 25 },
+    ]);
+    expect(position.exitLevels).toEqual([
+      { kind: 'tp', price: 110, sizePercent: 50 },
+      { kind: 'sl', price: 95, sizePercent: 25 },
+    ]);
+    expect(engine.openPositions[0]).toBe(modified);
+  });
 });

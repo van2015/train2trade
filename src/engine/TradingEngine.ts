@@ -110,6 +110,40 @@ export class TradingEngine {
     return true;
   }
 
+  removeExitLevel(order: Order, index: number): Result<Order, EngineError> {
+    if (order.state !== 'open') {
+      return { success: false, error: 'POSITION_NOT_OPEN' };
+    }
+    const result = order.removeExitLevel(index);
+    if (!result.success) {
+      return result;
+    }
+    const orderIndex = this.orders.indexOf(order);
+    if (orderIndex >= 0) {
+      this.orders[orderIndex] = result.value;
+    }
+    return result;
+  }
+
+  moveExitLevel(
+    order: Order,
+    index: number,
+    newPrice: number
+  ): Result<Order, EngineError> {
+    if (order.state !== 'open') {
+      return { success: false, error: 'POSITION_NOT_OPEN' };
+    }
+    const result = order.moveExitLevel(index, newPrice);
+    if (!result.success) {
+      return result;
+    }
+    const orderIndex = this.orders.indexOf(order);
+    if (orderIndex >= 0) {
+      this.orders[orderIndex] = result.value;
+    }
+    return result;
+  }
+
   checkEntries(price: number): Order[] {
     const toFill = this.pendingOrders.filter((o) =>
       o.side() === 'long' ? price <= o.price : price >= o.price

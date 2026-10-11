@@ -151,6 +151,67 @@ export abstract class Order {
     return { success: true, value: undefined };
   }
 
+  removeExitLevel(index: number): Result<Order, EngineError> {
+    if (!this.exitLevels || this.exitLevels.length === 0) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
+    if (index < 0 || index >= this.exitLevels.length) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
+    const newExitLevels = this.exitLevels.filter((_, i) => i !== index);
+    const newOrder = this.instantiate(
+      this.state as 'open' | 'closed',
+      this.price,
+      this.size,
+      {
+        stopLoss: this.stopLoss,
+        takeProfit: this.takeProfit,
+        exitLevels: newExitLevels,
+        entryFee: this.entryFee,
+        feeBasis: this.feeBasis,
+      }
+    );
+    return { success: true, value: newOrder };
+  }
+
+  moveExitLevel(index: number, newPrice: number): Result<Order, EngineError> {
+    if (!this.exitLevels || this.exitLevels.length === 0) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
+    if (index < 0 || index >= this.exitLevels.length) {
+      return { success: false, error: 'INVALID_SIZE' };
+    }
+    if (newPrice <= 0) {
+      return { success: false, error: 'INVALID_PRICE' };
+    }
+    const level = this.exitLevels[index];
+    const newLevel = { ...level, price: newPrice };
+    const valid = this.isValidLevel(newLevel);
+    if (!valid) {
+      return {
+        success: false,
+        error:
+          level.kind === 'tp' ? 'INVALID_TAKE_PROFIT' : 'INVALID_STOP_LOSS',
+      };
+    }
+    const newExitLevels = this.exitLevels.map((l, i) =>
+      i === index ? newLevel : l
+    );
+    const newOrder = this.instantiate(
+      this.state as 'open' | 'closed',
+      this.price,
+      this.size,
+      {
+        stopLoss: this.stopLoss,
+        takeProfit: this.takeProfit,
+        exitLevels: newExitLevels,
+        entryFee: this.entryFee,
+        feeBasis: this.feeBasis,
+      }
+    );
+    return { success: true, value: newOrder };
+  }
+
   protected feeScale(sliceSize: number): number {
     return sliceSize / (this.feeBasis ?? this.size);
   }
