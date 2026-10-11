@@ -384,13 +384,9 @@ describe('TradingEngine', () => {
     const engine = new TradingEngine();
 
     const pending = unwrap(
-      engine.placeLimitOrder({
-        side: 'long',
-        price: 95,
-        size: 1,
-        stopLoss: 90,
-        takeProfit: 130,
-      })
+      engine.placeLimitOrder(
+        anOrder().long().price(95).size(1).stopLoss(90).takeProfit(130).build()
+      )
     );
 
     expect(pending.price).toBe(95);
@@ -403,11 +399,9 @@ describe('TradingEngine', () => {
   it('rejects a limit order with a non-positive price', () => {
     const engine = new TradingEngine();
 
-    const result = engine.placeLimitOrder({
-      side: 'long',
-      price: 0,
-      size: 1,
-    });
+    const result = engine.placeLimitOrder(
+      anOrder().long().price(0).size(1).build()
+    );
 
     expect(result.success).toBe(false);
     expect(expectError(result)).toBe('INVALID_PRICE');
@@ -417,13 +411,9 @@ describe('TradingEngine', () => {
   it('fills a long limit order when price reaches it', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.placeLimitOrder({
-        side: 'long',
-        price: 95,
-        size: 1,
-        stopLoss: 90,
-        takeProfit: 130,
-      })
+      engine.placeLimitOrder(
+        anOrder().long().price(95).size(1).stopLoss(90).takeProfit(130).build()
+      )
     );
 
     const untouched = engine.checkEntries(96);
@@ -444,11 +434,7 @@ describe('TradingEngine', () => {
   it('fills a short limit order when price reaches it', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.placeLimitOrder({
-        side: 'short',
-        price: 105,
-        size: 1,
-      })
+      engine.placeLimitOrder(anOrder().short().price(105).size(1).build())
     );
 
     const untouched = engine.checkEntries(104);
@@ -465,8 +451,8 @@ describe('TradingEngine', () => {
 
   it('removes filled orders and keeps the rest pending', () => {
     const engine = new TradingEngine();
-    unwrap(engine.placeLimitOrder({ side: 'long', price: 95, size: 1 }));
-    unwrap(engine.placeLimitOrder({ side: 'long', price: 90, size: 1 }));
+    unwrap(engine.placeLimitOrder(anOrder().long().price(95).size(1).build()));
+    unwrap(engine.placeLimitOrder(anOrder().long().price(90).size(1).build()));
 
     const filled = engine.checkEntries(94);
 
@@ -479,12 +465,9 @@ describe('TradingEngine', () => {
   it('fills entries and checks exits in a single tick', () => {
     const engine = new TradingEngine();
     unwrap(
-      engine.placeLimitOrder({
-        side: 'long',
-        price: 95,
-        size: 1,
-        stopLoss: 90,
-      })
+      engine.placeLimitOrder(
+        anOrder().long().price(95).size(1).stopLoss(90).build()
+      )
     );
     unwrap(
       engine.open(anOrder().long().price(100).size(1).stopLoss(95).build())
@@ -535,7 +518,7 @@ describe('TradingEngine', () => {
       makerFeePercent: 0.5,
       takerFeePercent: 1,
     });
-    unwrap(engine.placeLimitOrder({ side: 'long', price: 100, size: 1 }));
+    unwrap(engine.placeLimitOrder(anOrder().long().price(100).size(1).build()));
 
     const filled = engine.checkEntries(95);
     expect(filled).toHaveLength(1);
@@ -549,7 +532,7 @@ describe('TradingEngine', () => {
   it('cancels a pending limit order', () => {
     const engine = new TradingEngine();
     const order = unwrap(
-      engine.placeLimitOrder({ side: 'long', price: 95, size: 1 })
+      engine.placeLimitOrder(anOrder().long().price(95).size(1).build())
     );
 
     const cancelled = engine.cancelLimitOrder(order);
@@ -781,7 +764,7 @@ describe('TradingEngine', () => {
           .addTP(110, 50)
           .addSL(95, 25)
           .addTP(120, 25)
-          .build('open')
+          .build()
       )
     );
 
