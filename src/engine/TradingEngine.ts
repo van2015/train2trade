@@ -89,6 +89,30 @@ export abstract class Order {
       : this.slError(level.price);
   }
 
+  exitTargetAt(price: number): {
+    price: number;
+    sizePercent: number | null;
+    level?: ExitLevel;
+  } | null {
+    const levels = this.exitLevels;
+    if (levels) {
+      for (const level of levels) {
+        const hit =
+          level.kind === 'tp' ? this.isTpHit(price) : this.isSlHit(price);
+        if (hit) {
+          return { price: level.price, sizePercent: level.sizePercent, level };
+        }
+      }
+    }
+    if (this.stopLoss !== undefined && this.isSlHit(price)) {
+      return { price: this.stopLoss, sizePercent: null };
+    }
+    if (this.takeProfit !== undefined && this.isTpHit(price)) {
+      return { price: this.takeProfit, sizePercent: null };
+    }
+    return null;
+  }
+
   abstract fill(price: number, fee: number): Order;
   abstract close(exitPrice: number, fee: number, basis: number): Order;
 
@@ -468,7 +492,7 @@ export class TradingEngine {
     const closed: Order[] = [];
     const toCheck = orders ?? this.openPositions;
     for (const order of toCheck) {
-      const target = this.exitAt(order, price);
+      const target = order.exitTargetAt(price);
       if (target !== null) {
         const result = this.closePartial(
           order,
@@ -543,33 +567,6 @@ export class TradingEngine {
 
   private feeScale(order: Order, sliceSize: number): number {
     return sliceSize / (order.feeBasis ?? order.size);
-  }
-
-  private exitAt(
-    order: Order,
-    price: number
-  ): {
-    price: number;
-    sizePercent: number | null;
-    level?: ExitLevel;
-  } | null {
-    const levels = order.exitLevels;
-    if (levels) {
-      for (const level of levels) {
-        const hit =
-          level.kind === 'tp' ? order.isTpHit(price) : order.isSlHit(price);
-        if (hit) {
-          return { price: level.price, sizePercent: level.sizePercent, level };
-        }
-      }
-    }
-    if (order.stopLoss !== undefined && order.isSlHit(price)) {
-      return { price: order.stopLoss, sizePercent: null };
-    }
-    if (order.takeProfit !== undefined && order.isTpHit(price)) {
-      return { price: order.takeProfit, sizePercent: null };
-    }
-    return null;
   }
 
   private ensurePositive(
