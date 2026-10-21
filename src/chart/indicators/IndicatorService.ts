@@ -9,6 +9,7 @@ import type {
   PriceData,
 } from '../../shared/types/asset';
 import type { Result } from '../../shared/types/Result';
+import { newId } from '../../shared/utils/newId';
 import { normalizeParams as normalizeParamValues } from '../../shared/utils/normalizeParams';
 import type { IndicatorError } from './IndicatorError';
 
@@ -414,13 +415,7 @@ export class IndicatorDefinitionRegistry {
 }
 
 function newInstanceKey(): string {
-  if (
-    typeof crypto !== 'undefined' &&
-    typeof crypto.randomUUID === 'function'
-  ) {
-    return crypto.randomUUID();
-  }
-  return `indicator-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return newId('indicator');
 }
 
 export class IndicatorEngine {

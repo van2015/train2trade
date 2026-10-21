@@ -1,5 +1,6 @@
 import type { Timeframe } from '../../../shared/timeframe/Timeframe';
 import type { AssetSummary, PriceData } from '../../types/asset';
+import { newId } from '../../utils/newId';
 import {
   ASSETS_STORE,
   CHUNK_META_STORE,
@@ -53,7 +54,7 @@ class IndexedDbAssetChartRepository implements AssetChartRepository {
     originalTimeframe: Timeframe
   ): Promise<AssetSummary> {
     const db = await openDatabase();
-    const id = crypto.randomUUID();
+    const id = newId('asset');
     const summary: AssetSummary = {
       id,
       name,
