@@ -101,6 +101,15 @@ export class StrategyDraftPresenter {
     };
   }
 
+  removeCondition(field: ConditionField, index: number): void {
+    this.conditions[field] = {
+      ...this.conditions[field],
+      conditions: this.conditions[field].conditions.filter(
+        (_, position) => position !== index
+      ),
+    };
+  }
+
   setConditionConnector(
     field: ConditionField,
     connector: ConditionConnector

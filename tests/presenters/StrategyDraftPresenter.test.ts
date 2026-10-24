@@ -301,5 +301,21 @@ describe('StrategyDraftPresenter', () => {
         'stopLoss.2.operator',
       ]);
     });
+
+    it('reports a field with no simple conditions as missing', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Empty entry');
+      fillCondition(presenter, 'entry', 'close', 'gt', 100);
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+
+      presenter.removeCondition('entry', 0);
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(false);
+      expect(state.summary).toBeNull();
+      expect(state.missing).toEqual(['entry.conditions']);
+    });
   });
 });
