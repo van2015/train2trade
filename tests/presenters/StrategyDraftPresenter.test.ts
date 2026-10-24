@@ -1,50 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import {
-  type ConditionField,
-  StrategyDraftPresenter,
-} from '../../src/strategy/StrategyDraftPresenter';
-
-function fillCondition(
-  presenter: StrategyDraftPresenter,
-  field: ConditionField,
-  indicatorId: 'close' | 'open' | 'high' | 'low',
-  operator: 'gt' | 'lt',
-  value: number,
-  index = 0
-) {
-  presenter.setConditionIndicator(field, indicatorId, index);
-  presenter.setConditionOperator(field, operator, index);
-  presenter.setConditionValue(field, value, index);
-}
-
-function fillIndicatorCondition(
-  presenter: StrategyDraftPresenter,
-  field: ConditionField,
-  left: 'close' | 'open' | 'high' | 'low',
-  operator: 'gt' | 'lt',
-  right: 'close' | 'open' | 'high' | 'low'
-) {
-  presenter.setConditionIndicator(field, left);
-  presenter.setConditionOperator(field, operator);
-  presenter.setConditionRightSide(field, 'indicator');
-  presenter.setConditionRightIndicator(field, right);
-}
-
-function fillOpening(presenter: StrategyDraftPresenter) {
-  presenter.setDirection('long');
-  presenter.setRisk(1);
-  presenter.setTrigger('entry');
-}
+import type { ConditionField } from '../../src/strategy/StrategyDraftPresenter';
+import { aStrategyDraft } from '../test-helpers/strategyDraftBuilder';
 
 describe('StrategyDraftPresenter', () => {
   describe('a new strategy', () => {
     it('a new strategy reports direction, risk and trigger as missing alongside name and conditions', () => {
-      const presenter = new StrategyDraftPresenter();
+      const presenter = aStrategyDraft().build();
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(false);
-      expect(state.missing).toEqual([
+      expect(presenter.isReady()).toBe(false);
+      expect(presenter.getMissing()).toEqual([
         'name',
         'direction',
         'risk',
@@ -62,45 +26,38 @@ describe('StrategyDraftPresenter', () => {
     });
 
     it('stays not ready and reports direction, risk or trigger while any of them is unset', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Breakout');
-      fillCondition(presenter, 'entry', 'close', 'gt', 100);
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
-      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+      const presenter = aStrategyDraft()
+        .named('Breakout')
+        .withDefaultConditions()
+        .build();
 
-      expect(presenter.getState().isReady).toBe(false);
-      expect(presenter.getState().missing).toEqual([
-        'direction',
-        'risk',
-        'trigger',
-      ]);
+      expect(presenter.isReady()).toBe(false);
+      expect(presenter.getMissing()).toEqual(['direction', 'risk', 'trigger']);
 
       presenter.setDirection('long');
       presenter.setRisk(1);
-      expect(presenter.getState().missing).toEqual(['trigger']);
+      expect(presenter.getMissing()).toEqual(['trigger']);
 
       presenter.setTrigger('entry');
-      expect(presenter.getState().isReady).toBe(true);
-      expect(presenter.getState().missing).toEqual([]);
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
     });
 
     it('stays not ready and reports only the name when the conditions and the opening are complete', () => {
-      const presenter = new StrategyDraftPresenter();
-      fillCondition(presenter, 'entry', 'close', 'gt', 100);
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
-      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
-      fillOpening(presenter);
+      const presenter = aStrategyDraft()
+        .withDefaultConditions()
+        .withOpening()
+        .build();
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(false);
-      expect(state.missing).toEqual(['name']);
+      expect(presenter.isReady()).toBe(false);
+      expect(presenter.getMissing()).toEqual(['name']);
     });
 
     it('reports each missing condition field (indicator, operator or value)', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Breakout');
-      fillOpening(presenter);
+      const presenter = aStrategyDraft()
+        .named('Breakout')
+        .withOpening()
+        .build();
       presenter.setConditionIndicator('entry', 'close');
       presenter.setConditionOperator('entry', 'gt');
       presenter.setConditionOperator('stopLoss', 'lt');
@@ -108,10 +65,8 @@ describe('StrategyDraftPresenter', () => {
       presenter.setConditionIndicator('takeProfit', 'high');
       presenter.setConditionValue('takeProfit', 120);
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(false);
-      expect(state.missing).toEqual([
+      expect(presenter.isReady()).toBe(false);
+      expect(presenter.getMissing()).toEqual([
         'entry.1.value',
         'stopLoss.1.indicator',
         'takeProfit.1.operator',
@@ -119,19 +74,16 @@ describe('StrategyDraftPresenter', () => {
     });
 
     it('becomes ready and exposes a summary of the name and the three conditions once complete', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Breakout');
-      fillOpening(presenter);
-      fillCondition(presenter, 'entry', 'close', 'gt', 100);
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
-      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+      const presenter = aStrategyDraft()
+        .named('Breakout')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(true);
-      expect(state.missing).toEqual([]);
-      expect(state.name).toBe('Breakout');
-      expect(state.summary).toEqual({
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getName()).toBe('Breakout');
+      expect(presenter.getSummary()).toEqual({
         entry: 'Close > 100',
         stopLoss: 'Low < 90',
         takeProfit: 'High > 120',
@@ -139,34 +91,32 @@ describe('StrategyDraftPresenter', () => {
     });
 
     it('keeps a condition incomplete when indicator mode is selected without a right indicator', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Cross');
-      fillOpening(presenter);
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
-      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+      const presenter = aStrategyDraft()
+        .named('Cross')
+        .withOpening()
+        .withCondition('stopLoss', 'low', 'lt', 90)
+        .withCondition('takeProfit', 'high', 'gt', 120)
+        .build();
       presenter.setConditionIndicator('entry', 'close');
       presenter.setConditionOperator('entry', 'gt');
       presenter.setConditionRightSide('entry', 'indicator');
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(false);
-      expect(state.missing).toEqual(['entry.1.rightIndicator']);
+      expect(presenter.isReady()).toBe(false);
+      expect(presenter.getMissing()).toEqual(['entry.1.rightIndicator']);
     });
 
     it('becomes ready when the three conditions compare indicators', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Indicator cross');
-      fillOpening(presenter);
-      fillIndicatorCondition(presenter, 'entry', 'close', 'gt', 'open');
-      fillIndicatorCondition(presenter, 'stopLoss', 'low', 'lt', 'close');
-      fillIndicatorCondition(presenter, 'takeProfit', 'high', 'gt', 'close');
+      const presenter = aStrategyDraft()
+        .named('Indicator cross')
+        .withOpening()
+        .withIndicatorCondition('entry', 'close', 'gt', 'open')
+        .withIndicatorCondition('stopLoss', 'low', 'lt', 'close')
+        .withIndicatorCondition('takeProfit', 'high', 'gt', 'close')
+        .build();
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(true);
-      expect(state.missing).toEqual([]);
-      expect(state.summary).toEqual({
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()).toEqual({
         entry: 'Close > Open',
         stopLoss: 'Low < Close',
         takeProfit: 'High > Close',
@@ -174,51 +124,49 @@ describe('StrategyDraftPresenter', () => {
     });
 
     it('applies default params to the right indicator and updates them in the summary', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('RSI cross');
-      fillOpening(presenter);
-      fillCondition(presenter, 'entry', 'close', 'gt', 100);
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      const presenter = aStrategyDraft()
+        .named('RSI cross')
+        .withOpening()
+        .withCondition('entry', 'close', 'gt', 100)
+        .withCondition('stopLoss', 'low', 'lt', 90)
+        .build();
       presenter.setConditionIndicator('takeProfit', 'close');
       presenter.setConditionOperator('takeProfit', 'gt');
       presenter.setConditionRightSide('takeProfit', 'indicator');
       presenter.setConditionRightIndicator('takeProfit', 'rsi');
 
-      const initial = presenter.getState();
-      expect(initial.conditions.takeProfit.conditions[0].rightParams).toEqual({
-        period: 14,
-      });
-      expect(initial.summary?.takeProfit).toBe('Close > RSI(14)');
+      expect(
+        presenter.getConditions().takeProfit.conditions[0].rightParams
+      ).toEqual({ period: 14 });
+      expect(presenter.getSummary()?.takeProfit).toBe('Close > RSI(14)');
 
       presenter.updateConditionRightParams('takeProfit', { period: 21 });
 
-      const updated = presenter.getState();
-      expect(updated.conditions.takeProfit.conditions[0].rightParams).toEqual({
-        period: 21,
-      });
-      expect(updated.summary?.takeProfit).toBe('Close > RSI(21)');
+      expect(
+        presenter.getConditions().takeProfit.conditions[0].rightParams
+      ).toEqual({ period: 21 });
+      expect(presenter.getSummary()?.takeProfit).toBe('Close > RSI(21)');
     });
 
     it('summarises cross above and cross below between two indicators', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('EMA cross');
-      fillOpening(presenter);
+      const presenter = aStrategyDraft()
+        .named('EMA cross')
+        .withOpening()
+        .withCondition('stopLoss', 'low', 'lt', 90)
+        .build();
       presenter.setConditionIndicator('entry', 'ema');
       presenter.setConditionOperator('entry', 'crossAbove');
       presenter.setConditionRightSide('entry', 'indicator');
       presenter.setConditionRightIndicator('entry', 'ema');
       presenter.updateConditionRightParams('entry', { period: 50 });
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
       presenter.setConditionIndicator('takeProfit', 'close');
       presenter.setConditionOperator('takeProfit', 'crossBelow');
       presenter.setConditionRightSide('takeProfit', 'indicator');
       presenter.setConditionRightIndicator('takeProfit', 'ema');
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(true);
-      expect(state.missing).toEqual([]);
-      expect(state.summary).toEqual({
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()).toEqual({
         entry: 'EMA(20) crosses above EMA(50)',
         stopLoss: 'Low < 90',
         takeProfit: 'Close crosses below EMA(20)',
@@ -226,37 +174,32 @@ describe('StrategyDraftPresenter', () => {
     });
 
     it("applies a technical indicator's default params and updates the summary after editing them", () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Oversold');
-      fillOpening(presenter);
-      fillCondition(presenter, 'entry', 'close', 'gt', 100);
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      const presenter = aStrategyDraft()
+        .named('Oversold')
+        .withOpening()
+        .withCondition('entry', 'close', 'gt', 100)
+        .withCondition('stopLoss', 'low', 'lt', 90)
+        .build();
       presenter.setConditionIndicator('takeProfit', 'rsi');
       presenter.setConditionOperator('takeProfit', 'gt');
       presenter.setConditionValue('takeProfit', 70);
 
-      const initial = presenter.getState();
-      expect(initial.conditions.takeProfit.conditions[0].params).toEqual({
-        period: 14,
-      });
-      expect(initial.summary?.takeProfit).toBe('RSI(14) > 70');
+      expect(presenter.getConditions().takeProfit.conditions[0].params).toEqual(
+        { period: 14 }
+      );
+      expect(presenter.getSummary()?.takeProfit).toBe('RSI(14) > 70');
 
       presenter.updateConditionParams('takeProfit', { period: 21 });
 
-      const updated = presenter.getState();
-      expect(updated.conditions.takeProfit.conditions[0].params).toEqual({
-        period: 21,
-      });
-      expect(updated.summary?.takeProfit).toBe('RSI(21) > 70');
+      expect(presenter.getConditions().takeProfit.conditions[0].params).toEqual(
+        { period: 21 }
+      );
+      expect(presenter.getSummary()?.takeProfit).toBe('RSI(21) > 70');
     });
   });
 
   describe('composing conditions', () => {
     it('joins two complete simple conditions with the chosen connector in each field summary', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Composed');
-      fillOpening(presenter);
-
       const compositions: {
         field: ConditionField;
         connector: 'and' | 'or';
@@ -283,18 +226,20 @@ describe('StrategyDraftPresenter', () => {
         },
       ];
 
-      for (const { field, connector, first, second } of compositions) {
-        fillCondition(presenter, field, first[0], first[1], first[2]);
-        presenter.addCondition(field);
-        fillCondition(presenter, field, second[0], second[1], second[2], 1);
+      const builder = aStrategyDraft().named('Composed').withOpening();
+      for (const { field, first, second } of compositions) {
+        builder
+          .withCondition(field, first[0], first[1], first[2])
+          .withCondition(field, second[0], second[1], second[2], 1);
+      }
+      const presenter = builder.build();
+      for (const { field, connector } of compositions) {
         presenter.setConditionConnector(field, connector);
       }
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(true);
-      expect(state.missing).toEqual([]);
-      expect(state.summary).toEqual({
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()).toEqual({
         entry: 'Close > 100 AND Low < 90',
         stopLoss: 'Low < 90 OR High > 120',
         takeProfit: 'High > 120 AND Close > 100',
@@ -302,89 +247,80 @@ describe('StrategyDraftPresenter', () => {
     });
 
     it('prefixes a negated simple condition with NOT in the summary', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Negated');
-      fillOpening(presenter);
-      fillCondition(presenter, 'entry', 'close', 'gt', 100);
-      presenter.addCondition('entry');
-      fillCondition(presenter, 'entry', 'low', 'lt', 90, 1);
+      const presenter = aStrategyDraft()
+        .named('Negated')
+        .withOpening()
+        .withCondition('entry', 'close', 'gt', 100)
+        .withCondition('entry', 'low', 'lt', 90, 1)
+        .withCondition('stopLoss', 'low', 'lt', 90)
+        .withCondition('takeProfit', 'high', 'gt', 120)
+        .build();
       presenter.setConditionNegated('entry', true, 1);
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
-      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(true);
-      expect(state.summary?.entry).toBe('Close > 100 AND NOT (Low < 90)');
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getSummary()?.entry).toBe(
+        'Close > 100 AND NOT (Low < 90)'
+      );
 
       presenter.setConditionNegated('entry', false, 1);
 
-      expect(presenter.getState().summary?.entry).toBe(
-        'Close > 100 AND Low < 90'
-      );
+      expect(presenter.getSummary()?.entry).toBe('Close > 100 AND Low < 90');
     });
 
     it('reports each incomplete simple condition with its field and position in missing', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Incomplete composition');
-      fillOpening(presenter);
-
-      fillCondition(presenter, 'entry', 'close', 'gt', 100);
+      const presenter = aStrategyDraft()
+        .named('Incomplete composition')
+        .withOpening()
+        .withCondition('entry', 'close', 'gt', 100)
+        .withCondition('stopLoss', 'low', 'lt', 90)
+        .withCondition('takeProfit', 'high', 'gt', 120)
+        .build();
       presenter.addCondition('entry');
       presenter.setConditionIndicator('entry', 'low', 1);
       presenter.setConditionOperator('entry', 'lt', 1);
-
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
       presenter.addCondition('stopLoss');
       presenter.setConditionIndicator('stopLoss', 'high', 1);
       presenter.setConditionValue('stopLoss', 120, 1);
 
-      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
-
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(false);
-      expect(state.summary).toBeNull();
-      expect(state.missing).toEqual(['entry.2.value', 'stopLoss.2.operator']);
+      expect(presenter.isReady()).toBe(false);
+      expect(presenter.getSummary()).toBeNull();
+      expect(presenter.getMissing()).toEqual([
+        'entry.2.value',
+        'stopLoss.2.operator',
+      ]);
     });
 
     it('reports a field with no simple conditions as missing', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Empty entry');
-      fillOpening(presenter);
-      fillCondition(presenter, 'entry', 'close', 'gt', 100);
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
-      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+      const presenter = aStrategyDraft()
+        .named('Empty entry')
+        .withOpening()
+        .withDefaultConditions()
+        .build();
 
       presenter.removeCondition('entry', 0);
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(false);
-      expect(state.summary).toBeNull();
-      expect(state.missing).toEqual(['entry.conditions']);
+      expect(presenter.isReady()).toBe(false);
+      expect(presenter.getSummary()).toBeNull();
+      expect(presenter.getMissing()).toEqual(['entry.conditions']);
     });
 
     it('removes one of two simple conditions and updates the summary', () => {
-      const presenter = new StrategyDraftPresenter();
-      presenter.setName('Remove condition');
-      fillOpening(presenter);
-      fillCondition(presenter, 'entry', 'close', 'gt', 100);
-      presenter.addCondition('entry');
-      fillCondition(presenter, 'entry', 'low', 'lt', 90, 1);
+      const presenter = aStrategyDraft()
+        .named('Remove condition')
+        .withOpening()
+        .withCondition('entry', 'close', 'gt', 100)
+        .withCondition('entry', 'low', 'lt', 90, 1)
+        .withCondition('stopLoss', 'low', 'lt', 90)
+        .withCondition('takeProfit', 'high', 'gt', 120)
+        .build();
       presenter.setConditionConnector('entry', 'and');
-      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
-      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
 
-      const before = presenter.getState();
-      expect(before.summary?.entry).toBe('Close > 100 AND Low < 90');
+      expect(presenter.getSummary()?.entry).toBe('Close > 100 AND Low < 90');
 
       presenter.removeCondition('entry', 0);
 
-      const state = presenter.getState();
-
-      expect(state.isReady).toBe(true);
-      expect(state.summary?.entry).toBe('Low < 90');
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getSummary()?.entry).toBe('Low < 90');
     });
   });
 });

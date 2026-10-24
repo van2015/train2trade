@@ -31,7 +31,11 @@ function formatMissing(path: string): string {
 export function StrategyBuilder() {
   const [presenter] = useState(() => new StrategyDraftPresenter());
   const [, rerender] = useReducer((version: number) => version + 1, 0);
-  const state = presenter.getState();
+  const name = presenter.getName();
+  const conditions = presenter.getConditions();
+  const isReady = presenter.isReady();
+  const summary = presenter.getSummary();
+  const missing = presenter.getMissing();
   const options = getConditionIndicatorOptions();
 
   const update = (action: () => void) => {
@@ -45,7 +49,7 @@ export function StrategyBuilder() {
         <span>Name</span>
         <input
           type="text"
-          value={state.name}
+          value={name}
           onChange={(event) =>
             update(() => presenter.setName(event.target.value))
           }
@@ -55,7 +59,7 @@ export function StrategyBuilder() {
 
       {StrategyDraftPresenter.CONDITION_FIELDS.map((field) => {
         const label = StrategyDraftPresenter.FIELD_LABELS[field];
-        const group = state.conditions[field];
+        const group = conditions[field];
 
         return (
           <fieldset key={field} className="strategy-condition">
@@ -107,16 +111,16 @@ export function StrategyBuilder() {
         );
       })}
 
-      {state.isReady && state.summary ? (
+      {isReady && summary ? (
         <div className="strategy-summary">
           <h3>Summary</h3>
           <p>
-            <strong>Name:</strong> {state.name}
+            <strong>Name:</strong> {name}
           </p>
           {StrategyDraftPresenter.CONDITION_FIELDS.map((field) => (
             <p key={field}>
               <strong>{StrategyDraftPresenter.FIELD_LABELS[field]}:</strong>{' '}
-              {state.summary?.[field]}
+              {summary[field]}
             </p>
           ))}
           <p className="strategy-ready">Ready to save</p>
@@ -125,7 +129,7 @@ export function StrategyBuilder() {
         <div className="strategy-missing">
           <p>Missing:</p>
           <ul>
-            {state.missing.map((item) => (
+            {missing.map((item) => (
               <li key={item}>{formatMissing(item)}</li>
             ))}
           </ul>

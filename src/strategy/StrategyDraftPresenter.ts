@@ -13,7 +13,6 @@ import type {
   ConditionSummary,
   StrategyCondition,
   StrategyConditionGroup,
-  StrategyDraftState,
 } from './types';
 
 export type {
@@ -26,7 +25,6 @@ export type {
   PriceSourceId,
   StrategyCondition,
   StrategyConditionGroup,
-  StrategyDraftState,
 } from './types';
 
 export class StrategyDraftPresenter {
@@ -75,15 +73,55 @@ export class StrategyDraftPresenter {
     };
   }
 
-  getState(): StrategyDraftState {
-    const missing = this.getMissing();
-    return {
-      name: this.name,
-      conditions: this.conditions,
-      isReady: missing.length === 0,
-      missing,
-      summary: this.getSummary(missing),
-    };
+  getName(): string {
+    return this.name;
+  }
+
+  getConditions(): Record<ConditionField, StrategyConditionGroup> {
+    return this.conditions;
+  }
+
+  isReady(): boolean {
+    return this.getMissing().length === 0;
+  }
+
+  getMissing(): string[] {
+    const missing: string[] = [];
+    if (this.name.trim().length === 0) missing.push('name');
+    if (this.direction === null) missing.push('direction');
+    if (this.risk === null) missing.push('risk');
+    if (this.trigger === null) missing.push('trigger');
+
+    for (const field of StrategyDraftPresenter.CONDITION_FIELDS) {
+      const group = this.conditions[field];
+      if (group.conditions.length === 0) {
+        missing.push(`${field}.conditions`);
+        continue;
+      }
+
+      group.conditions.forEach((condition, index) => {
+        const prefix = `${field}.${index + 1}`;
+        if (condition.indicatorId === null) {
+          missing.push(`${prefix}.indicator`);
+        }
+        if (condition.operator === null) {
+          missing.push(`${prefix}.operator`);
+        }
+
+        if (condition.rightSide === 'indicator') {
+          if (condition.rightIndicatorId === null)
+            missing.push(`${prefix}.rightIndicator`);
+        } else if (condition.value === null) {
+          missing.push(`${prefix}.value`);
+        }
+      });
+    }
+
+    return missing;
+  }
+
+  getSummary(): ConditionSummary | null {
+    return this.summaryFor(this.getMissing());
   }
 
   setName(name: string): void {
@@ -298,42 +336,7 @@ export class StrategyDraftPresenter {
     return normalizeParams(option.params, { ...current, ...changes });
   }
 
-  private getMissing(): string[] {
-    const missing: string[] = [];
-    if (this.name.trim().length === 0) missing.push('name');
-    if (this.direction === null) missing.push('direction');
-    if (this.risk === null) missing.push('risk');
-    if (this.trigger === null) missing.push('trigger');
-
-    for (const field of StrategyDraftPresenter.CONDITION_FIELDS) {
-      const group = this.conditions[field];
-      if (group.conditions.length === 0) {
-        missing.push(`${field}.conditions`);
-        continue;
-      }
-
-      group.conditions.forEach((condition, index) => {
-        const prefix = `${field}.${index + 1}`;
-        if (condition.indicatorId === null) {
-          missing.push(`${prefix}.indicator`);
-        }
-        if (condition.operator === null) {
-          missing.push(`${prefix}.operator`);
-        }
-
-        if (condition.rightSide === 'indicator') {
-          if (condition.rightIndicatorId === null)
-            missing.push(`${prefix}.rightIndicator`);
-        } else if (condition.value === null) {
-          missing.push(`${prefix}.value`);
-        }
-      });
-    }
-
-    return missing;
-  }
-
-  private getSummary(missing: string[]): ConditionSummary | null {
+  private summaryFor(missing: string[]): ConditionSummary | null {
     if (missing.length > 0) return null;
 
     return {

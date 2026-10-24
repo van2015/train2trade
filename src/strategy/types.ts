@@ -30,11 +30,3 @@ export interface StrategyConditionGroup {
   connector: ConditionConnector;
   conditions: StrategyCondition[];
 }
-
-export interface StrategyDraftState {
-  name: string;
-  conditions: Record<ConditionField, StrategyConditionGroup>;
-  isReady: boolean;
-  missing: string[];
-  summary: ConditionSummary | null;
-}
