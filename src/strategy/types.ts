@@ -1,0 +1,39 @@
+import type { IndicatorId } from '../shared/types/asset';
+
+export type ConditionField = 'entry' | 'stopLoss' | 'takeProfit';
+
+export type PriceSourceId = 'close' | 'open' | 'high' | 'low';
+
+export type ConditionIndicatorId = IndicatorId | PriceSourceId;
+
+export type ComparisonOperator = 'gt' | 'lt' | 'crossAbove' | 'crossBelow';
+
+export type ConditionRightSide = 'value' | 'indicator';
+
+export type ConditionConnector = 'and' | 'or';
+
+export type OrderType = 'market' | 'limit';
+
+export type ConditionSummary = Record<ConditionField, string> & {
+  direction: string;
+  opening: string;
+  risk: string;
+  trigger: string;
+};
+
+export interface StrategyCondition {
+  draftId: string;
+  negated: boolean;
+  indicatorId: ConditionIndicatorId | null;
+  params: Record<string, number>;
+  operator: ComparisonOperator | null;
+  rightSide: ConditionRightSide;
+  value: number | null;
+  rightIndicatorId: ConditionIndicatorId | null;
+  rightParams: Record<string, number>;
+}
+
+export interface StrategyConditionGroup {
+  connector: ConditionConnector;
+  conditions: StrategyCondition[];
+}

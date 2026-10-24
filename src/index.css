@@ -626,3 +626,184 @@ body {
   background: var(--text-secondary);
   cursor: not-allowed;
 }
+
+.strategy-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.strategy-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.strategy-field input,
+.strategy-condition select,
+.strategy-condition input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.strategy-field input:focus,
+.strategy-condition select:focus,
+.strategy-condition input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+.strategy-condition {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.strategy-condition legend {
+  padding: 0 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.strategy-params {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.strategy-param {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.strategy-condition-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.strategy-condition-row select,
+.strategy-condition-row input {
+  flex: 1;
+}
+
+.strategy-condition-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.strategy-condition-item + .strategy-condition-item {
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+
+.strategy-condition-item legend {
+  padding: 0;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.strategy-condition-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.strategy-negated {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.strategy-negated input {
+  width: auto;
+  padding: 0;
+  accent-color: var(--primary);
+}
+
+.strategy-remove,
+.strategy-add {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.strategy-remove:hover,
+.strategy-add:hover {
+  border-color: var(--primary);
+}
+
+.strategy-add {
+  align-self: flex-start;
+}
+
+.strategy-summary,
+.strategy-missing {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  font-size: 0.8125rem;
+}
+
+.strategy-summary h3 {
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.strategy-ready {
+  margin-top: 0.25rem;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.strategy-missing {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.strategy-missing p {
+  font-weight: 600;
+}
+
+.strategy-missing ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  list-style: none;
+}
