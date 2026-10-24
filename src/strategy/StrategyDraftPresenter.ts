@@ -39,6 +39,8 @@ export const FIELD_LABELS: Record<ConditionField, string> = {
 export const OPERATORS: { value: ComparisonOperator; label: string }[] = [
   { value: 'gt', label: '>' },
   { value: 'lt', label: '<' },
+  { value: 'crossAbove', label: 'crosses above' },
+  { value: 'crossBelow', label: 'crosses below' },
 ];
 
 const OPERATOR_SYMBOLS: Record<ComparisonOperator, string> = Object.fromEntries(

@@ -6,7 +6,7 @@ export type PriceSourceId = 'close' | 'open' | 'high' | 'low';
 
 export type ConditionIndicatorId = IndicatorId | PriceSourceId;
 
-export type ComparisonOperator = 'gt' | 'lt';
+export type ComparisonOperator = 'gt' | 'lt' | 'crossAbove' | 'crossBelow';
 
 export type ConditionRightSide = 'value' | 'indicator';
 

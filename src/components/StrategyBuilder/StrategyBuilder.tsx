@@ -5,15 +5,23 @@ import {
   type ComparisonOperator,
   type ConditionField,
   type ConditionIndicatorId,
+  type ConditionRightSide,
   FIELD_LABELS,
   OPERATORS,
   StrategyDraftPresenter,
 } from '../../strategy/StrategyDraftPresenter';
 
+const ATTRIBUTE_LABELS: Record<string, string> = {
+  indicator: 'indicator',
+  operator: 'operator',
+  value: 'value',
+  rightIndicator: 'right indicator',
+};
+
 function formatMissing(path: string): string {
   if (path === 'name') return 'Name';
   const [field, attribute] = path.split('.');
-  return `${FIELD_LABELS[field as ConditionField]} ${attribute}`;
+  return `${FIELD_LABELS[field as ConditionField]} ${ATTRIBUTE_LABELS[attribute] ?? attribute}`;
 }
 
 export function StrategyBuilder() {
@@ -46,6 +54,9 @@ export function StrategyBuilder() {
         const condition = state.conditions[field];
         const option = options.find(
           (candidate) => candidate.id === condition.indicatorId
+        );
+        const rightOption = options.find(
+          (candidate) => candidate.id === condition.rightIndicatorId
         );
 
         return (
@@ -119,6 +130,72 @@ export function StrategyBuilder() {
                 ))}
               </select>
 
+              <select
+                aria-label={`${label} right side`}
+                value={condition.rightSide}
+                onChange={(event) =>
+                  update(() =>
+                    presenter.setConditionRightSide(
+                      field,
+                      event.target.value as ConditionRightSide
+                    )
+                  )
+                }
+              >
+                <option value="value">Value</option>
+                <option value="indicator">Indicator</option>
+              </select>
+            </div>
+
+            {condition.rightSide === 'indicator' ? (
+              <>
+                <select
+                  aria-label={`${label} right indicator`}
+                  value={condition.rightIndicatorId ?? ''}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (!value) return;
+                    update(() =>
+                      presenter.setConditionRightIndicator(
+                        field,
+                        value as ConditionIndicatorId
+                      )
+                    );
+                  }}
+                >
+                  <option value="">Select indicator</option>
+                  {options.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.label}
+                    </option>
+                  ))}
+                </select>
+
+                {rightOption && rightOption.params.length > 0 && (
+                  <div className="strategy-params">
+                    {rightOption.params.map((param) => (
+                      <label key={param.key} className="strategy-param">
+                        <span>{param.label}</span>
+                        <input
+                          type="number"
+                          min={param.min}
+                          value={
+                            condition.rightParams[param.key] ?? param.default
+                          }
+                          onChange={(event) =>
+                            update(() =>
+                              presenter.updateConditionRightParams(field, {
+                                [param.key]: Number(event.target.value),
+                              })
+                            )
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
               <input
                 aria-label={`${label} value`}
                 type="number"
@@ -134,7 +211,7 @@ export function StrategyBuilder() {
                 }}
                 placeholder="Value"
               />
-            </div>
+            )}
           </fieldset>
         );
       })}

@@ -156,6 +156,31 @@ describe('StrategyDraftPresenter', () => {
       expect(updated.summary?.takeProfit).toBe('Close > RSI(21)');
     });
 
+    it('summarises cross above and cross below between two indicators', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('EMA cross');
+      presenter.setConditionIndicator('entry', 'ema');
+      presenter.setConditionOperator('entry', 'crossAbove');
+      presenter.setConditionRightSide('entry', 'indicator');
+      presenter.setConditionRightIndicator('entry', 'ema');
+      presenter.updateConditionRightParams('entry', { period: 50 });
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      presenter.setConditionIndicator('takeProfit', 'close');
+      presenter.setConditionOperator('takeProfit', 'crossBelow');
+      presenter.setConditionRightSide('takeProfit', 'indicator');
+      presenter.setConditionRightIndicator('takeProfit', 'ema');
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(true);
+      expect(state.missing).toEqual([]);
+      expect(state.summary).toEqual({
+        entry: 'EMA(20) crosses above EMA(50)',
+        stopLoss: 'Low < 90',
+        takeProfit: 'Close crosses below EMA(20)',
+      });
+    });
+
     it("applies a technical indicator's default params and updates the summary after editing them", () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Oversold');
