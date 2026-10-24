@@ -5,7 +5,11 @@ import {
   type ConditionField,
   StrategyDraftPresenter,
 } from '../../strategy/StrategyDraftPresenter';
-import { ConditionEditor } from './ConditionEditor';
+import {
+  ConditionEditor,
+  IndicatorSelect,
+  ParamInputs,
+} from './ConditionEditor';
 
 const ATTRIBUTE_LABELS: Record<string, string> = {
   indicator: 'indicator',
@@ -18,6 +22,7 @@ const OPENING_LABELS: Record<string, string> = {
   direction: 'Direction',
   risk: 'Risk',
   trigger: 'Trigger',
+  limitIndicator: 'Limit price indicator',
 };
 
 function formatMissing(path: string): string {
@@ -43,10 +48,16 @@ export function StrategyBuilder() {
   const direction = presenter.getDirection();
   const risk = presenter.getRisk();
   const trigger = presenter.getTrigger();
+  const orderType = presenter.getOrderType();
+  const limitIndicator = presenter.getLimitIndicator();
+  const limitParams = presenter.getLimitParams();
   const conditions = presenter.getConditions();
   const missing = presenter.getMissing();
   const summary = missing.length === 0 ? presenter.getSummary() : null;
   const options = getConditionIndicatorOptions();
+  const limitOption = options.find(
+    (candidate) => candidate.id === limitIndicator
+  );
 
   const update = (action: () => void) => {
     action();
@@ -130,6 +141,49 @@ export function StrategyBuilder() {
             }
           />
         </label>
+
+        <label className="strategy-field">
+          <span>Order type</span>
+          <select
+            aria-label="Order type"
+            value={orderType}
+            onChange={(event) =>
+              update(() =>
+                presenter.setOrderType(event.target.value as 'market' | 'limit')
+              )
+            }
+          >
+            <option value="market">Market</option>
+            <option value="limit">Limit</option>
+          </select>
+        </label>
+
+        {orderType === 'limit' && (
+          <>
+            <div className="strategy-field">
+              <span>Limit price</span>
+              <IndicatorSelect
+                label="Limit price indicator"
+                value={limitIndicator}
+                options={options}
+                onChange={(indicatorId) =>
+                  update(() => presenter.setLimitIndicator(indicatorId))
+                }
+              />
+            </div>
+
+            {limitOption && limitOption.params.length > 0 && (
+              <ParamInputs
+                params={limitOption.params}
+                values={limitParams}
+                labelPrefix="Limit price"
+                onChange={(key, value) =>
+                  update(() => presenter.updateLimitParams({ [key]: value }))
+                }
+              />
+            )}
+          </>
+        )}
       </fieldset>
 
       {StrategyDraftPresenter.CONDITION_FIELDS.map((field) => {

@@ -162,6 +162,60 @@ describe('StrategyDraftPresenter', () => {
       expect(presenter.getSummary()?.opening).toBe('Limit RSI(14)');
     });
 
+    it('stays not ready and reports the limit price indicator when the opening is limit without one', () => {
+      const presenter = aStrategyDraft()
+        .named('Limit entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+      presenter.setOrderType('limit');
+
+      expect(presenter.isReady()).toBe(false);
+      expect(presenter.getMissing()).toEqual(['limitIndicator']);
+      expect(presenter.getSummary()).toBeNull();
+
+      presenter.setLimitIndicator('close');
+
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+    });
+
+    it('keeps a market opening without asking for a limit price indicator, even after switching back from limit', () => {
+      const presenter = aStrategyDraft()
+        .named('Market entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()?.opening).toBe('Market');
+
+      presenter.setOrderType('limit');
+      expect(presenter.getMissing()).toEqual(['limitIndicator']);
+
+      presenter.setOrderType('market');
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()?.opening).toBe('Market');
+    });
+
+    it('updates the limit price indicator params in the summary', () => {
+      const presenter = aStrategyDraft()
+        .named('Limit entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+      presenter.setOrderType('limit');
+      presenter.setLimitIndicator('rsi');
+
+      expect(presenter.getSummary()?.opening).toBe('Limit RSI(14)');
+
+      presenter.updateLimitParams({ period: 21 });
+
+      expect(presenter.getSummary()?.opening).toBe('Limit RSI(21)');
+    });
+
     it('keeps a condition incomplete when indicator mode is selected without a right indicator', () => {
       const presenter = aStrategyDraft()
         .named('Cross')

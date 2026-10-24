@@ -15,7 +15,7 @@ interface ParamInputsProps {
   onChange: (key: string, value: number) => void;
 }
 
-function ParamInputs({
+export function ParamInputs({
   params,
   values,
   labelPrefix,
@@ -48,7 +48,7 @@ interface IndicatorSelectProps {
   onChange: (indicatorId: ConditionIndicatorId) => void;
 }
 
-function IndicatorSelect({
+export function IndicatorSelect({
   label,
   value,
   options,

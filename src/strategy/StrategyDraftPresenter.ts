@@ -95,6 +95,18 @@ export class StrategyDraftPresenter {
     return this.risk;
   }
 
+  getOrderType(): 'market' | 'limit' {
+    return this.orderType;
+  }
+
+  getLimitIndicator(): ConditionIndicatorId | null {
+    return this.limitIndicatorId;
+  }
+
+  getLimitParams(): Record<string, number> {
+    return this.limitParams;
+  }
+
   isReady(): boolean {
     return this.getMissing().length === 0;
   }
@@ -170,6 +182,17 @@ export class StrategyDraftPresenter {
   setLimitIndicator(indicatorId: ConditionIndicatorId): void {
     this.limitIndicatorId = indicatorId;
     this.limitParams = this.defaultParamsFor(indicatorId);
+  }
+
+  updateLimitParams(params: Record<string, number>): void {
+    const next = this.normalizeConditionParams(
+      this.limitIndicatorId,
+      this.limitParams,
+      params
+    );
+    if (next === null) return;
+
+    this.limitParams = next;
   }
 
   addCondition(field: ConditionField): void {
