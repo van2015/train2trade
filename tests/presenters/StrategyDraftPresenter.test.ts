@@ -88,5 +88,25 @@ describe('StrategyDraftPresenter', () => {
         takeProfit: 'High > 120',
       });
     });
+
+    it("applies a technical indicator's default params and updates the summary after editing them", () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Oversold');
+      fillCondition(presenter, 'entry', 'close', 'gt', 100);
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      presenter.setConditionIndicator('takeProfit', 'rsi');
+      presenter.setConditionOperator('takeProfit', 'gt');
+      presenter.setConditionValue('takeProfit', 70);
+
+      const initial = presenter.getState();
+      expect(initial.conditions.takeProfit.params).toEqual({ period: 14 });
+      expect(initial.summary?.takeProfit).toBe('RSI(14) > 70');
+
+      presenter.updateConditionParams('takeProfit', { period: 21 });
+
+      const updated = presenter.getState();
+      expect(updated.conditions.takeProfit.params).toEqual({ period: 21 });
+      expect(updated.summary?.takeProfit).toBe('RSI(21) > 70');
+    });
   });
 });

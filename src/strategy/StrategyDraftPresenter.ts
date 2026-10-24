@@ -1,3 +1,7 @@
+import {
+  getDefinition,
+  normalizeParams,
+} from '../chart/indicators/IndicatorService';
 import type { IndicatorId } from '../shared/types/asset';
 
 export type ConditionField = 'entry' | 'stopLoss' | 'takeProfit';
@@ -47,8 +51,18 @@ function isPriceSource(id: ConditionIndicatorId): id is PriceSourceId {
   return id in PRICE_SOURCE_LABELS;
 }
 
-function indicatorLabel(id: ConditionIndicatorId): string {
-  return isPriceSource(id) ? PRICE_SOURCE_LABELS[id] : id;
+function indicatorLabel(
+  id: ConditionIndicatorId,
+  params: Record<string, number>
+): string {
+  if (isPriceSource(id)) return PRICE_SOURCE_LABELS[id];
+
+  const definition = getDefinition(id);
+  if (!definition) return id;
+  const values = definition.params.map((spec) => params[spec.key]);
+  return values.length > 0
+    ? `${definition.label}(${values.join(', ')})`
+    : definition.label;
 }
 
 export class StrategyDraftPresenter {
@@ -81,7 +95,33 @@ export class StrategyDraftPresenter {
     this.conditions[field] = {
       ...this.conditions[field],
       indicatorId,
+      params: this.defaultParamsFor(indicatorId),
     };
+  }
+
+  updateConditionParams(
+    field: ConditionField,
+    params: Record<string, number>
+  ): void {
+    const condition = this.conditions[field];
+    if (condition.indicatorId === null || isPriceSource(condition.indicatorId))
+      return;
+
+    const definition = getDefinition(condition.indicatorId);
+    if (!definition) return;
+
+    this.conditions[field] = {
+      ...condition,
+      params: normalizeParams(definition, { ...condition.params, ...params }),
+    };
+  }
+
+  private defaultParamsFor(
+    indicatorId: ConditionIndicatorId
+  ): Record<string, number> {
+    if (isPriceSource(indicatorId)) return {};
+    const definition = getDefinition(indicatorId);
+    return definition ? normalizeParams(definition, {}) : {};
   }
 
   setConditionOperator(
@@ -128,6 +168,6 @@ export class StrategyDraftPresenter {
   private formatCondition(condition: StrategyCondition): string {
     const { indicatorId, operator, value } = condition;
     if (indicatorId === null || operator === null || value === null) return '';
-    return `${indicatorLabel(indicatorId)} ${OPERATOR_SYMBOLS[operator]} ${value}`;
+    return `${indicatorLabel(indicatorId, condition.params)} ${OPERATOR_SYMBOLS[operator]} ${value}`;
   }
 }
