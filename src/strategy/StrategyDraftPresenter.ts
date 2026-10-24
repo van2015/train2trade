@@ -29,27 +29,6 @@ export type {
   StrategyDraftState,
 } from './types';
 
-function emptyCondition(): StrategyCondition {
-  return {
-    draftId: newId('condition'),
-    negated: false,
-    indicatorId: null,
-    params: {},
-    operator: null,
-    rightSide: 'value',
-    value: null,
-    rightIndicatorId: null,
-    rightParams: {},
-  };
-}
-
-function emptyGroup(): StrategyConditionGroup {
-  return {
-    connector: 'and',
-    conditions: [emptyCondition()],
-  };
-}
-
 export class StrategyDraftPresenter {
   static readonly CONDITION_FIELDS: ConditionField[] = [
     'entry',
@@ -78,12 +57,17 @@ export class StrategyDraftPresenter {
       ])
     ) as Record<ComparisonOperator, string>;
 
-  private name = '';
-  private conditions: Record<ConditionField, StrategyConditionGroup> = {
-    entry: emptyGroup(),
-    stopLoss: emptyGroup(),
-    takeProfit: emptyGroup(),
-  };
+  private name: string;
+  private conditions: Record<ConditionField, StrategyConditionGroup>;
+
+  constructor() {
+    this.name = '';
+    this.conditions = {
+      entry: this.emptyGroup(),
+      stopLoss: this.emptyGroup(),
+      takeProfit: this.emptyGroup(),
+    };
+  }
 
   getState(): StrategyDraftState {
     const missing = this.getMissing();
@@ -103,7 +87,7 @@ export class StrategyDraftPresenter {
   addCondition(field: ConditionField): void {
     this.conditions[field] = {
       ...this.conditions[field],
-      conditions: [...this.conditions[field].conditions, emptyCondition()],
+      conditions: [...this.conditions[field].conditions, this.emptyCondition()],
     };
   }
 
@@ -234,6 +218,27 @@ export class StrategyDraftPresenter {
     if (!condition) return;
 
     this.setConditionAt(field, index, { ...condition, negated });
+  }
+
+  private emptyCondition(): StrategyCondition {
+    return {
+      draftId: newId('condition'),
+      negated: false,
+      indicatorId: null,
+      params: {},
+      operator: null,
+      rightSide: 'value',
+      value: null,
+      rightIndicatorId: null,
+      rightParams: {},
+    };
+  }
+
+  private emptyGroup(): StrategyConditionGroup {
+    return {
+      connector: 'and',
+      conditions: [this.emptyCondition()],
+    };
   }
 
   private conditionAt(
