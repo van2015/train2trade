@@ -7,6 +7,7 @@ import { FileImport } from './components/FileImport/FileImport';
 import { TestDataGenerator } from './components/TestDataGenerator/TestDataGenerator';
 import { initTheme, ThemeToggle } from './components/ThemeToggle/ThemeToggle';
 import { Toast } from './components/Toast/Toast';
+import { StrategyBuilder } from './strategy/components/StrategyBuilder';
 
 initTheme();
 
@@ -51,6 +52,11 @@ function App() {
               onSelect={selectAsset}
               onDelete={removeAsset}
             />
+          </section>
+
+          <section className="strategy-section">
+            <h2>Strategies</h2>
+            <StrategyBuilder />
           </section>
         </aside>
 
