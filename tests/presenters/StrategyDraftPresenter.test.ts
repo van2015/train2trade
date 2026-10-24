@@ -317,5 +317,26 @@ describe('StrategyDraftPresenter', () => {
       expect(state.summary).toBeNull();
       expect(state.missing).toEqual(['entry.conditions']);
     });
+
+    it('removes one of two simple conditions and updates the summary', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Remove condition');
+      fillCondition(presenter, 'entry', 'close', 'gt', 100);
+      presenter.addCondition('entry');
+      fillCondition(presenter, 'entry', 'low', 'lt', 90, 1);
+      presenter.setConditionConnector('entry', 'and');
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+
+      const before = presenter.getState();
+      expect(before.summary?.entry).toBe('Close > 100 AND Low < 90');
+
+      presenter.removeCondition('entry', 0);
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(true);
+      expect(state.summary?.entry).toBe('Low < 90');
+    });
   });
 });
