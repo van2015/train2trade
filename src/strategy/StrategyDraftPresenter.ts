@@ -81,6 +81,14 @@ export class StrategyDraftPresenter {
     return this.conditions;
   }
 
+  getDirection(): 'long' | 'short' | null {
+    return this.direction;
+  }
+
+  getRisk(): number | null {
+    return this.risk;
+  }
+
   isReady(): boolean {
     return this.getMissing().length === 0;
   }
@@ -126,11 +134,15 @@ export class StrategyDraftPresenter {
     return this.summaryFor(this.getMissing());
   }
 
+  getTrigger(): ConditionField | null {
+    return this.trigger;
+  }
+
   setName(name: string): void {
     this.name = name;
   }
 
-  setDirection(direction: 'long' | 'short'): void {
+  setDirection(direction: 'long' | 'short' | null): void {
     this.direction = direction;
   }
 
@@ -138,7 +150,7 @@ export class StrategyDraftPresenter {
     this.risk = risk;
   }
 
-  setTrigger(trigger: ConditionField): void {
+  setTrigger(trigger: ConditionField | null): void {
     this.trigger = trigger;
   }
 

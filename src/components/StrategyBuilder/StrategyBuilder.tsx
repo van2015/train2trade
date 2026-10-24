@@ -14,8 +14,16 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
   rightIndicator: 'right indicator',
 };
 
+const OPENING_LABELS: Record<string, string> = {
+  direction: 'Direction',
+  risk: 'Risk',
+  trigger: 'Trigger',
+};
+
 function formatMissing(path: string): string {
   if (path === 'name') return 'Name';
+  const openingLabel = OPENING_LABELS[path];
+  if (openingLabel) return openingLabel;
 
   const [field, indexOrAttribute, attribute] = path.split('.');
   const label = StrategyDraftPresenter.FIELD_LABELS[field as ConditionField];
@@ -32,6 +40,9 @@ export function StrategyBuilder() {
   const [presenter] = useState(() => new StrategyDraftPresenter());
   const [, rerender] = useReducer((version: number) => version + 1, 0);
   const name = presenter.getName();
+  const direction = presenter.getDirection();
+  const risk = presenter.getRisk();
+  const trigger = presenter.getTrigger();
   const conditions = presenter.getConditions();
   const missing = presenter.getMissing();
   const summary = missing.length === 0 ? presenter.getSummary() : null;
@@ -55,6 +66,71 @@ export function StrategyBuilder() {
           placeholder="Strategy name"
         />
       </label>
+
+      <fieldset className="strategy-condition">
+        <legend>Opening</legend>
+        <label className="strategy-field">
+          <span>Direction</span>
+          <select
+            aria-label="Direction"
+            value={direction ?? ''}
+            onChange={(event) =>
+              update(() =>
+                presenter.setDirection(
+                  event.target.value === ''
+                    ? null
+                    : (event.target.value as 'long' | 'short')
+                )
+              )
+            }
+          >
+            <option value="">Select direction</option>
+            <option value="long">Long</option>
+            <option value="short">Short</option>
+          </select>
+        </label>
+
+        <label className="strategy-field">
+          <span>Trigger</span>
+          <select
+            aria-label="Trigger"
+            value={trigger ?? ''}
+            onChange={(event) =>
+              update(() =>
+                presenter.setTrigger(
+                  event.target.value === ''
+                    ? null
+                    : (event.target.value as ConditionField)
+                )
+              )
+            }
+          >
+            <option value="">Select trigger</option>
+            {StrategyDraftPresenter.CONDITION_FIELDS.map((field) => (
+              <option key={field} value={field}>
+                {StrategyDraftPresenter.FIELD_LABELS[field]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="strategy-field">
+          <span>Risk %</span>
+          <input
+            type="number"
+            aria-label="Risk"
+            step="any"
+            value={risk === null ? '' : risk}
+            onChange={(event) =>
+              update(() =>
+                presenter.setRisk(
+                  event.target.value === '' ? null : Number(event.target.value)
+                )
+              )
+            }
+          />
+        </label>
+      </fieldset>
 
       {StrategyDraftPresenter.CONDITION_FIELDS.map((field) => {
         const label = StrategyDraftPresenter.FIELD_LABELS[field];
@@ -115,6 +191,18 @@ export function StrategyBuilder() {
           <h3>Summary</h3>
           <p>
             <strong>Name:</strong> {name}
+          </p>
+          <p>
+            <strong>Direction:</strong> {summary.direction}
+          </p>
+          <p>
+            <strong>Opening:</strong> {summary.opening}
+          </p>
+          <p>
+            <strong>Risk:</strong> {summary.risk}
+          </p>
+          <p>
+            <strong>Trigger:</strong> {summary.trigger}
           </p>
           {StrategyDraftPresenter.CONDITION_FIELDS.map((field) => (
             <p key={field}>
