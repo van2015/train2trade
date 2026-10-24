@@ -4,9 +4,8 @@ import {
   type ConditionField,
   type ConditionIndicatorId,
   type ConditionRightSide,
-  OPERATORS,
   type StrategyCondition,
-  type StrategyDraftPresenter,
+  StrategyDraftPresenter,
 } from '../../strategy/StrategyDraftPresenter';
 
 interface ParamInputsProps {
@@ -146,7 +145,7 @@ export function ConditionEditor({
           }}
         >
           <option value="">Operator</option>
-          {OPERATORS.map((operator) => (
+          {StrategyDraftPresenter.OPERATORS.map((operator) => (
             <option key={operator.value} value={operator.value}>
               {operator.label}
             </option>

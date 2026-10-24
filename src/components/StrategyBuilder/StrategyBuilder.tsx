@@ -1,10 +1,8 @@
 import { useReducer, useState } from 'react';
 import { getConditionIndicatorOptions } from '../../strategy/ConditionIndicatorCatalog';
 import {
-  CONDITION_FIELDS,
   type ConditionConnector,
   type ConditionField,
-  FIELD_LABELS,
   StrategyDraftPresenter,
 } from '../../strategy/StrategyDraftPresenter';
 import { ConditionEditor } from './ConditionEditor';
@@ -20,7 +18,7 @@ function formatMissing(path: string): string {
   if (path === 'name') return 'Name';
 
   const [field, indexOrAttribute, attribute] = path.split('.');
-  const label = FIELD_LABELS[field as ConditionField];
+  const label = StrategyDraftPresenter.FIELD_LABELS[field as ConditionField];
 
   if (indexOrAttribute === 'conditions') return `${label}: no conditions`;
   if (attribute !== undefined) {
@@ -55,8 +53,8 @@ export function StrategyBuilder() {
         />
       </label>
 
-      {CONDITION_FIELDS.map((field) => {
-        const label = FIELD_LABELS[field];
+      {StrategyDraftPresenter.CONDITION_FIELDS.map((field) => {
+        const label = StrategyDraftPresenter.FIELD_LABELS[field];
         const group = state.conditions[field];
 
         return (
@@ -115,9 +113,10 @@ export function StrategyBuilder() {
           <p>
             <strong>Name:</strong> {state.name}
           </p>
-          {CONDITION_FIELDS.map((field) => (
+          {StrategyDraftPresenter.CONDITION_FIELDS.map((field) => (
             <p key={field}>
-              <strong>{FIELD_LABELS[field]}:</strong> {state.summary?.[field]}
+              <strong>{StrategyDraftPresenter.FIELD_LABELS[field]}:</strong>{' '}
+              {state.summary?.[field]}
             </p>
           ))}
           <p className="strategy-ready">Ready to save</p>

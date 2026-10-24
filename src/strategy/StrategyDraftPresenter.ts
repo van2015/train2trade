@@ -29,29 +29,6 @@ export type {
   StrategyDraftState,
 } from './types';
 
-export const CONDITION_FIELDS: ConditionField[] = [
-  'entry',
-  'stopLoss',
-  'takeProfit',
-];
-
-export const FIELD_LABELS: Record<ConditionField, string> = {
-  entry: 'Entry',
-  stopLoss: 'Stop Loss',
-  takeProfit: 'Take Profit',
-};
-
-export const OPERATORS: { value: ComparisonOperator; label: string }[] = [
-  { value: 'gt', label: '>' },
-  { value: 'lt', label: '<' },
-  { value: 'crossAbove', label: 'crosses above' },
-  { value: 'crossBelow', label: 'crosses below' },
-];
-
-const OPERATOR_SYMBOLS: Record<ComparisonOperator, string> = Object.fromEntries(
-  OPERATORS.map((operator) => [operator.value, operator.label])
-) as Record<ComparisonOperator, string>;
-
 function emptyCondition(): StrategyCondition {
   return {
     draftId: newId('condition'),
@@ -74,6 +51,33 @@ function emptyGroup(): StrategyConditionGroup {
 }
 
 export class StrategyDraftPresenter {
+  static readonly CONDITION_FIELDS: ConditionField[] = [
+    'entry',
+    'stopLoss',
+    'takeProfit',
+  ];
+
+  static readonly FIELD_LABELS: Record<ConditionField, string> = {
+    entry: 'Entry',
+    stopLoss: 'Stop Loss',
+    takeProfit: 'Take Profit',
+  };
+
+  static readonly OPERATORS: { value: ComparisonOperator; label: string }[] = [
+    { value: 'gt', label: '>' },
+    { value: 'lt', label: '<' },
+    { value: 'crossAbove', label: 'crosses above' },
+    { value: 'crossBelow', label: 'crosses below' },
+  ];
+
+  static readonly OPERATOR_SYMBOLS: Record<ComparisonOperator, string> =
+    Object.fromEntries(
+      StrategyDraftPresenter.OPERATORS.map((operator) => [
+        operator.value,
+        operator.label,
+      ])
+    ) as Record<ComparisonOperator, string>;
+
   private name = '';
   private conditions: Record<ConditionField, StrategyConditionGroup> = {
     entry: emptyGroup(),
@@ -275,7 +279,7 @@ export class StrategyDraftPresenter {
     const missing: string[] = [];
     if (this.name.trim().length === 0) missing.push('name');
 
-    for (const field of CONDITION_FIELDS) {
+    for (const field of StrategyDraftPresenter.CONDITION_FIELDS) {
       const group = this.conditions[field];
       if (group.conditions.length === 0) {
         missing.push(`${field}.conditions`);
@@ -335,7 +339,7 @@ export class StrategyDraftPresenter {
           : String(value);
 
     if (right === null) return '';
-    const formatted = `${getConditionIndicatorLabel(indicatorId, condition.params)} ${OPERATOR_SYMBOLS[operator]} ${right}`;
+    const formatted = `${getConditionIndicatorLabel(indicatorId, condition.params)} ${StrategyDraftPresenter.OPERATOR_SYMBOLS[operator]} ${right}`;
     return condition.negated ? `NOT (${formatted})` : formatted;
   }
 }
