@@ -125,6 +125,29 @@ describe('StrategyDraftPresenter', () => {
       });
     });
 
+    it('keeps the summary null until direction, risk and trigger are complete', () => {
+      const presenter = aStrategyDraft()
+        .named('Breakout')
+        .withDefaultConditions()
+        .build();
+
+      expect(presenter.getSummary()).toBeNull();
+
+      presenter.setDirection('long');
+      expect(presenter.getSummary()).toBeNull();
+
+      presenter.setRisk(1);
+      expect(presenter.getSummary()).toBeNull();
+
+      presenter.setTrigger('entry');
+      expect(presenter.getSummary()).toMatchObject({
+        direction: 'Long',
+        opening: 'Market',
+        risk: '1%',
+        trigger: 'Entry',
+      });
+    });
+
     it('keeps a condition incomplete when indicator mode is selected without a right indicator', () => {
       const presenter = aStrategyDraft()
         .named('Cross')

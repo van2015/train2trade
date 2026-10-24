@@ -33,9 +33,8 @@ export function StrategyBuilder() {
   const [, rerender] = useReducer((version: number) => version + 1, 0);
   const name = presenter.getName();
   const conditions = presenter.getConditions();
-  const isReady = presenter.isReady();
-  const summary = presenter.getSummary();
   const missing = presenter.getMissing();
+  const summary = missing.length === 0 ? presenter.getSummary() : null;
   const options = getConditionIndicatorOptions();
 
   const update = (action: () => void) => {
@@ -111,7 +110,7 @@ export function StrategyBuilder() {
         );
       })}
 
-      {isReady && summary ? (
+      {summary ? (
         <div className="strategy-summary">
           <h3>Summary</h3>
           <p>

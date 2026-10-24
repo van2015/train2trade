@@ -340,13 +340,13 @@ export class StrategyDraftPresenter {
 
   private summaryFor(missing: string[]): ConditionSummary | null {
     if (
-      missing.length > 0 ||
       this.direction === null ||
       this.risk === null ||
       this.trigger === null
     ) {
       return null;
     }
+    if (missing.length > 0) return null;
 
     return {
       direction: this.direction === 'long' ? 'Long' : 'Short',
