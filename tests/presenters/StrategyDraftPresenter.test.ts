@@ -135,6 +135,27 @@ describe('StrategyDraftPresenter', () => {
       });
     });
 
+    it('applies default params to the right indicator and updates them in the summary', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('RSI cross');
+      fillCondition(presenter, 'entry', 'close', 'gt', 100);
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      presenter.setConditionIndicator('takeProfit', 'close');
+      presenter.setConditionOperator('takeProfit', 'gt');
+      presenter.setConditionRightSide('takeProfit', 'indicator');
+      presenter.setConditionRightIndicator('takeProfit', 'rsi');
+
+      const initial = presenter.getState();
+      expect(initial.conditions.takeProfit.rightParams).toEqual({ period: 14 });
+      expect(initial.summary?.takeProfit).toBe('Close > RSI(14)');
+
+      presenter.updateConditionRightParams('takeProfit', { period: 21 });
+
+      const updated = presenter.getState();
+      expect(updated.conditions.takeProfit.rightParams).toEqual({ period: 21 });
+      expect(updated.summary?.takeProfit).toBe('Close > RSI(21)');
+    });
+
     it("applies a technical indicator's default params and updates the summary after editing them", () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Oversold');

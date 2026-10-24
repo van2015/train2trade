@@ -141,6 +141,25 @@ export class StrategyDraftPresenter {
     };
   }
 
+  updateConditionRightParams(
+    field: ConditionField,
+    params: Record<string, number>
+  ): void {
+    const condition = this.conditions[field];
+    if (condition.rightIndicatorId === null) return;
+
+    const option = getConditionIndicatorOption(condition.rightIndicatorId);
+    if (!option || option.params.length === 0) return;
+
+    this.conditions[field] = {
+      ...condition,
+      rightParams: normalizeParams(option.params, {
+        ...condition.rightParams,
+        ...params,
+      }),
+    };
+  }
+
   setConditionValue(field: ConditionField, value: number | null): void {
     this.conditions[field] = {
       ...this.conditions[field],
