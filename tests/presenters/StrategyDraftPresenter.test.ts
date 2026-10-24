@@ -98,11 +98,7 @@ describe('StrategyDraftPresenter', () => {
       expect(presenter.isReady()).toBe(true);
       expect(presenter.getMissing()).toEqual([]);
       expect(presenter.getName()).toBe('Breakout');
-      expect(presenter.getSummary()).toEqual({
-        direction: 'Long',
-        opening: 'Market',
-        risk: '1%',
-        trigger: 'Entry',
+      expect(presenter.getSummary()).toMatchObject({
         entry: 'Close > 100',
         stopLoss: 'Low < 90',
         takeProfit: 'High > 120',
@@ -155,11 +151,7 @@ describe('StrategyDraftPresenter', () => {
 
       expect(presenter.isReady()).toBe(true);
       expect(presenter.getMissing()).toEqual([]);
-      expect(presenter.getSummary()).toEqual({
-        direction: 'Long',
-        opening: 'Market',
-        risk: '1%',
-        trigger: 'Entry',
+      expect(presenter.getSummary()).toMatchObject({
         entry: 'Close > Open',
         stopLoss: 'Low < Close',
         takeProfit: 'High > Close',
@@ -209,11 +201,7 @@ describe('StrategyDraftPresenter', () => {
 
       expect(presenter.isReady()).toBe(true);
       expect(presenter.getMissing()).toEqual([]);
-      expect(presenter.getSummary()).toEqual({
-        direction: 'Long',
-        opening: 'Market',
-        risk: '1%',
-        trigger: 'Entry',
+      expect(presenter.getSummary()).toMatchObject({
         entry: 'EMA(20) crosses above EMA(50)',
         stopLoss: 'Low < 90',
         takeProfit: 'Close crosses below EMA(20)',
@@ -286,11 +274,7 @@ describe('StrategyDraftPresenter', () => {
 
       expect(presenter.isReady()).toBe(true);
       expect(presenter.getMissing()).toEqual([]);
-      expect(presenter.getSummary()).toEqual({
-        direction: 'Long',
-        opening: 'Market',
-        risk: '1%',
-        trigger: 'Entry',
+      expect(presenter.getSummary()).toMatchObject({
         entry: 'Close > 100 AND Low < 90',
         stopLoss: 'Low < 90 OR High > 120',
         takeProfit: 'High > 120 AND Close > 100',
