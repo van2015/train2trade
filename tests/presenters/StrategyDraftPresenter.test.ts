@@ -296,10 +296,7 @@ describe('StrategyDraftPresenter', () => {
 
       expect(state.isReady).toBe(false);
       expect(state.summary).toBeNull();
-      expect(state.missing).toEqual([
-        'entry.2.value',
-        'stopLoss.2.operator',
-      ]);
+      expect(state.missing).toEqual(['entry.2.value', 'stopLoss.2.operator']);
     });
 
     it('reports a field with no simple conditions as missing', () => {

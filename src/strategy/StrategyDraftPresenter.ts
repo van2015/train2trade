@@ -1,3 +1,4 @@
+import { newId } from '../shared/utils/newId';
 import { normalizeParams } from '../shared/utils/normalizeParams';
 import {
   getConditionIndicatorLabel,
@@ -53,6 +54,7 @@ const OPERATOR_SYMBOLS: Record<ComparisonOperator, string> = Object.fromEntries(
 
 function emptyCondition(): StrategyCondition {
   return {
+    id: newId('condition'),
     negated: false,
     indicatorId: null,
     params: {},

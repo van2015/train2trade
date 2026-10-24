@@ -703,6 +703,61 @@ body {
   flex: 1;
 }
 
+.strategy-condition-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+
+.strategy-condition-item:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+.strategy-condition-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.strategy-negated {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.strategy-negated input {
+  width: auto;
+  padding: 0;
+  accent-color: var(--primary);
+}
+
+.strategy-remove,
+.strategy-add {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.strategy-remove:hover,
+.strategy-add:hover {
+  border-color: var(--primary);
+}
+
+.strategy-add {
+  align-self: flex-start;
+}
+
 .strategy-summary,
 .strategy-missing {
   display: flex;

@@ -15,6 +15,7 @@ export type ConditionConnector = 'and' | 'or';
 export type ConditionSummary = Record<ConditionField, string>;
 
 export interface StrategyCondition {
+  id: string;
   negated: boolean;
   indicatorId: ConditionIndicatorId | null;
   params: Record<string, number>;
