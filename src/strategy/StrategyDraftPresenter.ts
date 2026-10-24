@@ -130,6 +130,17 @@ export class StrategyDraftPresenter {
     };
   }
 
+  setConditionRightIndicator(
+    field: ConditionField,
+    indicatorId: ConditionIndicatorId
+  ): void {
+    this.conditions[field] = {
+      ...this.conditions[field],
+      rightIndicatorId: indicatorId,
+      rightParams: this.defaultParamsFor(indicatorId),
+    };
+  }
+
   setConditionValue(field: ConditionField, value: number | null): void {
     this.conditions[field] = {
       ...this.conditions[field],
@@ -175,8 +186,20 @@ export class StrategyDraftPresenter {
   }
 
   private formatCondition(condition: StrategyCondition): string {
-    const { indicatorId, operator, value } = condition;
-    if (indicatorId === null || operator === null || value === null) return '';
-    return `${getConditionIndicatorLabel(indicatorId, condition.params)} ${OPERATOR_SYMBOLS[operator]} ${value}`;
+    const { indicatorId, operator, value, rightSide, rightIndicatorId } =
+      condition;
+    if (indicatorId === null || operator === null) return '';
+
+    const right =
+      rightSide === 'indicator'
+        ? rightIndicatorId === null
+          ? null
+          : getConditionIndicatorLabel(rightIndicatorId, condition.rightParams)
+        : value === null
+          ? null
+          : String(value);
+
+    if (right === null) return '';
+    return `${getConditionIndicatorLabel(indicatorId, condition.params)} ${OPERATOR_SYMBOLS[operator]} ${right}`;
   }
 }

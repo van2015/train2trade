@@ -16,6 +16,19 @@ function fillCondition(
   presenter.setConditionValue(field, value);
 }
 
+function fillIndicatorCondition(
+  presenter: StrategyDraftPresenter,
+  field: ConditionField,
+  left: 'close' | 'open' | 'high' | 'low',
+  operator: 'gt' | 'lt',
+  right: 'close' | 'open' | 'high' | 'low'
+) {
+  presenter.setConditionIndicator(field, left);
+  presenter.setConditionOperator(field, operator);
+  presenter.setConditionRightSide(field, 'indicator');
+  presenter.setConditionRightIndicator(field, right);
+}
+
 describe('StrategyDraftPresenter', () => {
   describe('a new strategy', () => {
     it('starts as not ready, reporting the name and all three conditions as missing', () => {
@@ -102,6 +115,24 @@ describe('StrategyDraftPresenter', () => {
 
       expect(state.isReady).toBe(false);
       expect(state.missing).toEqual(['entry.rightIndicator']);
+    });
+
+    it('becomes ready when the three conditions compare indicators', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Indicator cross');
+      fillIndicatorCondition(presenter, 'entry', 'close', 'gt', 'open');
+      fillIndicatorCondition(presenter, 'stopLoss', 'low', 'lt', 'close');
+      fillIndicatorCondition(presenter, 'takeProfit', 'high', 'gt', 'close');
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(true);
+      expect(state.missing).toEqual([]);
+      expect(state.summary).toEqual({
+        entry: 'Close > Open',
+        stopLoss: 'Low < Close',
+        takeProfit: 'High > Close',
+      });
     });
 
     it("applies a technical indicator's default params and updates the summary after editing them", () => {
