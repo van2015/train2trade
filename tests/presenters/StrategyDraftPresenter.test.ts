@@ -30,9 +30,15 @@ function fillIndicatorCondition(
   presenter.setConditionRightIndicator(field, right);
 }
 
+function fillOpening(presenter: StrategyDraftPresenter) {
+  presenter.setDirection('long');
+  presenter.setRisk(1);
+  presenter.setTrigger('entry');
+}
+
 describe('StrategyDraftPresenter', () => {
   describe('a new strategy', () => {
-    it('starts as not ready, reporting the name and all three conditions as missing', () => {
+    it('a new strategy reports direction, risk and trigger as missing alongside name and conditions', () => {
       const presenter = new StrategyDraftPresenter();
 
       const state = presenter.getState();
@@ -40,6 +46,9 @@ describe('StrategyDraftPresenter', () => {
       expect(state.isReady).toBe(false);
       expect(state.missing).toEqual([
         'name',
+        'direction',
+        'risk',
+        'trigger',
         'entry.1.indicator',
         'entry.1.operator',
         'entry.1.value',
@@ -52,11 +61,35 @@ describe('StrategyDraftPresenter', () => {
       ]);
     });
 
-    it('stays not ready and reports only the name when the three conditions are complete', () => {
+    it('stays not ready and reports direction, risk or trigger while any of them is unset', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Breakout');
+      fillCondition(presenter, 'entry', 'close', 'gt', 100);
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+
+      expect(presenter.getState().isReady).toBe(false);
+      expect(presenter.getState().missing).toEqual([
+        'direction',
+        'risk',
+        'trigger',
+      ]);
+
+      presenter.setDirection('long');
+      presenter.setRisk(1);
+      expect(presenter.getState().missing).toEqual(['trigger']);
+
+      presenter.setTrigger('entry');
+      expect(presenter.getState().isReady).toBe(true);
+      expect(presenter.getState().missing).toEqual([]);
+    });
+
+    it('stays not ready and reports only the name when the conditions and the opening are complete', () => {
       const presenter = new StrategyDraftPresenter();
       fillCondition(presenter, 'entry', 'close', 'gt', 100);
       fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
       fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+      fillOpening(presenter);
 
       const state = presenter.getState();
 
@@ -67,6 +100,7 @@ describe('StrategyDraftPresenter', () => {
     it('reports each missing condition field (indicator, operator or value)', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Breakout');
+      fillOpening(presenter);
       presenter.setConditionIndicator('entry', 'close');
       presenter.setConditionOperator('entry', 'gt');
       presenter.setConditionOperator('stopLoss', 'lt');
@@ -87,6 +121,7 @@ describe('StrategyDraftPresenter', () => {
     it('becomes ready and exposes a summary of the name and the three conditions once complete', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Breakout');
+      fillOpening(presenter);
       fillCondition(presenter, 'entry', 'close', 'gt', 100);
       fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
       fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
@@ -106,6 +141,7 @@ describe('StrategyDraftPresenter', () => {
     it('keeps a condition incomplete when indicator mode is selected without a right indicator', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Cross');
+      fillOpening(presenter);
       fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
       fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
       presenter.setConditionIndicator('entry', 'close');
@@ -121,6 +157,7 @@ describe('StrategyDraftPresenter', () => {
     it('becomes ready when the three conditions compare indicators', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Indicator cross');
+      fillOpening(presenter);
       fillIndicatorCondition(presenter, 'entry', 'close', 'gt', 'open');
       fillIndicatorCondition(presenter, 'stopLoss', 'low', 'lt', 'close');
       fillIndicatorCondition(presenter, 'takeProfit', 'high', 'gt', 'close');
@@ -139,6 +176,7 @@ describe('StrategyDraftPresenter', () => {
     it('applies default params to the right indicator and updates them in the summary', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('RSI cross');
+      fillOpening(presenter);
       fillCondition(presenter, 'entry', 'close', 'gt', 100);
       fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
       presenter.setConditionIndicator('takeProfit', 'close');
@@ -164,6 +202,7 @@ describe('StrategyDraftPresenter', () => {
     it('summarises cross above and cross below between two indicators', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('EMA cross');
+      fillOpening(presenter);
       presenter.setConditionIndicator('entry', 'ema');
       presenter.setConditionOperator('entry', 'crossAbove');
       presenter.setConditionRightSide('entry', 'indicator');
@@ -189,6 +228,7 @@ describe('StrategyDraftPresenter', () => {
     it("applies a technical indicator's default params and updates the summary after editing them", () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Oversold');
+      fillOpening(presenter);
       fillCondition(presenter, 'entry', 'close', 'gt', 100);
       fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
       presenter.setConditionIndicator('takeProfit', 'rsi');
@@ -215,6 +255,7 @@ describe('StrategyDraftPresenter', () => {
     it('joins two complete simple conditions with the chosen connector in each field summary', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Composed');
+      fillOpening(presenter);
 
       const compositions: {
         field: ConditionField;
@@ -263,6 +304,7 @@ describe('StrategyDraftPresenter', () => {
     it('prefixes a negated simple condition with NOT in the summary', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Negated');
+      fillOpening(presenter);
       fillCondition(presenter, 'entry', 'close', 'gt', 100);
       presenter.addCondition('entry');
       fillCondition(presenter, 'entry', 'low', 'lt', 90, 1);
@@ -285,6 +327,7 @@ describe('StrategyDraftPresenter', () => {
     it('reports each incomplete simple condition with its field and position in missing', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Incomplete composition');
+      fillOpening(presenter);
 
       fillCondition(presenter, 'entry', 'close', 'gt', 100);
       presenter.addCondition('entry');
@@ -308,6 +351,7 @@ describe('StrategyDraftPresenter', () => {
     it('reports a field with no simple conditions as missing', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Empty entry');
+      fillOpening(presenter);
       fillCondition(presenter, 'entry', 'close', 'gt', 100);
       fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
       fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
@@ -324,6 +368,7 @@ describe('StrategyDraftPresenter', () => {
     it('removes one of two simple conditions and updates the summary', () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Remove condition');
+      fillOpening(presenter);
       fillCondition(presenter, 'entry', 'close', 'gt', 100);
       presenter.addCondition('entry');
       fillCondition(presenter, 'entry', 'low', 'lt', 90, 1);

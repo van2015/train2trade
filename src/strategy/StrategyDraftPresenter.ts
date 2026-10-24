@@ -58,10 +58,16 @@ export class StrategyDraftPresenter {
     ) as Record<ComparisonOperator, string>;
 
   private name: string;
+  private direction: 'long' | 'short' | null;
+  private risk: number | null;
+  private trigger: ConditionField | null;
   private conditions: Record<ConditionField, StrategyConditionGroup>;
 
   constructor() {
     this.name = '';
+    this.direction = null;
+    this.risk = null;
+    this.trigger = null;
     this.conditions = {
       entry: this.emptyGroup(),
       stopLoss: this.emptyGroup(),
@@ -82,6 +88,18 @@ export class StrategyDraftPresenter {
 
   setName(name: string): void {
     this.name = name;
+  }
+
+  setDirection(direction: 'long' | 'short'): void {
+    this.direction = direction;
+  }
+
+  setRisk(risk: number | null): void {
+    this.risk = risk;
+  }
+
+  setTrigger(trigger: ConditionField): void {
+    this.trigger = trigger;
   }
 
   addCondition(field: ConditionField): void {
@@ -283,6 +301,9 @@ export class StrategyDraftPresenter {
   private getMissing(): string[] {
     const missing: string[] = [];
     if (this.name.trim().length === 0) missing.push('name');
+    if (this.direction === null) missing.push('direction');
+    if (this.risk === null) missing.push('risk');
+    if (this.trigger === null) missing.push('trigger');
 
     for (const field of StrategyDraftPresenter.CONDITION_FIELDS) {
       const group = this.conditions[field];

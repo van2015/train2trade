@@ -11,10 +11,12 @@ Decisiones caras: ninguna.
 1. [x] Como trader, quiero crear una estrategia con nombre y sus tres condiciones (entrada, stop loss y take profit) usando indicador o precio, operador y valor, para dejarla definida y lista para guardar.
 4. [x] Como trader, quiero definir condiciones comparando un indicador contra otro y con operadores de cruce, para expresar reglas como "EMA(20) cruza arriba EMA(50)". Requiere: #1
 8. [x] Como trader, quiero componer condiciones con AND, OR y NOT, para expresar reglas más complejas combinando condiciones simples. Requiere: #1
-9. Como trader, quiero añadir a una estrategia una acción que mueva el stop loss al precio de entrada cuando se alcance el take profit, para proteger la posición una vez alcanzado el objetivo. Requiere: #1
+14. Como trader, quiero que una estrategia abra una posición en largo o en corto a mercado, con el porcentaje de riesgo que defino, para entrar en operaciones con un riesgo controlado. Requiere: #1
+15. Como trader, quiero que la apertura de la posición pueda ser a límite, con un precio límite definido por un indicador, para entrar solo a un precio concreto. Requiere: #14
 10. Como trader, quiero modificar la acción de una estrategia guardada, para cambiar cómo reacciona sin recrearla. Requiere: #9
 11. Como trader, quiero añadir a una estrategia una acción que cierre la posición completa cuando se alcance el stop loss o el take profit, para salir del trade automáticamente. Requiere: #1
 12. Como trader, quiero añadir a una estrategia una acción que cierre parcialmente la posición, con el porcentaje que elijo al definirla, cuando se alcance el stop loss o el take profit, para asegurar parte del resultado. Requiere: #1
+16. Como trader, quiero que el cierre total o parcial de una posición pueda ser a mercado o a límite, con el precio límite definido por un indicador, para controlar el precio de salida. Requiere: #11, #12
 13. Como trader, quiero definir varias acciones en una misma estrategia, para combinarlas (por ejemplo, cerrar un 50% y mover el stop loss a la entrada al alcanzar el take profit). Requiere: #9, #12
 2. Como trader, quiero guardar la estrategia definida, para que siga disponible después de recargar. Requiere: #1
 3. Como trader, quiero consultar la lista de estrategias guardadas, para encontrar las que he creado. Requiere: #2
