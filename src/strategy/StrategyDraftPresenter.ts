@@ -223,8 +223,8 @@ export class StrategyDraftPresenter {
 
   setConditionNegated(
     field: ConditionField,
-    index: number,
-    negated: boolean
+    negated: boolean,
+    index = 0
   ): void {
     const condition = this.conditionAt(field, index);
     if (!condition) return;

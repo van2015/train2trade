@@ -266,7 +266,7 @@ describe('StrategyDraftPresenter', () => {
       fillCondition(presenter, 'entry', 'close', 'gt', 100);
       presenter.addCondition('entry');
       fillCondition(presenter, 'entry', 'low', 'lt', 90, 1);
-      presenter.setConditionNegated('entry', 1, true);
+      presenter.setConditionNegated('entry', true, 1);
       fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
       fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
 
@@ -274,6 +274,12 @@ describe('StrategyDraftPresenter', () => {
 
       expect(state.isReady).toBe(true);
       expect(state.summary?.entry).toBe('Close > 100 AND NOT Low < 90');
+
+      presenter.setConditionNegated('entry', false, 1);
+
+      expect(presenter.getState().summary?.entry).toBe(
+        'Close > 100 AND Low < 90'
+      );
     });
 
     it('reports each incomplete simple condition with its field and position in missing', () => {

@@ -28,7 +28,7 @@ function formatMissing(path: string): string {
   const [field, indexOrAttribute, attribute] = path.split('.');
   const label = FIELD_LABELS[field as ConditionField];
 
-  if (indexOrAttribute === 'conditions') return `${label} conditions`;
+  if (indexOrAttribute === 'conditions') return `${label}: no conditions`;
   if (attribute !== undefined) {
     return `${label} condition ${indexOrAttribute} ${ATTRIBUTE_LABELS[attribute] ?? attribute}`;
   }
@@ -39,10 +39,16 @@ function formatMissing(path: string): string {
 interface ParamInputsProps {
   params: ConditionIndicatorOption['params'];
   values: Record<string, number>;
+  labelPrefix: string;
   onChange: (key: string, value: number) => void;
 }
 
-function ParamInputs({ params, values, onChange }: ParamInputsProps) {
+function ParamInputs({
+  params,
+  values,
+  labelPrefix,
+  onChange,
+}: ParamInputsProps) {
   return (
     <div className="strategy-params">
       {params.map((param) => (
@@ -51,6 +57,7 @@ function ParamInputs({ params, values, onChange }: ParamInputsProps) {
           <input
             type="number"
             min={param.min}
+            aria-label={`${labelPrefix} ${param.label}`}
             value={values[param.key] ?? param.default}
             onChange={(event) =>
               onChange(param.key, Number(event.target.value))
@@ -99,7 +106,7 @@ export function StrategyBuilder() {
               <label className="strategy-field">
                 <span>Join with</span>
                 <select
-                  aria-label={`${label} connector`}
+                  aria-label={`${label} join with`}
                   value={group.connector}
                   onChange={(event) =>
                     update(() =>
@@ -126,7 +133,12 @@ export function StrategyBuilder() {
               const conditionLabel = `${label} condition ${index + 1}`;
 
               return (
-                <div key={condition.id} className="strategy-condition-item">
+                <fieldset
+                  key={condition.id}
+                  className="strategy-condition-item"
+                >
+                  <legend>{conditionLabel}</legend>
+
                   <select
                     aria-label={`${conditionLabel} indicator`}
                     value={condition.indicatorId ?? ''}
@@ -154,6 +166,7 @@ export function StrategyBuilder() {
                     <ParamInputs
                       params={option.params}
                       values={condition.params}
+                      labelPrefix={conditionLabel}
                       onChange={(key, value) =>
                         update(() =>
                           presenter.updateConditionParams(
@@ -237,6 +250,7 @@ export function StrategyBuilder() {
                         <ParamInputs
                           params={rightOption.params}
                           values={condition.rightParams}
+                          labelPrefix={`${conditionLabel} right`}
                           onChange={(key, value) =>
                             update(() =>
                               presenter.updateConditionRightParams(
@@ -272,13 +286,14 @@ export function StrategyBuilder() {
                     <label className="strategy-negated">
                       <input
                         type="checkbox"
+                        aria-label={`${conditionLabel} NOT`}
                         checked={condition.negated}
                         onChange={(event) =>
                           update(() =>
                             presenter.setConditionNegated(
                               field,
-                              index,
-                              event.target.checked
+                              event.target.checked,
+                              index
                             )
                           )
                         }
@@ -297,7 +312,7 @@ export function StrategyBuilder() {
                       Remove
                     </button>
                   </div>
-                </div>
+                </fieldset>
               );
             })}
 
