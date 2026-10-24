@@ -49,5 +49,44 @@ describe('StrategyDraftPresenter', () => {
       expect(state.isReady).toBe(false);
       expect(state.missing).toEqual(['name']);
     });
+
+    it('reports each missing condition field (indicator, operator or value)', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Breakout');
+      presenter.setConditionIndicator('entry', 'close');
+      presenter.setConditionOperator('entry', 'gt');
+      presenter.setConditionOperator('stopLoss', 'lt');
+      presenter.setConditionValue('stopLoss', 90);
+      presenter.setConditionIndicator('takeProfit', 'high');
+      presenter.setConditionValue('takeProfit', 120);
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(false);
+      expect(state.missing).toEqual([
+        'entry.value',
+        'stopLoss.indicator',
+        'takeProfit.operator',
+      ]);
+    });
+
+    it('becomes ready and exposes a summary of the name and the three conditions once complete', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Breakout');
+      fillCondition(presenter, 'entry', 'close', 'gt', 100);
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(true);
+      expect(state.missing).toEqual([]);
+      expect(state.name).toBe('Breakout');
+      expect(state.summary).toEqual({
+        entry: 'Close > 100',
+        stopLoss: 'Low < 90',
+        takeProfit: 'High > 120',
+      });
+    });
   });
 });
