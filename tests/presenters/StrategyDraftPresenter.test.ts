@@ -43,6 +43,21 @@ describe('StrategyDraftPresenter', () => {
       expect(presenter.getMissing()).toEqual([]);
     });
 
+    it('stays not ready and reports the risk when it is not a number greater than zero', () => {
+      const presenter = aStrategyDraft()
+        .named('Breakout')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+
+      for (const risk of [0, -1, NaN]) {
+        presenter.setRisk(risk);
+
+        expect(presenter.isReady()).toBe(false);
+        expect(presenter.getMissing()).toEqual(['risk']);
+      }
+    });
+
     it('stays not ready and reports only the name when the conditions and the opening are complete', () => {
       const presenter = aStrategyDraft()
         .withDefaultConditions()
@@ -84,6 +99,30 @@ describe('StrategyDraftPresenter', () => {
       expect(presenter.getMissing()).toEqual([]);
       expect(presenter.getName()).toBe('Breakout');
       expect(presenter.getSummary()).toEqual({
+        direction: 'Long',
+        opening: 'Market',
+        risk: '1%',
+        trigger: 'Entry',
+        entry: 'Close > 100',
+        stopLoss: 'Low < 90',
+        takeProfit: 'High > 120',
+      });
+    });
+
+    it('becomes ready and summarises direction, market opening, risk and trigger along with the conditions', () => {
+      const presenter = aStrategyDraft()
+        .named('Breakout')
+        .withDefaultConditions()
+        .withOpening('short', 2.5, 'stopLoss')
+        .build();
+
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()).toEqual({
+        direction: 'Short',
+        opening: 'Market',
+        risk: '2.5%',
+        trigger: 'Stop Loss',
         entry: 'Close > 100',
         stopLoss: 'Low < 90',
         takeProfit: 'High > 120',
@@ -117,6 +156,10 @@ describe('StrategyDraftPresenter', () => {
       expect(presenter.isReady()).toBe(true);
       expect(presenter.getMissing()).toEqual([]);
       expect(presenter.getSummary()).toEqual({
+        direction: 'Long',
+        opening: 'Market',
+        risk: '1%',
+        trigger: 'Entry',
         entry: 'Close > Open',
         stopLoss: 'Low < Close',
         takeProfit: 'High > Close',
@@ -167,6 +210,10 @@ describe('StrategyDraftPresenter', () => {
       expect(presenter.isReady()).toBe(true);
       expect(presenter.getMissing()).toEqual([]);
       expect(presenter.getSummary()).toEqual({
+        direction: 'Long',
+        opening: 'Market',
+        risk: '1%',
+        trigger: 'Entry',
         entry: 'EMA(20) crosses above EMA(50)',
         stopLoss: 'Low < 90',
         takeProfit: 'Close crosses below EMA(20)',
@@ -240,6 +287,10 @@ describe('StrategyDraftPresenter', () => {
       expect(presenter.isReady()).toBe(true);
       expect(presenter.getMissing()).toEqual([]);
       expect(presenter.getSummary()).toEqual({
+        direction: 'Long',
+        opening: 'Market',
+        risk: '1%',
+        trigger: 'Entry',
         entry: 'Close > 100 AND Low < 90',
         stopLoss: 'Low < 90 OR High > 120',
         takeProfit: 'High > 120 AND Close > 100',

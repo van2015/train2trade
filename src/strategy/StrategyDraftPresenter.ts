@@ -89,7 +89,9 @@ export class StrategyDraftPresenter {
     const missing: string[] = [];
     if (this.name.trim().length === 0) missing.push('name');
     if (this.direction === null) missing.push('direction');
-    if (this.risk === null) missing.push('risk');
+    if (this.risk === null || !Number.isFinite(this.risk) || this.risk <= 0) {
+      missing.push('risk');
+    }
     if (this.trigger === null) missing.push('trigger');
 
     for (const field of StrategyDraftPresenter.CONDITION_FIELDS) {
@@ -337,9 +339,20 @@ export class StrategyDraftPresenter {
   }
 
   private summaryFor(missing: string[]): ConditionSummary | null {
-    if (missing.length > 0) return null;
+    if (
+      missing.length > 0 ||
+      this.direction === null ||
+      this.risk === null ||
+      this.trigger === null
+    ) {
+      return null;
+    }
 
     return {
+      direction: this.direction === 'long' ? 'Long' : 'Short',
+      opening: 'Market',
+      risk: `${this.risk}%`,
+      trigger: StrategyDraftPresenter.FIELD_LABELS[this.trigger],
       entry: this.formatGroup(this.conditions.entry),
       stopLoss: this.formatGroup(this.conditions.stopLoss),
       takeProfit: this.formatGroup(this.conditions.takeProfit),

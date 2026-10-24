@@ -12,7 +12,12 @@ export type ConditionRightSide = 'value' | 'indicator';
 
 export type ConditionConnector = 'and' | 'or';
 
-export type ConditionSummary = Record<ConditionField, string>;
+export type ConditionSummary = Record<ConditionField, string> & {
+  direction: string;
+  opening: string;
+  risk: string;
+  trigger: string;
+};
 
 export interface StrategyCondition {
   draftId: string;
