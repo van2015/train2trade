@@ -54,7 +54,7 @@ const OPERATOR_SYMBOLS: Record<ComparisonOperator, string> = Object.fromEntries(
 
 function emptyCondition(): StrategyCondition {
   return {
-    id: newId('condition'),
+    draftId: newId('condition'),
     negated: false,
     indicatorId: null,
     params: {},
