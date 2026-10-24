@@ -4,10 +4,10 @@ import { useToast } from './app/hooks/useToast';
 import { ChartView } from './chart/components/ChartView';
 import { AssetList } from './components/AssetList/AssetList';
 import { FileImport } from './components/FileImport/FileImport';
+import { StrategyBuilder } from './components/StrategyBuilder/StrategyBuilder';
 import { TestDataGenerator } from './components/TestDataGenerator/TestDataGenerator';
 import { initTheme, ThemeToggle } from './components/ThemeToggle/ThemeToggle';
 import { Toast } from './components/Toast/Toast';
-import { StrategyBuilder } from './strategy/components/StrategyBuilder';
 
 initTheme();
 

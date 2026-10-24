@@ -1,28 +1,14 @@
 import { useReducer, useState } from 'react';
-import { getConditionIndicatorOptions } from '../ConditionIndicatorCatalog';
+import { getConditionIndicatorOptions } from '../../strategy/ConditionIndicatorCatalog';
 import {
+  CONDITION_FIELDS,
   type ComparisonOperator,
   type ConditionField,
   type ConditionIndicatorId,
+  FIELD_LABELS,
+  OPERATORS,
   StrategyDraftPresenter,
-} from '../StrategyDraftPresenter';
-
-const CONDITION_FIELDS: { field: ConditionField; label: string }[] = [
-  { field: 'entry', label: 'Entry' },
-  { field: 'stopLoss', label: 'Stop Loss' },
-  { field: 'takeProfit', label: 'Take Profit' },
-];
-
-const OPERATORS: { value: ComparisonOperator; label: string }[] = [
-  { value: 'gt', label: '>' },
-  { value: 'lt', label: '<' },
-];
-
-const FIELD_LABELS: Record<ConditionField, string> = {
-  entry: 'Entry',
-  stopLoss: 'Stop Loss',
-  takeProfit: 'Take Profit',
-};
+} from '../../strategy/StrategyDraftPresenter';
 
 function formatMissing(path: string): string {
   if (path === 'name') return 'Name';
@@ -55,7 +41,8 @@ export function StrategyBuilder() {
         />
       </label>
 
-      {CONDITION_FIELDS.map(({ field, label }) => {
+      {CONDITION_FIELDS.map((field) => {
+        const label = FIELD_LABELS[field];
         const condition = state.conditions[field];
         const option = options.find(
           (candidate) => candidate.id === condition.indicatorId
@@ -158,9 +145,9 @@ export function StrategyBuilder() {
           <p>
             <strong>Name:</strong> {state.name}
           </p>
-          {CONDITION_FIELDS.map(({ field, label }) => (
+          {CONDITION_FIELDS.map((field) => (
             <p key={field}>
-              <strong>{label}:</strong> {state.summary?.[field]}
+              <strong>{FIELD_LABELS[field]}:</strong> {state.summary?.[field]}
             </p>
           ))}
           <p className="strategy-ready">Ready to save</p>

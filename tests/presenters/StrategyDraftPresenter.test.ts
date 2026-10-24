@@ -89,6 +89,21 @@ describe('StrategyDraftPresenter', () => {
       });
     });
 
+    it('keeps a condition incomplete when indicator mode is selected without a right indicator', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Cross');
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+      presenter.setConditionIndicator('entry', 'close');
+      presenter.setConditionOperator('entry', 'gt');
+      presenter.setConditionRightSide('entry', 'indicator');
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(false);
+      expect(state.missing).toEqual(['entry.rightIndicator']);
+    });
+
     it("applies a technical indicator's default params and updates the summary after editing them", () => {
       const presenter = new StrategyDraftPresenter();
       presenter.setName('Oversold');

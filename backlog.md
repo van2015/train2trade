@@ -15,3 +15,4 @@ Decisiones caras: ninguna.
 5. Como trader, quiero consultar el detalle de una estrategia guardada con sus tres condiciones, para revisar exactamente qué define. Requiere: #3
 6. Como trader, quiero modificar la condición de entrada de una estrategia guardada, para ajustarla sin recrearla. Requiere: #5
 7. Como trader, quiero modificar las condiciones de stop loss y take profit de una estrategia guardada, para ajustar el riesgo y los objetivos. Requiere: #5
+8. Como trader, quiero componer condiciones con AND, OR y NOT, para expresar reglas más complejas combinando condiciones simples. Requiere: #1

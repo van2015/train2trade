@@ -7,6 +7,7 @@ import type {
   ComparisonOperator,
   ConditionField,
   ConditionIndicatorId,
+  ConditionRightSide,
   ConditionSummary,
   StrategyCondition,
   StrategyDraftState,
@@ -16,21 +17,44 @@ export type {
   ComparisonOperator,
   ConditionField,
   ConditionIndicatorId,
+  ConditionRightSide,
   ConditionSummary,
   PriceSourceId,
   StrategyCondition,
   StrategyDraftState,
 } from './types';
 
-const CONDITION_FIELDS: ConditionField[] = ['entry', 'stopLoss', 'takeProfit'];
+export const CONDITION_FIELDS: ConditionField[] = [
+  'entry',
+  'stopLoss',
+  'takeProfit',
+];
 
-const OPERATOR_SYMBOLS: Record<ComparisonOperator, string> = {
-  gt: '>',
-  lt: '<',
+export const FIELD_LABELS: Record<ConditionField, string> = {
+  entry: 'Entry',
+  stopLoss: 'Stop Loss',
+  takeProfit: 'Take Profit',
 };
 
+export const OPERATORS: { value: ComparisonOperator; label: string }[] = [
+  { value: 'gt', label: '>' },
+  { value: 'lt', label: '<' },
+];
+
+const OPERATOR_SYMBOLS: Record<ComparisonOperator, string> = Object.fromEntries(
+  OPERATORS.map((operator) => [operator.value, operator.label])
+) as Record<ComparisonOperator, string>;
+
 function emptyCondition(): StrategyCondition {
-  return { indicatorId: null, params: {}, operator: null, value: null };
+  return {
+    indicatorId: null,
+    params: {},
+    operator: null,
+    rightSide: 'value',
+    value: null,
+    rightIndicatorId: null,
+    rightParams: {},
+  };
 }
 
 export class StrategyDraftPresenter {
@@ -96,6 +120,16 @@ export class StrategyDraftPresenter {
     };
   }
 
+  setConditionRightSide(
+    field: ConditionField,
+    rightSide: ConditionRightSide
+  ): void {
+    this.conditions[field] = {
+      ...this.conditions[field],
+      rightSide,
+    };
+  }
+
   setConditionValue(field: ConditionField, value: number | null): void {
     this.conditions[field] = {
       ...this.conditions[field],
@@ -118,7 +152,13 @@ export class StrategyDraftPresenter {
       const condition = this.conditions[field];
       if (condition.indicatorId === null) missing.push(`${field}.indicator`);
       if (condition.operator === null) missing.push(`${field}.operator`);
-      if (condition.value === null) missing.push(`${field}.value`);
+
+      if (condition.rightSide === 'indicator') {
+        if (condition.rightIndicatorId === null)
+          missing.push(`${field}.rightIndicator`);
+      } else if (condition.value === null) {
+        missing.push(`${field}.value`);
+      }
     }
 
     return missing;

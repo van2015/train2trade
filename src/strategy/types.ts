@@ -8,13 +8,18 @@ export type ConditionIndicatorId = IndicatorId | PriceSourceId;
 
 export type ComparisonOperator = 'gt' | 'lt';
 
+export type ConditionRightSide = 'value' | 'indicator';
+
 export type ConditionSummary = Record<ConditionField, string>;
 
 export interface StrategyCondition {
   indicatorId: ConditionIndicatorId | null;
   params: Record<string, number>;
   operator: ComparisonOperator | null;
+  rightSide: ConditionRightSide;
   value: number | null;
+  rightIndicatorId: ConditionIndicatorId | null;
+  rightParams: Record<string, number>;
 }
 
 export interface StrategyDraftState {
