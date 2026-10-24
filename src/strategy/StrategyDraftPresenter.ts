@@ -59,6 +59,9 @@ export class StrategyDraftPresenter {
   private direction: 'long' | 'short' | null;
   private risk: number | null;
   private trigger: ConditionField | null;
+  private orderType: 'market' | 'limit';
+  private limitIndicatorId: ConditionIndicatorId | null;
+  private limitParams: Record<string, number>;
   private conditions: Record<ConditionField, StrategyConditionGroup>;
 
   constructor() {
@@ -66,6 +69,9 @@ export class StrategyDraftPresenter {
     this.direction = null;
     this.risk = null;
     this.trigger = null;
+    this.orderType = 'market';
+    this.limitIndicatorId = null;
+    this.limitParams = {};
     this.conditions = {
       entry: this.emptyGroup(),
       stopLoss: this.emptyGroup(),
@@ -101,6 +107,9 @@ export class StrategyDraftPresenter {
       missing.push('risk');
     }
     if (this.trigger === null) missing.push('trigger');
+    if (this.orderType === 'limit' && this.limitIndicatorId === null) {
+      missing.push('limitIndicator');
+    }
 
     for (const field of StrategyDraftPresenter.CONDITION_FIELDS) {
       const group = this.conditions[field];
@@ -152,6 +161,15 @@ export class StrategyDraftPresenter {
 
   setTrigger(trigger: ConditionField | null): void {
     this.trigger = trigger;
+  }
+
+  setOrderType(orderType: 'market' | 'limit'): void {
+    this.orderType = orderType;
+  }
+
+  setLimitIndicator(indicatorId: ConditionIndicatorId): void {
+    this.limitIndicatorId = indicatorId;
+    this.limitParams = this.defaultParamsFor(indicatorId);
   }
 
   addCondition(field: ConditionField): void {
@@ -358,17 +376,25 @@ export class StrategyDraftPresenter {
     ) {
       return null;
     }
+    const opening = this.formatOpening();
+    if (opening === null) return null;
     if (missing.length > 0) return null;
 
     return {
       direction: this.direction === 'long' ? 'Long' : 'Short',
-      opening: 'Market',
+      opening,
       risk: `${this.risk}%`,
       trigger: StrategyDraftPresenter.FIELD_LABELS[this.trigger],
       entry: this.formatGroup(this.conditions.entry),
       stopLoss: this.formatGroup(this.conditions.stopLoss),
       takeProfit: this.formatGroup(this.conditions.takeProfit),
     };
+  }
+
+  private formatOpening(): string | null {
+    if (this.orderType === 'market') return 'Market';
+    if (this.limitIndicatorId === null) return null;
+    return `Limit ${getConditionIndicatorLabel(this.limitIndicatorId, this.limitParams)}`;
   }
 
   private formatGroup(group: StrategyConditionGroup): string {

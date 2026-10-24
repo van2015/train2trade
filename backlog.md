@@ -11,7 +11,7 @@ Decisiones caras: ninguna.
 1. [x] Como trader, quiero crear una estrategia con nombre y sus tres condiciones (entrada, stop loss y take profit) usando indicador o precio, operador y valor, para dejarla definida y lista para guardar.
 4. [x] Como trader, quiero definir condiciones comparando un indicador contra otro y con operadores de cruce, para expresar reglas como "EMA(20) cruza arriba EMA(50)". Requiere: #1
 8. [x] Como trader, quiero componer condiciones con AND, OR y NOT, para expresar reglas más complejas combinando condiciones simples. Requiere: #1
-14. Como trader, quiero que una estrategia abra una posición en largo o en corto a mercado, con el porcentaje de riesgo que defino, para entrar en operaciones con un riesgo controlado. Requiere: #1
+14. [x] Como trader, quiero que una estrategia abra una posición en largo o en corto a mercado, al cumplirse la condición que elijo (entrada, stop loss o take profit), con el porcentaje de riesgo que defino, para entrar en operaciones con un riesgo controlado. Requiere: #1
 15. Como trader, quiero que la apertura de la posición pueda ser a límite, con un precio límite definido por un indicador, para entrar solo a un precio concreto. Requiere: #14
 10. Como trader, quiero modificar la acción de una estrategia guardada, para cambiar cómo reacciona sin recrearla. Requiere: #9
 11. Como trader, quiero añadir a una estrategia una acción que cierre la posición completa cuando se alcance el stop loss o el take profit, para salir del trade automáticamente. Requiere: #1

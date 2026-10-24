@@ -1,26 +1,25 @@
 ## Story
-Como trader, quiero que una estrategia abra una posición en largo o en corto a mercado, al cumplirse la condición que elijo (entrada, stop loss o take profit), con el porcentaje de riesgo que defino, para entrar en operaciones con un riesgo controlado.
+Como trader, quiero que la apertura de la posición pueda ser a límite, con un precio límite definido por un indicador, para entrar solo a un precio concreto.
 
 ## Acceptance criteria
-- [ ] Dado que estoy definiendo una estrategia, cuando elijo largo o corto, un porcentaje de riesgo y la condición que dispara la apertura (entrada, stop loss o take profit), entonces el resumen muestra la dirección, la apertura a mercado, el riesgo y la condición, y la estrategia queda lista para guardar si lo demás está completo.
-- [ ] Dado que no he elegido dirección, riesgo o condición de disparo, cuando intento terminar la definición, entonces la estrategia no queda lista para guardar y veo qué falta.
-- [ ] Dado que el porcentaje de riesgo no es un número mayor que cero, cuando intento terminar la definición, entonces la estrategia no queda lista para guardar.
+- [ ] Dado que estoy definiendo la apertura de una estrategia, cuando elijo "a límite" y un indicador con sus parámetros como precio límite, entonces el resumen muestra la apertura a límite con ese indicador, y la estrategia queda lista para guardar si lo demás está completo.
+- [ ] Dado que he elegido "a límite" y no he elegido indicador de precio límite, cuando intento terminar la definición, entonces la estrategia no queda lista para guardar y veo qué falta.
+- [ ] Dado que elijo "a mercado", cuando reviso la apertura, entonces no se pide ningún indicador de precio límite y el resumen muestra la apertura a mercado como hasta ahora.
 
 ## Plan
-- Añadir al borrador de la estrategia la dirección (largo o corto), el porcentaje de riesgo y la condición que dispara la apertura (entrada, stop loss o take profit), con la apertura a mercado como única opción.
-- Incluir estos campos en la validación de "lista para guardar", junto al nombre y las tres condiciones.
-- Añadir al formulario un bloque de apertura con selector de dirección, selector de condición de disparo y campo numérico de riesgo.
-- Mostrar la apertura en el resumen, solo cuando la estrategia está completa.
-- Cubrir con pruebas los campos faltantes, el riesgo no válido y el resumen con dirección, riesgo y disparo.
+- Añadir al borrador de la apertura el tipo de orden (mercado o límite) y, solo si es límite, el indicador de precio límite con sus parámetros.
+- Validar el indicador de precio límite únicamente cuando el tipo es límite, sin cambiar la validación actual de la apertura a mercado.
+- Reutilizar el catálogo de condiciones (cierre, apertura, máximo, mínimo e indicadores técnicos) como fuente del precio límite.
+- Añadir al bloque de apertura un selector mercado/límite que, si es límite, muestra el selector de indicador y sus parámetros.
+- Mostrar el tipo y el indicador de precio límite en el resumen; cubrir con pruebas ambos tipos y los faltantes.
 
 ## Out of scope
-- Ejecutar la apertura o calcular el tamaño de la posición a partir del riesgo (depende del capital y se verá con la evaluación).
-- Apertura a límite (#15).
-- Acciones de cierre (#11, #12, #16) y varias acciones (#13).
-- Varias condiciones de disparo para una misma apertura.
+- Ejecutar la orden o comprobar si el precio límite se alcanza (depende de la evaluación).
+- Límite como valor numérico fijo; solo indicador.
+- Comparaciones del precio contra el límite; el límite es el valor del indicador.
+- Cierres a límite (#16) y varias aperturas.
 - Guardar, consultar o modificar estrategias (#2, #3, #5, #6, #7, #10).
-- Integración con el motor de trading existente (TradingEngine).
 
 ## Suggestions (tu decisión)
-- Asumo que cada apertura tiene exactamente una condición de disparo, que dirección, riesgo y disparo son obligatorios, y que el riesgo es un número mayor que cero. Dime si alguna no es así.
-- Los faltantes y el resumen ya se calculan en el presenter con el mismo patrón que las condiciones; los nuevos campos pueden seguir ese patrón.
+- Asumo que el precio límite es el valor del indicador en el momento de la apertura y que, si no se elige tipo, la apertura es a mercado (así no cambia lo aprobado en #14). Dime si prefieres que el tipo sea obligatorio.
+- El bloque de apertura ya existe; el selector de tipo puede reutilizar el mismo patrón de selector de condición.

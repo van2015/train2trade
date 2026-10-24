@@ -148,6 +148,20 @@ describe('StrategyDraftPresenter', () => {
       });
     });
 
+    it('summarises a limit opening with the limit price indicator and its params', () => {
+      const presenter = aStrategyDraft()
+        .named('Limit entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+      presenter.setOrderType('limit');
+      presenter.setLimitIndicator('rsi');
+
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()?.opening).toBe('Limit RSI(14)');
+    });
+
     it('keeps a condition incomplete when indicator mode is selected without a right indicator', () => {
       const presenter = aStrategyDraft()
         .named('Cross')
