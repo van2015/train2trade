@@ -148,74 +148,6 @@ describe('StrategyDraftPresenter', () => {
       });
     });
 
-    it('summarises a limit opening with the limit price indicator and its params', () => {
-      const presenter = aStrategyDraft()
-        .named('Limit entry')
-        .withDefaultConditions()
-        .withOpening()
-        .build();
-      presenter.setOrderType('limit');
-      presenter.setLimitIndicator('rsi');
-
-      expect(presenter.isReady()).toBe(true);
-      expect(presenter.getMissing()).toEqual([]);
-      expect(presenter.getSummary()?.opening).toBe('Limit RSI(14)');
-    });
-
-    it('stays not ready and reports the limit price indicator when the opening is limit without one', () => {
-      const presenter = aStrategyDraft()
-        .named('Limit entry')
-        .withDefaultConditions()
-        .withOpening()
-        .build();
-      presenter.setOrderType('limit');
-
-      expect(presenter.isReady()).toBe(false);
-      expect(presenter.getMissing()).toEqual(['limitIndicator']);
-      expect(presenter.getSummary()).toBeNull();
-
-      presenter.setLimitIndicator('close');
-
-      expect(presenter.isReady()).toBe(true);
-      expect(presenter.getMissing()).toEqual([]);
-    });
-
-    it('keeps a market opening without asking for a limit price indicator, even after switching back from limit', () => {
-      const presenter = aStrategyDraft()
-        .named('Market entry')
-        .withDefaultConditions()
-        .withOpening()
-        .build();
-
-      expect(presenter.isReady()).toBe(true);
-      expect(presenter.getMissing()).toEqual([]);
-      expect(presenter.getSummary()?.opening).toBe('Market');
-
-      presenter.setOrderType('limit');
-      expect(presenter.getMissing()).toEqual(['limitIndicator']);
-
-      presenter.setOrderType('market');
-      expect(presenter.isReady()).toBe(true);
-      expect(presenter.getMissing()).toEqual([]);
-      expect(presenter.getSummary()?.opening).toBe('Market');
-    });
-
-    it('updates the limit price indicator params in the summary', () => {
-      const presenter = aStrategyDraft()
-        .named('Limit entry')
-        .withDefaultConditions()
-        .withOpening()
-        .build();
-      presenter.setOrderType('limit');
-      presenter.setLimitIndicator('rsi');
-
-      expect(presenter.getSummary()?.opening).toBe('Limit RSI(14)');
-
-      presenter.updateLimitParams({ period: 21 });
-
-      expect(presenter.getSummary()?.opening).toBe('Limit RSI(21)');
-    });
-
     it('keeps a condition incomplete when indicator mode is selected without a right indicator', () => {
       const presenter = aStrategyDraft()
         .named('Cross')
@@ -321,6 +253,108 @@ describe('StrategyDraftPresenter', () => {
         { period: 21 }
       );
       expect(presenter.getSummary()?.takeProfit).toBe('RSI(21) > 70');
+    });
+  });
+
+  describe('opening order type', () => {
+    it('summarises a limit opening with the limit price indicator and its params', () => {
+      const presenter = aStrategyDraft()
+        .named('Limit entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+      presenter.setOrderType('limit');
+      presenter.setLimitIndicator('rsi');
+
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()?.opening).toBe('Limit RSI(14)');
+
+      presenter.updateLimitParams({ period: 21 });
+
+      expect(presenter.getSummary()?.opening).toBe('Limit RSI(21)');
+    });
+
+    it('resets the limit price indicator params to the defaults when switching indicators', () => {
+      const presenter = aStrategyDraft()
+        .named('Limit entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+      presenter.setOrderType('limit');
+      presenter.setLimitIndicator('rsi');
+      presenter.updateLimitParams({ period: 21 });
+
+      presenter.setLimitIndicator('ema');
+
+      expect(presenter.getLimitParams()).toEqual({ period: 20 });
+      expect(presenter.getSummary()?.opening).toBe('Limit EMA(20)');
+    });
+
+    it('stays not ready and reports the limit price indicator when the opening is limit without one', () => {
+      const presenter = aStrategyDraft()
+        .named('Limit entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+      presenter.setOrderType('limit');
+
+      expect(presenter.isReady()).toBe(false);
+      expect(presenter.getMissing()).toEqual(['limitIndicator']);
+      expect(presenter.getSummary()).toBeNull();
+
+      presenter.setLimitIndicator('close');
+
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+    });
+
+    it('summarises a limit opening with an indicator without params', () => {
+      const presenter = aStrategyDraft()
+        .named('Limit entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+      presenter.setOrderType('limit');
+      presenter.setLimitIndicator('close');
+
+      expect(presenter.getSummary()?.opening).toBe('Limit Close');
+    });
+
+    it('ignores limit price indicator params updates when no indicator is selected', () => {
+      const presenter = aStrategyDraft()
+        .named('Limit entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+      presenter.setOrderType('limit');
+
+      presenter.updateLimitParams({ period: 21 });
+
+      expect(presenter.getLimitParams()).toEqual({});
+      expect(presenter.getMissing()).toEqual(['limitIndicator']);
+    });
+
+    it('keeps a market opening without asking for a limit price indicator, even after switching back from limit', () => {
+      const presenter = aStrategyDraft()
+        .named('Market entry')
+        .withDefaultConditions()
+        .withOpening()
+        .build();
+
+      expect(presenter.getOrderType()).toBe('market');
+      expect(presenter.getLimitParams()).toEqual({});
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()?.opening).toBe('Market');
+
+      presenter.setOrderType('limit');
+      expect(presenter.getMissing()).toEqual(['limitIndicator']);
+
+      presenter.setOrderType('market');
+      expect(presenter.isReady()).toBe(true);
+      expect(presenter.getMissing()).toEqual([]);
+      expect(presenter.getSummary()?.opening).toBe('Market');
     });
   });
 

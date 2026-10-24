@@ -12,6 +12,8 @@ export type ConditionRightSide = 'value' | 'indicator';
 
 export type ConditionConnector = 'and' | 'or';
 
+export type OrderType = 'market' | 'limit';
+
 export type ConditionSummary = Record<ConditionField, string> & {
   direction: string;
   opening: string;

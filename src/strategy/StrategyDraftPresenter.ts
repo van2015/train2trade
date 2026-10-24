@@ -11,6 +11,7 @@ import type {
   ConditionIndicatorId,
   ConditionRightSide,
   ConditionSummary,
+  OrderType,
   StrategyCondition,
   StrategyConditionGroup,
 } from './types';
@@ -22,6 +23,7 @@ export type {
   ConditionIndicatorId,
   ConditionRightSide,
   ConditionSummary,
+  OrderType,
   PriceSourceId,
   StrategyCondition,
   StrategyConditionGroup,
@@ -59,7 +61,7 @@ export class StrategyDraftPresenter {
   private direction: 'long' | 'short' | null;
   private risk: number | null;
   private trigger: ConditionField | null;
-  private orderType: 'market' | 'limit';
+  private orderType: OrderType;
   private limitIndicatorId: ConditionIndicatorId | null;
   private limitParams: Record<string, number>;
   private conditions: Record<ConditionField, StrategyConditionGroup>;
@@ -95,7 +97,7 @@ export class StrategyDraftPresenter {
     return this.risk;
   }
 
-  getOrderType(): 'market' | 'limit' {
+  getOrderType(): OrderType {
     return this.orderType;
   }
 
@@ -175,7 +177,7 @@ export class StrategyDraftPresenter {
     this.trigger = trigger;
   }
 
-  setOrderType(orderType: 'market' | 'limit'): void {
+  setOrderType(orderType: OrderType): void {
     this.orderType = orderType;
   }
 

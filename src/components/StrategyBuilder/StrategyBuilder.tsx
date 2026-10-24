@@ -3,13 +3,11 @@ import { getConditionIndicatorOptions } from '../../strategy/ConditionIndicatorC
 import {
   type ConditionConnector,
   type ConditionField,
+  type OrderType,
   StrategyDraftPresenter,
 } from '../../strategy/StrategyDraftPresenter';
-import {
-  ConditionEditor,
-  IndicatorSelect,
-  ParamInputs,
-} from './ConditionEditor';
+import { ConditionEditor } from './ConditionEditor';
+import { IndicatorSelect, ParamInputs } from './IndicatorFields';
 
 const ATTRIBUTE_LABELS: Record<string, string> = {
   indicator: 'indicator',
@@ -149,7 +147,7 @@ export function StrategyBuilder() {
             value={orderType}
             onChange={(event) =>
               update(() =>
-                presenter.setOrderType(event.target.value as 'market' | 'limit')
+                presenter.setOrderType(event.target.value as OrderType)
               )
             }
           >
@@ -160,9 +158,10 @@ export function StrategyBuilder() {
 
         {orderType === 'limit' && (
           <>
-            <div className="strategy-field">
+            <label className="strategy-field" htmlFor="limit-price-indicator">
               <span>Limit price</span>
               <IndicatorSelect
+                id="limit-price-indicator"
                 label="Limit price indicator"
                 value={limitIndicator}
                 options={options}
@@ -170,7 +169,7 @@ export function StrategyBuilder() {
                   update(() => presenter.setLimitIndicator(indicatorId))
                 }
               />
-            </div>
+            </label>
 
             {limitOption && limitOption.params.length > 0 && (
               <ParamInputs
