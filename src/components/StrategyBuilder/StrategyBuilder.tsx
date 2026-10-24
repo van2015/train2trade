@@ -1,5 +1,8 @@
 import { useReducer, useState } from 'react';
-import { getConditionIndicatorOptions } from '../../strategy/ConditionIndicatorCatalog';
+import {
+  type ConditionIndicatorOption,
+  getConditionIndicatorOptions,
+} from '../../strategy/ConditionIndicatorCatalog';
 import {
   CONDITION_FIELDS,
   type ComparisonOperator,
@@ -22,6 +25,32 @@ function formatMissing(path: string): string {
   if (path === 'name') return 'Name';
   const [field, attribute] = path.split('.');
   return `${FIELD_LABELS[field as ConditionField]} ${ATTRIBUTE_LABELS[attribute] ?? attribute}`;
+}
+
+interface ParamInputsProps {
+  params: ConditionIndicatorOption['params'];
+  values: Record<string, number>;
+  onChange: (key: string, value: number) => void;
+}
+
+function ParamInputs({ params, values, onChange }: ParamInputsProps) {
+  return (
+    <div className="strategy-params">
+      {params.map((param) => (
+        <label key={param.key} className="strategy-param">
+          <span>{param.label}</span>
+          <input
+            type="number"
+            min={param.min}
+            value={values[param.key] ?? param.default}
+            onChange={(event) =>
+              onChange(param.key, Number(event.target.value))
+            }
+          />
+        </label>
+      ))}
+    </div>
+  );
 }
 
 export function StrategyBuilder() {
@@ -86,25 +115,15 @@ export function StrategyBuilder() {
             </select>
 
             {option && option.params.length > 0 && (
-              <div className="strategy-params">
-                {option.params.map((param) => (
-                  <label key={param.key} className="strategy-param">
-                    <span>{param.label}</span>
-                    <input
-                      type="number"
-                      min={param.min}
-                      value={condition.params[param.key] ?? param.default}
-                      onChange={(event) =>
-                        update(() =>
-                          presenter.updateConditionParams(field, {
-                            [param.key]: Number(event.target.value),
-                          })
-                        )
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
+              <ParamInputs
+                params={option.params}
+                values={condition.params}
+                onChange={(key, value) =>
+                  update(() =>
+                    presenter.updateConditionParams(field, { [key]: value })
+                  )
+                }
+              />
             )}
 
             <div className="strategy-condition-row">
@@ -172,27 +191,17 @@ export function StrategyBuilder() {
                 </select>
 
                 {rightOption && rightOption.params.length > 0 && (
-                  <div className="strategy-params">
-                    {rightOption.params.map((param) => (
-                      <label key={param.key} className="strategy-param">
-                        <span>{param.label}</span>
-                        <input
-                          type="number"
-                          min={param.min}
-                          value={
-                            condition.rightParams[param.key] ?? param.default
-                          }
-                          onChange={(event) =>
-                            update(() =>
-                              presenter.updateConditionRightParams(field, {
-                                [param.key]: Number(event.target.value),
-                              })
-                            )
-                          }
-                        />
-                      </label>
-                    ))}
-                  </div>
+                  <ParamInputs
+                    params={rightOption.params}
+                    values={condition.rightParams}
+                    onChange={(key, value) =>
+                      update(() =>
+                        presenter.updateConditionRightParams(field, {
+                          [key]: value,
+                        })
+                      )
+                    }
+                  />
                 )}
               </>
             ) : (

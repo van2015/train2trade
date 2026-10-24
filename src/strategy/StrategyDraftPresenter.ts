@@ -98,18 +98,14 @@ export class StrategyDraftPresenter {
     params: Record<string, number>
   ): void {
     const condition = this.conditions[field];
-    if (condition.indicatorId === null) return;
+    const next = this.normalizeConditionParams(
+      condition.indicatorId,
+      condition.params,
+      params
+    );
+    if (next === null) return;
 
-    const option = getConditionIndicatorOption(condition.indicatorId);
-    if (!option || option.params.length === 0) return;
-
-    this.conditions[field] = {
-      ...condition,
-      params: normalizeParams(option.params, {
-        ...condition.params,
-        ...params,
-      }),
-    };
+    this.conditions[field] = { ...condition, params: next };
   }
 
   setConditionOperator(
@@ -148,18 +144,14 @@ export class StrategyDraftPresenter {
     params: Record<string, number>
   ): void {
     const condition = this.conditions[field];
-    if (condition.rightIndicatorId === null) return;
+    const next = this.normalizeConditionParams(
+      condition.rightIndicatorId,
+      condition.rightParams,
+      params
+    );
+    if (next === null) return;
 
-    const option = getConditionIndicatorOption(condition.rightIndicatorId);
-    if (!option || option.params.length === 0) return;
-
-    this.conditions[field] = {
-      ...condition,
-      rightParams: normalizeParams(option.params, {
-        ...condition.rightParams,
-        ...params,
-      }),
-    };
+    this.conditions[field] = { ...condition, rightParams: next };
   }
 
   setConditionValue(field: ConditionField, value: number | null): void {
@@ -172,8 +164,20 @@ export class StrategyDraftPresenter {
   private defaultParamsFor(
     indicatorId: ConditionIndicatorId
   ): Record<string, number> {
+    return this.normalizeConditionParams(indicatorId, {}, {}) ?? {};
+  }
+
+  private normalizeConditionParams(
+    indicatorId: ConditionIndicatorId | null,
+    current: Record<string, number>,
+    changes: Record<string, number>
+  ): Record<string, number> | null {
+    if (indicatorId === null) return null;
+
     const option = getConditionIndicatorOption(indicatorId);
-    return option ? normalizeParams(option.params, {}) : {};
+    if (!option || option.params.length === 0) return null;
+
+    return normalizeParams(option.params, { ...current, ...changes });
   }
 
   private getMissing(): string[] {
