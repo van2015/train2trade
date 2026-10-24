@@ -275,5 +275,31 @@ describe('StrategyDraftPresenter', () => {
       expect(state.isReady).toBe(true);
       expect(state.summary?.entry).toBe('Close > 100 AND NOT Low < 90');
     });
+
+    it('reports each incomplete simple condition with its field and position in missing', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Incomplete composition');
+
+      fillCondition(presenter, 'entry', 'close', 'gt', 100);
+      presenter.addCondition('entry');
+      presenter.setConditionIndicator('entry', 'low', 1);
+      presenter.setConditionOperator('entry', 'lt', 1);
+
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      presenter.addCondition('stopLoss');
+      presenter.setConditionIndicator('stopLoss', 'high', 1);
+      presenter.setConditionValue('stopLoss', 120, 1);
+
+      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(false);
+      expect(state.summary).toBeNull();
+      expect(state.missing).toEqual([
+        'entry.2.value',
+        'stopLoss.2.operator',
+      ]);
+    });
   });
 });
