@@ -273,7 +273,7 @@ describe('StrategyDraftPresenter', () => {
       const state = presenter.getState();
 
       expect(state.isReady).toBe(true);
-      expect(state.summary?.entry).toBe('Close > 100 AND NOT Low < 90');
+      expect(state.summary?.entry).toBe('Close > 100 AND NOT (Low < 90)');
 
       presenter.setConditionNegated('entry', false, 1);
 

@@ -336,6 +336,6 @@ export class StrategyDraftPresenter {
 
     if (right === null) return '';
     const formatted = `${getConditionIndicatorLabel(indicatorId, condition.params)} ${OPERATOR_SYMBOLS[operator]} ${right}`;
-    return condition.negated ? `NOT ${formatted}` : formatted;
+    return condition.negated ? `NOT (${formatted})` : formatted;
   }
 }
