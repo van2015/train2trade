@@ -5,22 +5,26 @@ import {
 } from './ConditionIndicatorCatalog';
 import type {
   ComparisonOperator,
+  ConditionConnector,
   ConditionField,
   ConditionIndicatorId,
   ConditionRightSide,
   ConditionSummary,
   StrategyCondition,
+  StrategyConditionGroup,
   StrategyDraftState,
 } from './types';
 
 export type {
   ComparisonOperator,
+  ConditionConnector,
   ConditionField,
   ConditionIndicatorId,
   ConditionRightSide,
   ConditionSummary,
   PriceSourceId,
   StrategyCondition,
+  StrategyConditionGroup,
   StrategyDraftState,
 } from './types';
 
@@ -49,6 +53,7 @@ const OPERATOR_SYMBOLS: Record<ComparisonOperator, string> = Object.fromEntries(
 
 function emptyCondition(): StrategyCondition {
   return {
+    negated: false,
     indicatorId: null,
     params: {},
     operator: null,
@@ -59,12 +64,19 @@ function emptyCondition(): StrategyCondition {
   };
 }
 
+function emptyGroup(): StrategyConditionGroup {
+  return {
+    connector: 'and',
+    conditions: [emptyCondition()],
+  };
+}
+
 export class StrategyDraftPresenter {
   private name = '';
-  private conditions: Record<ConditionField, StrategyCondition> = {
-    entry: emptyCondition(),
-    stopLoss: emptyCondition(),
-    takeProfit: emptyCondition(),
+  private conditions: Record<ConditionField, StrategyConditionGroup> = {
+    entry: emptyGroup(),
+    stopLoss: emptyGroup(),
+    takeProfit: emptyGroup(),
   };
 
   getState(): StrategyDraftState {
@@ -82,22 +94,46 @@ export class StrategyDraftPresenter {
     this.name = name;
   }
 
-  setConditionIndicator(
+  addCondition(field: ConditionField): void {
+    this.conditions[field] = {
+      ...this.conditions[field],
+      conditions: [...this.conditions[field].conditions, emptyCondition()],
+    };
+  }
+
+  setConditionConnector(
     field: ConditionField,
-    indicatorId: ConditionIndicatorId
+    connector: ConditionConnector
   ): void {
     this.conditions[field] = {
       ...this.conditions[field],
+      connector,
+    };
+  }
+
+  setConditionIndicator(
+    field: ConditionField,
+    indicatorId: ConditionIndicatorId,
+    index = 0
+  ): void {
+    const condition = this.conditionAt(field, index);
+    if (!condition) return;
+
+    this.setConditionAt(field, index, {
+      ...condition,
       indicatorId,
       params: this.defaultParamsFor(indicatorId),
-    };
+    });
   }
 
   updateConditionParams(
     field: ConditionField,
-    params: Record<string, number>
+    params: Record<string, number>,
+    index = 0
   ): void {
-    const condition = this.conditions[field];
+    const condition = this.conditionAt(field, index);
+    if (!condition) return;
+
     const next = this.normalizeConditionParams(
       condition.indicatorId,
       condition.params,
@@ -105,45 +141,54 @@ export class StrategyDraftPresenter {
     );
     if (next === null) return;
 
-    this.conditions[field] = { ...condition, params: next };
+    this.setConditionAt(field, index, { ...condition, params: next });
   }
 
   setConditionOperator(
     field: ConditionField,
-    operator: ComparisonOperator
+    operator: ComparisonOperator,
+    index = 0
   ): void {
-    this.conditions[field] = {
-      ...this.conditions[field],
-      operator,
-    };
+    const condition = this.conditionAt(field, index);
+    if (!condition) return;
+
+    this.setConditionAt(field, index, { ...condition, operator });
   }
 
   setConditionRightSide(
     field: ConditionField,
-    rightSide: ConditionRightSide
+    rightSide: ConditionRightSide,
+    index = 0
   ): void {
-    this.conditions[field] = {
-      ...this.conditions[field],
-      rightSide,
-    };
+    const condition = this.conditionAt(field, index);
+    if (!condition) return;
+
+    this.setConditionAt(field, index, { ...condition, rightSide });
   }
 
   setConditionRightIndicator(
     field: ConditionField,
-    indicatorId: ConditionIndicatorId
+    indicatorId: ConditionIndicatorId,
+    index = 0
   ): void {
-    this.conditions[field] = {
-      ...this.conditions[field],
+    const condition = this.conditionAt(field, index);
+    if (!condition) return;
+
+    this.setConditionAt(field, index, {
+      ...condition,
       rightIndicatorId: indicatorId,
       rightParams: this.defaultParamsFor(indicatorId),
-    };
+    });
   }
 
   updateConditionRightParams(
     field: ConditionField,
-    params: Record<string, number>
+    params: Record<string, number>,
+    index = 0
   ): void {
-    const condition = this.conditions[field];
+    const condition = this.conditionAt(field, index);
+    if (!condition) return;
+
     const next = this.normalizeConditionParams(
       condition.rightIndicatorId,
       condition.rightParams,
@@ -151,13 +196,48 @@ export class StrategyDraftPresenter {
     );
     if (next === null) return;
 
-    this.conditions[field] = { ...condition, rightParams: next };
+    this.setConditionAt(field, index, { ...condition, rightParams: next });
   }
 
-  setConditionValue(field: ConditionField, value: number | null): void {
+  setConditionValue(
+    field: ConditionField,
+    value: number | null,
+    index = 0
+  ): void {
+    const condition = this.conditionAt(field, index);
+    if (!condition) return;
+
+    this.setConditionAt(field, index, { ...condition, value });
+  }
+
+  setConditionNegated(
+    field: ConditionField,
+    index: number,
+    negated: boolean
+  ): void {
+    const condition = this.conditionAt(field, index);
+    if (!condition) return;
+
+    this.setConditionAt(field, index, { ...condition, negated });
+  }
+
+  private conditionAt(
+    field: ConditionField,
+    index: number
+  ): StrategyCondition | undefined {
+    return this.conditions[field].conditions[index];
+  }
+
+  private setConditionAt(
+    field: ConditionField,
+    index: number,
+    condition: StrategyCondition
+  ): void {
     this.conditions[field] = {
       ...this.conditions[field],
-      value,
+      conditions: this.conditions[field].conditions.map((current, position) =>
+        position === index ? condition : current
+      ),
     };
   }
 
@@ -185,16 +265,28 @@ export class StrategyDraftPresenter {
     if (this.name.trim().length === 0) missing.push('name');
 
     for (const field of CONDITION_FIELDS) {
-      const condition = this.conditions[field];
-      if (condition.indicatorId === null) missing.push(`${field}.indicator`);
-      if (condition.operator === null) missing.push(`${field}.operator`);
-
-      if (condition.rightSide === 'indicator') {
-        if (condition.rightIndicatorId === null)
-          missing.push(`${field}.rightIndicator`);
-      } else if (condition.value === null) {
-        missing.push(`${field}.value`);
+      const group = this.conditions[field];
+      if (group.conditions.length === 0) {
+        missing.push(`${field}.conditions`);
+        continue;
       }
+
+      group.conditions.forEach((condition, index) => {
+        const prefix = `${field}.${index + 1}`;
+        if (condition.indicatorId === null) {
+          missing.push(`${prefix}.indicator`);
+        }
+        if (condition.operator === null) {
+          missing.push(`${prefix}.operator`);
+        }
+
+        if (condition.rightSide === 'indicator') {
+          if (condition.rightIndicatorId === null)
+            missing.push(`${prefix}.rightIndicator`);
+        } else if (condition.value === null) {
+          missing.push(`${prefix}.value`);
+        }
+      });
     }
 
     return missing;
@@ -204,10 +296,17 @@ export class StrategyDraftPresenter {
     if (missing.length > 0) return null;
 
     return {
-      entry: this.formatCondition(this.conditions.entry),
-      stopLoss: this.formatCondition(this.conditions.stopLoss),
-      takeProfit: this.formatCondition(this.conditions.takeProfit),
+      entry: this.formatGroup(this.conditions.entry),
+      stopLoss: this.formatGroup(this.conditions.stopLoss),
+      takeProfit: this.formatGroup(this.conditions.takeProfit),
     };
+  }
+
+  private formatGroup(group: StrategyConditionGroup): string {
+    const connector = group.connector === 'and' ? 'AND' : 'OR';
+    return group.conditions
+      .map((condition) => this.formatCondition(condition))
+      .join(` ${connector} `);
   }
 
   private formatCondition(condition: StrategyCondition): string {
@@ -225,6 +324,7 @@ export class StrategyDraftPresenter {
           : String(value);
 
     if (right === null) return '';
-    return `${getConditionIndicatorLabel(indicatorId, condition.params)} ${OPERATOR_SYMBOLS[operator]} ${right}`;
+    const formatted = `${getConditionIndicatorLabel(indicatorId, condition.params)} ${OPERATOR_SYMBOLS[operator]} ${right}`;
+    return condition.negated ? `NOT ${formatted}` : formatted;
   }
 }

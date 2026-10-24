@@ -9,11 +9,12 @@ function fillCondition(
   field: ConditionField,
   indicatorId: 'close' | 'open' | 'high' | 'low',
   operator: 'gt' | 'lt',
-  value: number
+  value: number,
+  index = 0
 ) {
-  presenter.setConditionIndicator(field, indicatorId);
-  presenter.setConditionOperator(field, operator);
-  presenter.setConditionValue(field, value);
+  presenter.setConditionIndicator(field, indicatorId, index);
+  presenter.setConditionOperator(field, operator, index);
+  presenter.setConditionValue(field, value, index);
 }
 
 function fillIndicatorCondition(
@@ -39,15 +40,15 @@ describe('StrategyDraftPresenter', () => {
       expect(state.isReady).toBe(false);
       expect(state.missing).toEqual([
         'name',
-        'entry.indicator',
-        'entry.operator',
-        'entry.value',
-        'stopLoss.indicator',
-        'stopLoss.operator',
-        'stopLoss.value',
-        'takeProfit.indicator',
-        'takeProfit.operator',
-        'takeProfit.value',
+        'entry.1.indicator',
+        'entry.1.operator',
+        'entry.1.value',
+        'stopLoss.1.indicator',
+        'stopLoss.1.operator',
+        'stopLoss.1.value',
+        'takeProfit.1.indicator',
+        'takeProfit.1.operator',
+        'takeProfit.1.value',
       ]);
     });
 
@@ -77,9 +78,9 @@ describe('StrategyDraftPresenter', () => {
 
       expect(state.isReady).toBe(false);
       expect(state.missing).toEqual([
-        'entry.value',
-        'stopLoss.indicator',
-        'takeProfit.operator',
+        'entry.1.value',
+        'stopLoss.1.indicator',
+        'takeProfit.1.operator',
       ]);
     });
 
@@ -114,7 +115,7 @@ describe('StrategyDraftPresenter', () => {
       const state = presenter.getState();
 
       expect(state.isReady).toBe(false);
-      expect(state.missing).toEqual(['entry.rightIndicator']);
+      expect(state.missing).toEqual(['entry.1.rightIndicator']);
     });
 
     it('becomes ready when the three conditions compare indicators', () => {
@@ -146,13 +147,17 @@ describe('StrategyDraftPresenter', () => {
       presenter.setConditionRightIndicator('takeProfit', 'rsi');
 
       const initial = presenter.getState();
-      expect(initial.conditions.takeProfit.rightParams).toEqual({ period: 14 });
+      expect(initial.conditions.takeProfit.conditions[0].rightParams).toEqual({
+        period: 14,
+      });
       expect(initial.summary?.takeProfit).toBe('Close > RSI(14)');
 
       presenter.updateConditionRightParams('takeProfit', { period: 21 });
 
       const updated = presenter.getState();
-      expect(updated.conditions.takeProfit.rightParams).toEqual({ period: 21 });
+      expect(updated.conditions.takeProfit.conditions[0].rightParams).toEqual({
+        period: 21,
+      });
       expect(updated.summary?.takeProfit).toBe('Close > RSI(21)');
     });
 
@@ -191,14 +196,84 @@ describe('StrategyDraftPresenter', () => {
       presenter.setConditionValue('takeProfit', 70);
 
       const initial = presenter.getState();
-      expect(initial.conditions.takeProfit.params).toEqual({ period: 14 });
+      expect(initial.conditions.takeProfit.conditions[0].params).toEqual({
+        period: 14,
+      });
       expect(initial.summary?.takeProfit).toBe('RSI(14) > 70');
 
       presenter.updateConditionParams('takeProfit', { period: 21 });
 
       const updated = presenter.getState();
-      expect(updated.conditions.takeProfit.params).toEqual({ period: 21 });
+      expect(updated.conditions.takeProfit.conditions[0].params).toEqual({
+        period: 21,
+      });
       expect(updated.summary?.takeProfit).toBe('RSI(21) > 70');
+    });
+  });
+
+  describe('composing conditions', () => {
+    it('joins two complete simple conditions with the chosen connector in each field summary', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Composed');
+
+      const compositions: {
+        field: ConditionField;
+        connector: 'and' | 'or';
+        first: ['close' | 'open' | 'high' | 'low', 'gt' | 'lt', number];
+        second: ['close' | 'open' | 'high' | 'low', 'gt' | 'lt', number];
+      }[] = [
+        {
+          field: 'entry',
+          connector: 'and',
+          first: ['close', 'gt', 100],
+          second: ['low', 'lt', 90],
+        },
+        {
+          field: 'stopLoss',
+          connector: 'or',
+          first: ['low', 'lt', 90],
+          second: ['high', 'gt', 120],
+        },
+        {
+          field: 'takeProfit',
+          connector: 'and',
+          first: ['high', 'gt', 120],
+          second: ['close', 'gt', 100],
+        },
+      ];
+
+      for (const { field, connector, first, second } of compositions) {
+        fillCondition(presenter, field, first[0], first[1], first[2]);
+        presenter.addCondition(field);
+        fillCondition(presenter, field, second[0], second[1], second[2], 1);
+        presenter.setConditionConnector(field, connector);
+      }
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(true);
+      expect(state.missing).toEqual([]);
+      expect(state.summary).toEqual({
+        entry: 'Close > 100 AND Low < 90',
+        stopLoss: 'Low < 90 OR High > 120',
+        takeProfit: 'High > 120 AND Close > 100',
+      });
+    });
+
+    it('prefixes a negated simple condition with NOT in the summary', () => {
+      const presenter = new StrategyDraftPresenter();
+      presenter.setName('Negated');
+      fillCondition(presenter, 'entry', 'close', 'gt', 100);
+      presenter.addCondition('entry');
+      fillCondition(presenter, 'entry', 'low', 'lt', 90, 1);
+      presenter.setConditionNegated('entry', 1, true);
+      fillCondition(presenter, 'stopLoss', 'low', 'lt', 90);
+      fillCondition(presenter, 'takeProfit', 'high', 'gt', 120);
+
+      const state = presenter.getState();
+
+      expect(state.isReady).toBe(true);
+      expect(state.summary?.entry).toBe('Close > 100 AND NOT Low < 90');
     });
   });
 });

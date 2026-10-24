@@ -1,24 +1,23 @@
 ## Story
-Como trader, quiero crear una estrategia con nombre y sus tres condiciones (entrada, stop loss y take profit) usando indicadores, operador y valor, para dejarla definida y lista para guardar.
+Como trader, quiero componer cada condición de la estrategia (entrada, stop loss y take profit) con varias condiciones simples unidas por AND u OR, pudiendo negar cada una con NOT, para expresar reglas más complejas.
 
 ## Acceptance criteria
-- [ ] Dado que estoy creando una estrategia, cuando introduzco un nombre y completo las condiciones de entrada, stop loss y take profit (cada una con indicador, operador y valor), entonces veo la estrategia definida con un resumen de sus tres condiciones y lista para guardar.
-- [ ] Dada una condición, cuando elijo un indicador, entonces puedo elegir entre cierre, apertura, máximo, mínimo y los indicadores técnicos de la app, ajustando los parámetros de estos últimos.
-- [ ] Dado que falta el nombre o alguna de las tres condiciones está incompleta, cuando intento terminar la creación, entonces la estrategia no queda lista para guardar y veo qué dato falta.
+- [ ] Dada una condición de la estrategia (entrada, stop loss o take profit) con una condición simple completa, cuando añado otra condición simple completa y elijo AND u OR como conector, entonces el resumen muestra ambas condiciones unidas por el conector elegido.
+- [ ] Dada una composición completa, cuando marco una de sus condiciones simples como negada, entonces el resumen muestra NOT delante de esa condición.
+- [ ] Dada una composición con una condición simple incompleta o sin condiciones, cuando intento terminar la estrategia, entonces no queda lista para guardar y veo qué dato falta.
 
 ## Plan
-- Añadir en la barra lateral un acceso a "Estrategias" con un formulario de nueva estrategia: nombre y tres bloques de condición.
-- Modelar la definición en memoria: indicador (cierre, apertura, máximo, mínimo o técnico con parámetros), operador y valor numérico para entrada, stop loss y take profit.
-- Incorporar cierre, apertura, máximo y mínimo al catálogo de indicadores disponible para condiciones, reutilizando el catálogo técnico existente.
-- Validar nombre y las tres condiciones antes de marcar la estrategia como lista, mostrando un resumen de la definición.
-- Cubrir con pruebas la validación de la definición y el flujo de completar/dejar incompleta una condición.
+- Modelar cada una de las tres condiciones como un grupo de condiciones simples con un conector AND/OR y una marca NOT por condición simple.
+- Extender el presentador para añadir, quitar y editar condiciones simples del grupo, reutilizando la condición simple actual (valor o indicador contra indicador).
+- Añadir al formulario de cada condición los controles para agregar/quitar condiciones, elegir el conector y marcar NOT.
+- Actualizar el resumen y la validación para reflejar la composición y señalar la condición simple incompleta.
+- Cubrir con pruebas la composición AND/OR, la negación NOT y la validación de grupos incompletos.
 
 ## Out of scope
-- Guardar, listar y consultar el detalle (historias #2, #3 y #5).
-- Comparar indicador contra indicador y operadores de cruce (historia #4).
-- Modificar estrategias guardadas (historias #6 y #7).
-- Evaluar estrategias, generar señales o asociarlas a un activo/timeframe.
-- Eliminar o duplicar estrategias.
+- Anidar grupos o mezclar AND y OR en una misma condición; si se necesita, se propone una historia aparte.
+- Componer entre las tres condiciones de la estrategia (entrada, stop loss y take profit); la composición ocurre dentro de cada una.
+- Evaluar las condiciones o generar señales; esta historia solo define y muestra la regla.
+- Guardar, listar, consultar el detalle o modificar estrategias guardadas (historias #2, #3, #5, #6 y #7).
 
 ## Suggestions (tu decisión)
-- Reutilizar las definiciones de indicadores de la app para poblar las opciones y parámetros, y no duplicar etiquetas ni valores por defecto.
+- Reutilizar el catálogo de indicadores y los controles de condición simple ya existentes para no duplicar opciones ni parámetros.

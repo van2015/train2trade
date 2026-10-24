@@ -10,9 +10,12 @@ export type ComparisonOperator = 'gt' | 'lt' | 'crossAbove' | 'crossBelow';
 
 export type ConditionRightSide = 'value' | 'indicator';
 
+export type ConditionConnector = 'and' | 'or';
+
 export type ConditionSummary = Record<ConditionField, string>;
 
 export interface StrategyCondition {
+  negated: boolean;
   indicatorId: ConditionIndicatorId | null;
   params: Record<string, number>;
   operator: ComparisonOperator | null;
@@ -22,9 +25,14 @@ export interface StrategyCondition {
   rightParams: Record<string, number>;
 }
 
+export interface StrategyConditionGroup {
+  connector: ConditionConnector;
+  conditions: StrategyCondition[];
+}
+
 export interface StrategyDraftState {
   name: string;
-  conditions: Record<ConditionField, StrategyCondition>;
+  conditions: Record<ConditionField, StrategyConditionGroup>;
   isReady: boolean;
   missing: string[];
   summary: ConditionSummary | null;
