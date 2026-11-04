@@ -30,8 +30,8 @@ Los tests viven fuera de `src/` para que `src/` sea 100% código de producción.
 Alias `@` → `src/`, configurado en `vitest.config.ts` y `tsconfig.json`:
 
 ```ts
-import { normalizeCandles } from '@/domain/candles/normalize'
-import type { Candle } from '@/domain/candles/types'
+import { Candle } from '@/domain/candles/candle'
+import { Timeframe } from '@/domain/candles/timeframe'
 ```
 
 Usar siempre `@/...` en tests y en código de app. No usar imports relativos que suban hacia `src/`.

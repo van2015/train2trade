@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { aggregateCandles } from '@/domain/candles/aggregate'
 import { Timeframe } from '@/domain/candles/timeframe'
-import type { Candle } from '@/domain/candles/types'
+import { Candle } from '@/domain/candles/candle'
 
 const MIN = 60_000
 
 function candle(time: number, o: number, h: number, l: number, c: number, v = 1): Candle {
-  return { time, open: o, high: h, low: l, close: c, volume: v }
+  return Candle.from({ time, open: o, high: h, low: l, close: c, volume: v })
 }
 
 describe('aggregateCandles', () => {

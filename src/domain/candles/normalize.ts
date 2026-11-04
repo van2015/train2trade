@@ -1,63 +1,24 @@
-import type { Candle } from './types'
-
-export class InvalidCandlesError extends Error {
-  constructor(raw: unknown) {
-    super(
-      `Respuesta de velas inválida: se esperaba un array, se recibió ${
-        raw === null ? 'null' : typeof raw
-      }`,
-    )
-    this.name = 'InvalidCandlesError'
-  }
-}
-
-function toFiniteNumber(value: unknown): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null
-  }
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  return null
-}
+import { Candle, InvalidCandlesError } from './candle'
 
 /**
  * Normaliza la respuesta cruda del exchange a Candle[]:
- * números finitos, orden ascendente por tiempo, sin duplicados (gana el último)
- * y sin velas inválidas (high < low o campos ausentes).
+ * parseo e invariantes delegados en `Candle.from`, orden ascendente por tiempo,
+ * sin duplicados (gana el último) y descartando las velas inválidas.
  */
 export function normalizeCandles(raw: unknown): Candle[] {
   if (!Array.isArray(raw)) {
-    throw new InvalidCandlesError(raw)
+    throw new InvalidCandlesError('se esperaba un array de velas', raw)
   }
 
   const byTime = new Map<number, Candle>()
 
   for (const item of raw) {
-    if (item === null || typeof item !== 'object') continue
-    const record = item as Record<string, unknown>
-
-    const time = toFiniteNumber(record.time)
-    const open = toFiniteNumber(record.open)
-    const high = toFiniteNumber(record.high)
-    const low = toFiniteNumber(record.low)
-    const close = toFiniteNumber(record.close)
-    const volume = toFiniteNumber(record.volume)
-
-    if (
-      time === null ||
-      open === null ||
-      high === null ||
-      low === null ||
-      close === null ||
-      volume === null
-    ) {
-      continue
+    try {
+      const candle = Candle.from(item)
+      byTime.set(candle.time, candle)
+    } catch {
+      // Vela inválida: se descarta (mismo criterio que high < low o campos ausentes).
     }
-    if (high < low) continue
-
-    byTime.set(time, { time, open, high, low, close, volume })
   }
 
   return [...byTime.values()].sort((a, b) => a.time - b.time)

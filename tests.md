@@ -19,6 +19,9 @@ Capas:
 - [x] `Timeframe.is` / `Timeframe.isCode` distinguen instancia de código crudo sin lanzar.
 - [x] `Timeframe` expone `ms` (duración) y serializa a código (`toString`/`toJSON`, round-trip JSON).
 - [x] `candleLimitForRange` calcula el limit del rango, sanea fechas invertidas y limita a `MAX_CANDLES`.
+- [x] `Candle` (value object): `from` parsea y valida invariantes (campos finitos, `high >= low`, idempotente); `toJSON` + `from` round-trip.
+- [x] Comportamiento de la vela: `isBullish`/`isBearish` (doji → ninguno), `bodySize`, `range`, `equals` por valor.
+- [x] `Candle.aggregate` fusiona un grupo: open primero, close último, extremos, volumen sumado, `time` al inicio del bucket, sin mutar entradas, grupo vacío rechazado.
 - [x] `normalizeCandles` convierte OHLC a números (acepta strings de API).
 - [x] `normalizeCandles` ordena ascendente por tiempo (entrada descendente).
 - [x] `normalizeCandles` elimina duplicados manteniendo el último.
