@@ -15,8 +15,9 @@ Capas:
 
 ## #1 — Gráfico de velas + timeframe ✅ en progreso
 
-- [x] `isSupportedTimeframe` acepta `1m,5m,15m,1h,4h,1d` y rechaza desconocidos.
-- [x] `timeframeToMs` convierte cada timeframe; lanza ante timeframe no soportado.
+- [x] `Timeframe.from` parsea `1m,5m,15m,1h,4h,1d` e internea instancias; lanza `InvalidTimeframeError` ante desconocidos.
+- [x] `Timeframe.is` / `Timeframe.isCode` distinguen instancia de código crudo sin lanzar.
+- [x] `Timeframe` expone `ms` (duración) y serializa a código (`toString`/`toJSON`, round-trip JSON).
 - [x] `candleLimitForRange` calcula el limit del rango, sanea fechas invertidas y limita a `MAX_CANDLES`.
 - [x] `normalizeCandles` convierte OHLC a números (acepta strings de API).
 - [x] `normalizeCandles` ordena ascendente por tiempo (entrada descendente).
