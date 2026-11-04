@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeCandles } from '@/domain/candles/normalize'
-import type { Candle } from '@/domain/candles/types'
 
 describe('normalizeCandles', () => {
   it('convierte OHLC de la API (strings) a números', () => {
@@ -78,12 +77,5 @@ describe('normalizeCandles', () => {
 
   it('devuelve [] para array vacío', () => {
     expect(normalizeCandles([])).toEqual([])
-  })
-})
-
-describe('tipo Candle', () => {
-  it('una vela válida tiene todos los campos numéricos', () => {
-    const candle: Candle = { time: 1, open: 1, high: 2, low: 0.5, close: 1.5, volume: 10 }
-    expect(Object.keys(candle).sort()).toEqual(['close', 'high', 'low', 'open', 'time', 'volume'])
   })
 })

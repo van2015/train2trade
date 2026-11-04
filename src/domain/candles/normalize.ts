@@ -1,8 +1,12 @@
 import type { Candle } from './types'
 
 export class InvalidCandlesError extends Error {
-  constructor(message: string) {
-    super(message)
+  constructor(raw: unknown) {
+    super(
+      `Respuesta de velas inválida: se esperaba un array, se recibió ${
+        raw === null ? 'null' : typeof raw
+      }`,
+    )
     this.name = 'InvalidCandlesError'
   }
 }
@@ -25,9 +29,7 @@ function toFiniteNumber(value: unknown): number | null {
  */
 export function normalizeCandles(raw: unknown): Candle[] {
   if (!Array.isArray(raw)) {
-    throw new InvalidCandlesError(
-      `Respuesta de velas inválida: se esperaba un array, se recibió ${typeof raw}`,
-    )
+    throw new InvalidCandlesError(raw)
   }
 
   const byTime = new Map<number, Candle>()

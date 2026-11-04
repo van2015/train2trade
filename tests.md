@@ -24,7 +24,7 @@ Capas:
 - [x] `normalizeCandles` elimina duplicados manteniendo el último.
 - [x] `normalizeCandles` descarta velas inválidas (`high < low`, precios no finitos, campos ausentes).
 - [x] `normalizeCandles` lanza ante entrada que no es un array.
-- [x] `aggregateCandles` agrega 1m → timeframe mayor (open primero, close último, high máx, low mín, volumen suma).
+- [x] `aggregateCandles` agrega 1m → mayor timeframe (recibe `Timeframe`; open primero, close último, high máx, low mín, volumen suma) y rechaza valores que no son `Timeframe`.
 - [x] `aggregateCandles` con input desordenado agrega correctamente.
 - [x] `aggregateCandles` con array vacío → `[]`.
 - [ ] Estados de UI: loading / error de red / datos vacíos.

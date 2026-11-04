@@ -1,3 +1,4 @@
+import { InvalidTimeframeError, Timeframe } from './timeframe'
 import type { Candle } from './types'
 
 /**
@@ -8,35 +9,29 @@ import type { Candle } from './types'
  * - high/low: extremos del bucket
  * - volume: suma
  */
-export function aggregateCandles(candles: Candle[], timeframeMs: number): Candle[] {
-  if (!Number.isFinite(timeframeMs) || timeframeMs <= 0) {
-    throw new RangeError(`timeframeMs debe ser un número positivo, se recibió ${timeframeMs}`)
+export function aggregateCandles(candles: Candle[], timeframe: Timeframe): Candle[] {
+  if (!Timeframe.is(timeframe)) {
+    throw new InvalidTimeframeError(timeframe)
   }
   if (candles.length === 0) return []
 
   const sorted = [...candles].sort((a, b) => a.time - b.time)
-  const buckets = new Map<number, Candle[]>()
+  const buckets = new Map<number, Candle>()
 
   for (const candle of sorted) {
-    const bucketTime = Math.floor(candle.time / timeframeMs) * timeframeMs
-    const bucket = buckets.get(bucketTime)
-    if (bucket) {
-      bucket.push(candle)
+    const bucketTime = Math.floor(candle.time / timeframe.ms) * timeframe.ms
+    const aggregated = buckets.get(bucketTime)
+
+    if (aggregated === undefined) {
+      // Primera vela del bucket: open/high/low/volume ya son los suyos.
+      buckets.set(bucketTime, { ...candle, time: bucketTime })
     } else {
-      buckets.set(bucketTime, [candle])
+      aggregated.close = candle.close
+      aggregated.high = Math.max(aggregated.high, candle.high)
+      aggregated.low = Math.min(aggregated.low, candle.low)
+      aggregated.volume += candle.volume
     }
   }
 
-  return [...buckets.entries()].map(([bucketTime, group]) => {
-    const first = group[0]!
-    const last = group[group.length - 1]!
-    return {
-      time: bucketTime,
-      open: first.open,
-      close: last.close,
-      high: Math.max(...group.map((c) => c.high)),
-      low: Math.min(...group.map((c) => c.low)),
-      volume: group.reduce((sum, c) => sum + c.volume, 0),
-    }
-  })
+  return [...buckets.values()]
 }
