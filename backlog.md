@@ -1,6 +1,7 @@
 # Backlog — App de estrategias de trading
 
 ## Context
+
 App para que traders creen estrategias de trading de criptomonedas sin código y las evalúen con backtesting (win rate + métricas estándar) y paper trading en tiempo real.
 
 Stack: React + TypeScript con toda la lógica en el navegador, datos de precios desde una API pública de exchange, persistencia local (sin backend ni cuentas).
@@ -8,6 +9,7 @@ Stack: React + TypeScript con toda la lógica en el navegador, datos de precios 
 Expensive decisions: ninguna (sin multi-tenant, sin roles de permisos, sin offline/sync, sin multi-idioma ni multi-moneda).
 
 ## Backlog
+
 1. Como trader, quiero ver el gráfico de velas histórico de un par de criptomonedas con un timeframe seleccionable, para poder analizar el precio.
 2. Como trader, quiero crear una estrategia visualmente combinando indicadores con condiciones de entrada y salida, para definir mis reglas sin escribir código. Requiere: #1
 3. Como trader, quiero listar, reabrir, editar y eliminar mis estrategias guardadas en el navegador, para mantener mi trabajo actualizado. Requiere: #2
