@@ -21,6 +21,11 @@ Capas:
 - [x] `candleLimitForRange` calcula el limit del rango, sanea fechas invertidas y limita a `MAX_CANDLES`.
 - [x] `Candle` (value object): `from` parsea y valida invariantes (campos finitos, `high >= low`, idempotente); `toJSON` + `from` round-trip.
 - [x] Comportamiento de la vela: `isBullish`/`isBearish` (doji → ninguno), `bodySize`, `range`, `equals` por valor.
+- [x] `Candle.positionOf` clasifica un precio en 5 estados (Above/UpperWick/Body/LowerWick/Below); bordes: cuerpo cerrado (open/close → Body, high/low → mecha salvo que el cuerpo toque); doji, vela plana y vela bajista.
+- [x] `Candle.contains` es coherente con `positionOf` y con el rango `[low, high]` (bordes incluidos).
+- [x] `closePosition`/`openPosition` → `LevelPosition` (Above/At/Below); booleanos `closes*`/`opens*` mutuamente excluyentes (exactamente uno true).
+- [x] Precios no finitos (`NaN`, `±Infinity`, strings, null) → `InvalidPriceError` con mensaje que explica el valor recibido.
+- [x] Propiedades (fast-check): totalidad (5 estados), monotonía de `positionOf`, coherencia con `high`/`low`, `contains` ⟺ rango, exclusividad de los booleanos de nivel.
 - [x] `Candle.aggregate` fusiona un grupo: open primero, close último, extremos, volumen sumado, `time` al inicio del bucket, sin mutar entradas, grupo vacío rechazado.
 - [x] `normalizeCandles` convierte OHLC a números (acepta strings de API).
 - [x] `normalizeCandles` ordena ascendente por tiempo (entrada descendente).

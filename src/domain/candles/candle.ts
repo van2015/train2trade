@@ -1,3 +1,4 @@
+import { assertFinitePrice, LevelPosition, PricePosition } from './pricePosition'
 import { InvalidTimeframeError, Timeframe } from './timeframe'
 
 export interface CandleFields {
@@ -42,7 +43,8 @@ function toFiniteNumber(value: unknown): number | null {
  * - Invariantes garantizados por `Candle.from`: campos numéricos finitos y `high >= low`.
  * - Formato wire/persistencia: objeto plano (`toJSON`), revivido con `from()`.
  * - Comportamiento: dirección del cuerpo, tamaño del cuerpo, rango,
- *   y construcción de velas agregadas (`Candle.aggregate`).
+ *   construcción de velas agregadas (`Candle.aggregate`) y relación de
+ *   un precio con la vela (`positionOf`, `contains`, `closePosition`, ...).
  */
 export class Candle {
   /** Timestamp en milisegundos (UTC) */
@@ -156,6 +158,65 @@ export class Candle {
     return this.high - this.low
   }
 
+  /**
+   * Dónde cae `price` respecto a la vela. El cuerpo es cerrado: `open`/`close`
+   * son `Body`. Lanza `InvalidPriceError` si `price` no es un número finito.
+   */
+  positionOf(price: number): PricePosition {
+    assertFinitePrice(price)
+
+    const bodyTop = Math.max(this.open, this.close)
+    const bodyBottom = Math.min(this.open, this.close)
+
+    if (price > this.high) return PricePosition.Above
+    if (price < this.low) return PricePosition.Below
+    if (price < bodyBottom) return PricePosition.LowerWick
+    if (price <= bodyTop) return PricePosition.Body
+    return PricePosition.UpperWick
+  }
+
+  /** true si `price` cae dentro de [low, high] (bordes incluidos). */
+  contains(price: number): boolean {
+    const position = this.positionOf(price)
+    return (
+      position === PricePosition.Body ||
+      position === PricePosition.UpperWick ||
+      position === PricePosition.LowerWick
+    )
+  }
+
+  closePosition(price: number): LevelPosition {
+    return levelPositionOf(this.close, price)
+  }
+
+  openPosition(price: number): LevelPosition {
+    return levelPositionOf(this.open, price)
+  }
+
+  closesAbove(price: number): boolean {
+    return this.closePosition(price) === LevelPosition.Above
+  }
+
+  closesAt(price: number): boolean {
+    return this.closePosition(price) === LevelPosition.At
+  }
+
+  closesBelow(price: number): boolean {
+    return this.closePosition(price) === LevelPosition.Below
+  }
+
+  opensAbove(price: number): boolean {
+    return this.openPosition(price) === LevelPosition.Above
+  }
+
+  opensAt(price: number): boolean {
+    return this.openPosition(price) === LevelPosition.At
+  }
+
+  opensBelow(price: number): boolean {
+    return this.openPosition(price) === LevelPosition.Below
+  }
+
   equals(other: Candle): boolean {
     return (
       this === other ||
@@ -178,4 +239,11 @@ export class Candle {
       volume: this.volume,
     }
   }
+}
+
+function levelPositionOf(value: number, level: number): LevelPosition {
+  assertFinitePrice(level)
+  if (value > level) return LevelPosition.Above
+  if (value === level) return LevelPosition.At
+  return LevelPosition.Below
 }
