@@ -1,32 +1,49 @@
 # Estado del proyecto
 
-> Resumen de lo implementado y lo pendiente. Fuente de verdad de requisitos: [`AGENTS.md`](../AGENTS.md)
+> Resumen de implementado y lo pendiente. Fuente de verdad de requisitos: [`AGENTS.md`](../AGENTS.md)
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
 > Última actualización: 2026-11-08 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**251 tests**, 15 archivos).
+> (**338 tests**, 23 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
 App de estrategias de trading de criptomonedas: React + TypeScript, lógica en el navegador, datos de
-una API pública de exchange y persistencia local. Hoy existe el **dominio puro** (velas, instrumentos,
-indicadores, estrategias) y el **repositorio de velas**; todavía no hay UI, ni capa de API, ni
-ejecución simulada.
+una API pública de exchange (Binance) y persistencia local. Existe el **dominio puro** (velas,
+instrumentos, indicadores, estrategias), el **repositorio de velas**, la **capa de API** y la **UI de
+la Fase 1** (gráfica de velas con indicadores e importación). Todavía no hay ejecución simulada ni
+backtesting.
 
 ## Implementado
 
-### Fase 1 — Datos y gráficos (parcial: 4 de 5)
+### Fase 1 — Datos y gráficos (completa)
 
-| Módulo                                                               | Archivos                                       | Tests                  |
-| -------------------------------------------------------------------- | ---------------------------------------------- | ---------------------- |
-| Modelo de velas                                                      | `src/domain/candles/candle.ts`, `timeframe.ts` | 45 + 10                |
-| Agregación de velas                                                  | `src/domain/candles/aggregate.ts`              | 6                      |
-| Normalización de respuestas del exchange                             | `src/domain/candles/normalize.ts`              | 7                      |
-| Posición de precio en la vela                                        | `src/domain/candles/pricePosition.ts`          | (en `candle.test.ts`)  |
-| Importación de CSV (parser puro texto → `Candle[]`)                  | `src/domain/candles/csv.ts`                    | 18                     |
-| Modelo de instrumentos (`BTC/USDT`, internado, `exchangeSymbol`)     | `src/domain/instruments/instrument.ts`         | 21                     |
-| Almacenamiento y consultas (`CandleRepository`, `Storage` inyectado) | `src/storage/candleRepository.ts`              | 17                     |
-| **Gráficos de velas**                                                | —                                              | ⬜ **no implementado** |
+| Módulo                                                               | Archivos                                       | Tests                 |
+| -------------------------------------------------------------------- | ---------------------------------------------- | --------------------- |
+| Modelo de velas                                                      | `src/domain/candles/candle.ts`, `timeframe.ts` | 45 + 7                |
+| Agregación de velas                                                  | `src/domain/candles/aggregate.ts`              | 6                     |
+| Normalización de respuestas del exchange                             | `src/domain/candles/normalize.ts`              | 7                     |
+| Posición de precio en la vela                                        | `src/domain/candles/pricePosition.ts`          | (en `candle.test.ts`) |
+| Importación de CSV (parser puro texto → `Candle[]`)                  | `src/domain/candles/csv.ts`                    | 18                    |
+| Modelo de instrumentos (`BTC/USDT`, internado, `exchangeSymbol`)     | `src/domain/instruments/instrument.ts`         | 21                    |
+| Almacenamiento y consultas (`CandleRepository`, `Storage` inyectado) | `src/storage/candleRepository.ts`              | 17                    |
+| **Capa de API** (`MarketDataProvider`, `BinanceProvider`)            | `src/api/**`                                   | 15                    |
+| **Gráficos de velas + volumen + indicadores**                        | `src/components/CandleChart.tsx`               | 14                    |
+| **UI de la Fase 1** (App, controles, importación, panel indicadores) | `src/components/*.tsx`                         | 64                    |
+
+### Fase 1 — detalle de la UI
+
+| Componente           | Responsabilidad                                                                   |
+| -------------------- | --------------------------------------------------------------------------------- |
+| `App.tsx`            | Orquesta estado, repositorio y proveedor; no contiene lógica de dominio           |
+| `CandleChart.tsx`    | `lightweight-charts`: velas, volumen overlay, líneas de indicador, leyenda OHLCV  |
+| `DataControls.tsx`   | Instrumento (con sugerencias), timeframe, rango de fechas, botón de descarga      |
+| `CsvImportPanel.tsx` | Lectura de `File` → `CsvCandlesImporter` → entrega de velas validadas             |
+| `IndicatorPanel.tsx` | Activación y periodo de SMA/EMA/RSI (valida enteros ≥ 1)                          |
+| `chartData.ts`       | Mappers puros a datos de lightweight-charts + `buildLines` + ajustes de indicador |
+
+El arranque es `src/main.tsx` (fija `CandleRepository(localStorage)` y `BinanceProvider`), servido
+por `index.html` + `vite.config.ts`. Comandos: `pnpm dev`, `pnpm build`, `pnpm preview`.
 
 ### Fase 2 — Dominio de estrategias (completa)
 
@@ -53,13 +70,11 @@ posiciones reales/simuladas).
 
 ### Inmediato (siguiente paso natural)
 
-- **Gráficos de velas** (cierra Fase 1): decidir enfoque — `lightweight-charts` vs SVG propio;
-  componentes React, volumen, zoom/navegación.
-- **Capa `src/api/**`** ("historia #1" en `refactors-no-realizados.md`): cliente del exchange
-  (`MarketDataProvider`), que además dispara el refactor F (mover `MAX_CANDLES` y
-  `candleLimitForRange` de `timeframe.ts`).
-- **UI de importación CSV**: lectura de `File` → texto → `CsvCandlesImporter.parse` (el parser ya
-  existe; falta el componente y su test).
+- **Capa de datos más allá de Binance**: más proveedores, detección de huecos/duplicados a nivel de
+  serie y paginación de rangos que superen `MAX_CANDLES` (hoy un rango largo devuelve como máximo
+  1000 velas por petición, sin paginar).
+- **Indicadores restantes**: MACD, ATR, Bollinger, VWAP (el contrato `Indicator` ya los admite;
+  `buildLines` y `IndicatorPanel` solo hay que ampliarlos).
 
 ### Fase 3 — Ejecución simulada (AGENTS.md)
 
@@ -88,7 +103,6 @@ posiciones reales/simuladas).
 
 ### Transversales pendientes
 
-- **Application layer / UI**: no existe `src/components/` — la app aún no tiene pantalla.
 - **Persistencia de estrategias**: solo hay `CandleRepository`; falta guardar definiciones (con su
   versión) y resultados.
 - **Eventos y observabilidad (§12D)**: los eventos se devuelven en las transiciones pero no hay
@@ -97,7 +111,9 @@ posiciones reales/simuladas).
 - **Versionado automático**: hoy `version` es manual en `StrategyDefinition`; un fingerprint
   reproducible queda para `Experiment` (Fase 6).
 - **Market Data completo (§2)**: detección de huecos/duplicados a nivel de serie, agregación desde
-  menor granularidad (la fusión existe), importación de más formatos.
+  menor granularidad (la fusión existe), importación de más formatos, paginación de rangos largos.
+- **Serie temporal de la UI**: no hay paginación ni "cargar más"; el gráfico muestra hasta
+  `MAX_CANDLES` velas por pareja (instrumento, timeframe).
 
 ## Convención de trabajo
 

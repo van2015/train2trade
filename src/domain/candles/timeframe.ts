@@ -11,9 +11,6 @@ const TIMEFRAME_MS: Record<TimeframeCode, number> = {
   '1d': 86_400_000,
 }
 
-/** Máximo de velas que pediremos de una vez a la API. */
-export const MAX_CANDLES = 1000
-
 export class InvalidTimeframeError extends Error {
   constructor(value: unknown) {
     super(`Timeframe no soportado: ${formatValue(value)}. Usa uno de ${TIMEFRAME_CODES.join(', ')}`)
@@ -94,16 +91,4 @@ export class Timeframe {
   toJSON(): string {
     return this.code
   }
-}
-
-/**
- * Número de velas que cubre un rango de fechas para un timeframe,
- * limitado a MAX_CANDLES. Lanza si el rango es invertido.
- */
-export function candleLimitForRange(startMs: number, endMs: number, timeframe: Timeframe): number {
-  if (!(startMs < endMs)) {
-    throw new RangeError('Rango de fechas inválido: start debe ser estrictamente menor que end')
-  }
-  const limit = Math.floor((endMs - startMs) / timeframe.ms) + 1
-  return Math.min(limit, MAX_CANDLES)
 }

@@ -4,10 +4,10 @@ Registro de refactorizaciones identificadas durante la revisión del dominio (`s
 
 ## Refactors pendientes
 
-| #     | Refactor                                                                                                                       | Por qué no ahora                                                                                           | Disparador para hacerlo                                                       |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| ~~E~~ | ~~Extraer la extracción de campos en `normalizeCandles`~~                                                                      | **Resuelto** por `Candle.from` (ver abajo)                                                                 | —                                                                             |
-| F     | Mover `MAX_CANDLES` y `candleLimitForRange` de `timeframe.ts` a una capa de fetch (`src/api/` o `src/domain/candles/fetch.ts`) | Son asunto de _solicitud de velas_, no del timeframe, pero todavía no existe la capa de API donde vivirían | Cuando se implemente la historia #1 (capa `src/api/**` que llama al exchange) |
+| #     | Refactor                                                                              | Por qué no ahora                                                                                          | Disparador para hacerlo |
+| ----- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------- |
+| ~~E~~ | ~~Extraer la extracción de campos en `normalizeCandles`~~                             | **Resuelto** por `Candle.from` (ver abajo)                                                                | —                       |
+| ~~F~~ | ~~Mover `MAX_CANDLES` y `candleLimitForRange` de `timeframe.ts` a una capa de fetch~~ | **Resuelto** el 2026-11-08: viven en `src/api/candleRequest.ts`, con sus tests en `test/api/` (ver abajo) | —                       |
 
 ## Contexto de la revisión
 
@@ -19,6 +19,7 @@ Refactors de esa ronda que **sí** se realizaron (ver commits `6c8cbfb` y `1f04b
 - `InvalidCandlesError` formatea su mensaje desde el valor crudo, consistente con `InvalidTimeframeError`.
 - Test tautológico de `Object.keys` eliminado de `normalize.test.ts`.
 - **E (resuelto):** `Candle` es ahora un value object (`src/domain/candles/candle.ts`) y `Candle.from` absorbe el parseo y la validación de los 6 campos; `normalizeCandles` solo deduplica y ordena.
+- **F (resuelto):** `MAX_CANDLES` y `candleLimitForRange` se movieron de `src/domain/candles/timeframe.ts` a `src/api/candleRequest.ts` al implementar la capa `src/api/**` (Binance). Sus tests viajaron de `test/domain/candles/timeframe.test.ts` a `test/api/candleRequest.test.ts`.
 
 ## Regla
 
