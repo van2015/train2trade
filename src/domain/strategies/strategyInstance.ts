@@ -67,69 +67,14 @@ export class StrategyInstance {
   }
 
   /**
-   * Aplica una decisión de `evaluate`. `Hold`, `Add`, `Reduce` no cambian estado
-   * (Add/Reduce solo desde Opened/Closing). Una decisión no aplicable al estado
-   * es un bug de integración → `InvalidStrategyTransitionError`.
-   * Enter desde Confirmed y Exit desde Closing son refresh (sin cambio).
+   * Aplica una decisión de `evaluate` según la matriz de transiciones.
+   * Una acción no aplicable al estado es un bug de integración →
+   * `InvalidStrategyTransitionError`. Enter desde Confirmed y Exit desde
+   * Closing son refresh (sin cambio); Hold/Add/Reduce nunca mueven el ciclo.
    */
   apply(decision: StrategyDecision): StrategyTransition {
     const from = this.current
-    // Inicializado en `from` (Hold por defecto); cada acción lo sobrescribe o lanza.
-    let to: StrategyState = from
-
-    switch (decision.action) {
-      case StrategyAction.Hold:
-        to = from
-        break
-      case StrategyAction.Enter:
-        if (from === StrategyState.Confirmed) {
-          // Refresh de la orden pendiente (chase): el ciclo no cambia.
-          to = from
-          break
-        }
-        if (from !== StrategyState.Closed) {
-          throw new InvalidStrategyTransitionError(
-            `Enter no es aplicable desde "${from}"`,
-            decision.action,
-          )
-        }
-        to = StrategyState.Confirmed
-        break
-      case StrategyAction.Cancel:
-        if (from !== StrategyState.Confirmed) {
-          throw new InvalidStrategyTransitionError(
-            `Cancel no es aplicable desde "${from}"`,
-            decision.action,
-          )
-        }
-        to = StrategyState.Closed
-        break
-      case StrategyAction.Exit:
-        if (from === StrategyState.Closing) {
-          // Refresh de la orden de salida pendiente: el ciclo no cambia.
-          to = from
-          break
-        }
-        if (from !== StrategyState.Opened) {
-          throw new InvalidStrategyTransitionError(
-            `Exit no es aplicable desde "${from}"`,
-            decision.action,
-          )
-        }
-        to = StrategyState.Closing
-        break
-      case StrategyAction.Add:
-      case StrategyAction.Reduce:
-        if (from !== StrategyState.Opened && from !== StrategyState.Closing) {
-          throw new InvalidStrategyTransitionError(
-            `${decision.action} no es aplicable desde "${from}"`,
-            decision.action,
-          )
-        }
-        to = from
-        break
-    }
-
+    const to = nextState(decision.action, from)
     this.current = to
     return { from, to, changed: from !== to, event: eventFor(decision.action, from, to) }
   }
@@ -165,14 +110,62 @@ export class StrategyInstance {
   }
 }
 
+/**
+ * Matriz de transiciones: estado → acción → estado destino.
+ *
+ * - Celda ausente = combinación no aplicable (bug de integración).
+ * - Self-loop = refresh de la orden pendiente (Enter desde Confirmed, Exit
+ *   desde Closing) o acción que no mueve el ciclo (Hold/Add/Reduce).
+ * - Especificación completa del ciclo `Closed → Confirmed → Opened → Closing → Closed`.
+ */
+const TRANSITIONS: Record<StrategyState, Partial<Record<StrategyAction, StrategyState>>> = {
+  [StrategyState.Closed]: {
+    [StrategyAction.Hold]: StrategyState.Closed,
+    [StrategyAction.Enter]: StrategyState.Confirmed,
+  },
+  [StrategyState.Confirmed]: {
+    [StrategyAction.Hold]: StrategyState.Confirmed,
+    // Refresh de la orden pendiente (chase): el ciclo no cambia.
+    [StrategyAction.Enter]: StrategyState.Confirmed,
+    [StrategyAction.Cancel]: StrategyState.Closed,
+  },
+  [StrategyState.Opened]: {
+    [StrategyAction.Hold]: StrategyState.Opened,
+    [StrategyAction.Add]: StrategyState.Opened,
+    [StrategyAction.Reduce]: StrategyState.Opened,
+    [StrategyAction.Exit]: StrategyState.Closing,
+  },
+  [StrategyState.Closing]: {
+    [StrategyAction.Hold]: StrategyState.Closing,
+    [StrategyAction.Add]: StrategyState.Closing,
+    [StrategyAction.Reduce]: StrategyState.Closing,
+    // Refresh de la orden de salida pendiente: el ciclo no cambia.
+    [StrategyAction.Exit]: StrategyState.Closing,
+  },
+}
+
+/** Transición pura según la matriz. Celda ausente → `InvalidStrategyTransitionError`. */
+function nextState(action: StrategyAction, from: StrategyState): StrategyState {
+  const to = TRANSITIONS[from][action]
+  if (to === undefined) {
+    throw new InvalidStrategyTransitionError(`${action} no es aplicable desde "${from}"`, action)
+  }
+  return to
+}
+
+/** Evento (§12D) que genera cada acción que mueve el ciclo. */
+const EVENTS: Partial<Record<StrategyAction, StrategyEvent>> = {
+  [StrategyAction.Enter]: 'StrategyConfirmed',
+  [StrategyAction.Cancel]: 'EntryCancelled',
+  [StrategyAction.Exit]: 'ExitRequested',
+}
+
+/** Evento generado por la transición; `null` si el ciclo no se movió. */
 function eventFor(
   action: StrategyAction,
   from: StrategyState,
   to: StrategyState,
 ): StrategyEvent | null {
   if (from === to) return null
-  if (action === StrategyAction.Enter && to === StrategyState.Confirmed) return 'StrategyConfirmed'
-  if (action === StrategyAction.Cancel && to === StrategyState.Closed) return 'EntryCancelled'
-  if (action === StrategyAction.Exit && to === StrategyState.Closing) return 'ExitRequested'
-  return null
+  return EVENTS[action] ?? null
 }
