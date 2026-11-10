@@ -309,26 +309,13 @@ describe('Strategy.evaluate (invalidación)', () => {
   const vetoOn = rule(vetoName, true)
   const vetoOff = rule(vetoName, false)
 
-  it('veto sin posición y sin pendiente → None con reason del veto, sin evaluar las señales', () => {
+  it('veto sin posición → Invalidate con reason del veto, sin evaluar las señales', () => {
     const strategy = strategyWith([new Signal(StrategyAction.Enter, rule('e', true))], {
       invalidationRule: vetoOn,
     })
 
     expect(strategy.evaluate(context, false)).toEqual({
-      action: StrategyAction.None,
-      fraction: null,
-      price: null,
-      reason: vetoName,
-    })
-  })
-
-  it('veto con entrada pendiente → Cancel con reason del veto', () => {
-    const strategy = strategyWith([new Signal(StrategyAction.Enter, rule('e', true))], {
-      invalidationRule: vetoOn,
-    })
-
-    expect(strategy.evaluate(context, false, true)).toEqual({
-      action: StrategyAction.Cancel,
+      action: StrategyAction.Invalidate,
       fraction: null,
       price: null,
       reason: vetoName,
@@ -351,14 +338,14 @@ describe('Strategy.evaluate (invalidación)', () => {
     expect(exitWins.evaluate(context, true).action).toBe(StrategyAction.Exit)
   })
 
-  it('veto con posición → Add bloqueado: None con reason del veto', () => {
+  it('veto con posición → Add bloqueado: Invalidate con reason del veto', () => {
     const strategy = strategyWith(
       [new Signal(StrategyAction.Add, rule('d', true), { fraction: 0.5 })],
       { invalidationRule: vetoOn },
     )
 
     expect(strategy.evaluate(context, true)).toEqual({
-      action: StrategyAction.None,
+      action: StrategyAction.Invalidate,
       fraction: null,
       price: null,
       reason: vetoName,
@@ -384,10 +371,10 @@ describe('Strategy.evaluate (invalidación)', () => {
     )
   })
 
-  it('entryPending sin veto → la entrada sigue emitiéndose normalmente', () => {
+  it('sin invalidationRule → las señales se evalúan con normalidad', () => {
     const strategy = strategyWith([new Signal(StrategyAction.Enter, rule('e', true))])
 
-    expect(strategy.evaluate(context, false, true).action).toBe(StrategyAction.Enter)
+    expect(strategy.evaluate(context, false).action).toBe(StrategyAction.Enter)
   })
 
   it('invalidationRule: null si no se declara, identidad si se declara', () => {

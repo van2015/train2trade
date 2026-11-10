@@ -4,7 +4,7 @@ import { Strategy, StrategyAction, StrategyDecision } from './strategy'
 export enum StrategyState {
   /** Plano: sin posición ni orden en vuelo; esperando la señal de entrada. */
   WaitingForSignal = 'waiting_for_signal',
-  /** Orden de entrada emitida, pendiente de relleno (⇔ entryPending en evaluate). */
+  /** Orden de entrada emitida, pendiente de relleno. */
   WaitingForEntryFill = 'waiting_for_entry_fill',
   /** Posición abierta (⇔ open en evaluate); esperando la señal de salida. */
   WaitingForExitSignal = 'waiting_for_exit_signal',
@@ -15,7 +15,7 @@ export enum StrategyState {
 /** Eventos de dominio (§12D) generados por las transiciones, para observabilidad. */
 export type StrategyEvent =
   | 'StrategyConfirmed' // WaitingForSignal → WaitingForEntryFill  (señal de entrada emitida)
-  | 'EntryCancelled' // WaitingForEntryFill → WaitingForSignal  (veto Cancel)
+  | 'EntryCancelled' // WaitingForEntryFill → WaitingForSignal  (veto Invalidate)
   | 'PositionOpened' // WaitingForEntryFill → WaitingForExitSignal  (entrada rellenada)
   | 'ExitRequested' // WaitingForExitSignal → WaitingForExitFill  (señal de salida emitida)
   | 'PositionClosed' // WaitingForExitFill → WaitingForSignal  (salida rellenada)
@@ -40,9 +40,9 @@ export class InvalidStrategyTransitionError extends DomainError {
 /**
  * Instancia en ejecución de una estrategia: ciclo de vida `WaitingForSignal →
  * WaitingForEntryFill → WaitingForExitSignal → WaitingForExitFill →
- * WaitingForSignal`. La definición no tiene estado; aquí viven `open`
- * y `entryPending`, y las transiciones vienen de las decisiones de `evaluate`
- * (`apply`) y de los rellenos de la ejecución (`onFill`, Fase 3).
+ * WaitingForSignal`. La definición no tiene estado; aquí vive el ciclo (posición
+ * abierta y órdenes pendientes), y las transiciones vienen de las decisiones de
+ * `evaluate` (`apply`) y de los rellenos de la ejecución (`onFill`, Fase 3).
  */
 export class StrategyInstance {
   readonly strategy: Strategy
@@ -65,7 +65,7 @@ export class StrategyInstance {
     )
   }
 
-  /** true ⇔ state es WaitingForEntryFill (lo que evaluate espera como `entryPending`). */
+  /** true ⇔ state es WaitingForEntryFill: hay una orden de entrada pendiente de relleno. */
   get entryPending(): boolean {
     return this.current === StrategyState.WaitingForEntryFill
   }
@@ -121,8 +121,8 @@ export class StrategyInstance {
  *
  * - Celda ausente = combinación no aplicable (bug de integración).
  * - Self-loop = refresh de la orden pendiente (Enter desde WaitingForEntryFill,
- *   Exit desde WaitingForExitFill) o acción que no mueve el ciclo
- *   (None/Add/Reduce).
+ *   Exit desde WaitingForExitFill), acción que no mueve el ciclo
+ *   (None/Add/Reduce) o `Invalidate` sin orden de entrada pendiente.
  * - Especificación completa del ciclo `WaitingForSignal → WaitingForEntryFill →
  *   WaitingForExitSignal → WaitingForExitFill → WaitingForSignal`.
  */
@@ -130,18 +130,23 @@ const TRANSITIONS: Record<StrategyState, Partial<Record<StrategyAction, Strategy
   [StrategyState.WaitingForSignal]: {
     [StrategyAction.None]: StrategyState.WaitingForSignal,
     [StrategyAction.Enter]: StrategyState.WaitingForEntryFill,
+    // Invalidar sin orden pendiente: no-op.
+    [StrategyAction.Invalidate]: StrategyState.WaitingForSignal,
   },
   [StrategyState.WaitingForEntryFill]: {
     [StrategyAction.None]: StrategyState.WaitingForEntryFill,
     // Refresh de la orden pendiente (chase): el ciclo no cambia.
     [StrategyAction.Enter]: StrategyState.WaitingForEntryFill,
-    [StrategyAction.Cancel]: StrategyState.WaitingForSignal,
+    // El veto retira la orden de entrada pendiente.
+    [StrategyAction.Invalidate]: StrategyState.WaitingForSignal,
   },
   [StrategyState.WaitingForExitSignal]: {
     [StrategyAction.None]: StrategyState.WaitingForExitSignal,
     [StrategyAction.Add]: StrategyState.WaitingForExitSignal,
     [StrategyAction.Reduce]: StrategyState.WaitingForExitSignal,
     [StrategyAction.Exit]: StrategyState.WaitingForExitFill,
+    // Invalidar bloquea Add (decisión) pero no cierra la posición.
+    [StrategyAction.Invalidate]: StrategyState.WaitingForExitSignal,
   },
   [StrategyState.WaitingForExitFill]: {
     [StrategyAction.None]: StrategyState.WaitingForExitFill,
@@ -149,6 +154,8 @@ const TRANSITIONS: Record<StrategyState, Partial<Record<StrategyAction, Strategy
     [StrategyAction.Reduce]: StrategyState.WaitingForExitFill,
     // Refresh de la orden de salida pendiente: el ciclo no cambia.
     [StrategyAction.Exit]: StrategyState.WaitingForExitFill,
+    // Invalidar nunca impide cerrar.
+    [StrategyAction.Invalidate]: StrategyState.WaitingForExitFill,
   },
 }
 
@@ -164,7 +171,7 @@ function nextState(action: StrategyAction, from: StrategyState): StrategyState {
 /** Evento (§12D) que genera cada acción que mueve el ciclo. */
 const EVENTS: Partial<Record<StrategyAction, StrategyEvent>> = {
   [StrategyAction.Enter]: 'StrategyConfirmed',
-  [StrategyAction.Cancel]: 'EntryCancelled',
+  [StrategyAction.Invalidate]: 'EntryCancelled',
   [StrategyAction.Exit]: 'ExitRequested',
 }
 

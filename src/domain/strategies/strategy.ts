@@ -15,12 +15,16 @@ export enum StrategyAction {
   Reduce = 'reduce',
   /** Cerrar toda la posición (solo con posición abierta). */
   Exit = 'exit',
-  /** Cancelar la orden de entrada (limit) pendiente de rellenar. */
-  Cancel = 'cancel',
+  /**
+   * Veto de la `invalidationRule` (resultado de evaluate, nunca acción de una
+   * señal): retira la orden de entrada pendiente si la hay; sin posición no
+   * entra; con posición bloquea `Add` pero nunca impide `Reduce`/`Exit`.
+   */
+  Invalidate = 'invalidate',
 }
 
-/** Señales: ni resultados (`None`) ni el veto (`Cancel`), ambos excluidos a nivel de tipos. */
-export type SignalAction = Exclude<StrategyAction, StrategyAction.None | StrategyAction.Cancel>
+/** Señales: ni resultados (`None`) ni el veto (`Invalidate`), ambos excluidos a nivel de tipos. */
+export type SignalAction = Exclude<StrategyAction, StrategyAction.None | StrategyAction.Invalidate>
 
 export interface SignalConfig {
   /** Obligatoria en Add/Reduce (0 < f <= 1), prohibida en Enter/Exit. */
@@ -35,7 +39,7 @@ export interface StrategyDecision {
   fraction: number | null
   /** Precio objetivo resuelto en la vela actual; null → market. null en None. */
   price: number | null
-  /** name de la señal que disparó; null en None. */
+  /** name de la señal que disparó, o el de la regla de invalidación en `Invalidate`; null en `None`. */
   reason: string | null
 }
 
@@ -49,8 +53,10 @@ export interface StrategyDefinition {
   /** Señales en orden de prioridad: la primera aplicable que dispare gana. No vacío. */
   signals: readonly Signal[]
   /**
-   * Regla de invalidación opcional. Si dispara: con entrada pendiente → `Cancel`;
-   * sin posición → `None` (no entra); con posición → bloquea `Add` pero permite `Reduce`/`Exit`.
+   * Regla de invalidación opcional. Si dispara → `Invalidate`: la instancia
+   * retira la orden de entrada pendiente si la hay; sin posición no entra;
+   * con posición bloquea `Add` pero permite `Reduce`/`Exit` (invalidar nunca
+   * impide cerrar).
    */
   invalidationRule?: Rule
 }
@@ -157,30 +163,28 @@ export class Strategy {
   }
 
   /**
-   * Evaluación pura. `open` = posición abierta; `entryPending` = hay una orden
-   * de entrada (limit) pendiente de rellenar (implica `!open`, por defecto false).
+   * Evaluación pura. `open` = posición abierta (⇔ `WaitingForExitSignal` o
+   * `WaitingForExitFill` en la instancia); no conoce órdenes pendientes: qué
+   * significa invalidar en cada fase lo decide la instancia.
    *
-   * 1. `invalidationRule` dispara → con entrada pendiente `Cancel`; sin posición
-   *    `None` (no entra); con posición se bloquea `Add` pero `Reduce`/`Exit` se
-   *    evalúan igual (invalidar nunca impide cerrar). `reason` = nombre de la regla.
-   * 2. Sin veto: recorre `signals` en orden y devuelve la primera cuya acción sea
-   *    aplicable, cuya regla sea true y cuyo `limitPrice` (si existe) resuelva a número.
-   * 3. Si ninguna, `None` (con `reason` del veto si lo había, si no `null`).
+   * 1. `invalidationRule` dispara y no hay posición → `Invalidate` con
+   *    `reason` = nombre de la regla (también cubre la entrada pendiente, que
+   *    implica `!open`).
+   * 2. Con posición: recorre `signals` en orden y devuelve la primera cuya
+   *    acción sea aplicable (el veto bloquea `Add`, nunca `Reduce`/`Exit`),
+   *    cuya regla sea true y cuyo `limitPrice` (si existe) resuelva a número.
+   * 3. Si ninguna dispara: `Invalidate` si había veto, `None` si no.
    *
-   * `entryPending` sin veto no suprime `Enter`: interpretar la repetición como
-   * reemplazo de la orden es labor del execution model (Fase 3).
+   * Invalidar nunca impide cerrar: `Reduce`/`Exit` se evalúan igual con veto.
    */
-  evaluate(context: MarketContext, open: boolean, entryPending = false): StrategyDecision {
+  evaluate(context: MarketContext, open: boolean): StrategyDecision {
     const vetoReason =
       this.invalidationRule !== null && this.invalidationRule.evaluate(context)
         ? this.invalidationRule.name
         : null
 
-    if (vetoReason !== null && entryPending) {
-      return { action: StrategyAction.Cancel, fraction: null, price: null, reason: vetoReason }
-    }
     if (vetoReason !== null && !open) {
-      return { action: StrategyAction.None, fraction: null, price: null, reason: vetoReason }
+      return { action: StrategyAction.Invalidate, fraction: null, price: null, reason: vetoReason }
     }
 
     const vetoed = vetoReason !== null
@@ -204,7 +208,10 @@ export class Strategy {
       }
     }
 
-    return { action: StrategyAction.None, fraction: null, price: null, reason: vetoReason }
+    if (vetoReason !== null) {
+      return { action: StrategyAction.Invalidate, fraction: null, price: null, reason: vetoReason }
+    }
+    return { action: StrategyAction.None, fraction: null, price: null, reason: null }
   }
 
   /** `"name@version"` — identidad reproducible para registrar resultados. */

@@ -80,10 +80,10 @@ describe('StrategyInstance.apply', () => {
     })
   })
 
-  it('Cancel desde WaitingForEntryFill → WaitingForSignal con evento EntryCancelled', () => {
+  it('Invalidate desde WaitingForEntryFill → WaitingForSignal con evento EntryCancelled', () => {
     const instance = new StrategyInstance(strategy, StrategyState.WaitingForEntryFill)
 
-    expect(instance.apply(decision(StrategyAction.Cancel))).toEqual({
+    expect(instance.apply(decision(StrategyAction.Invalidate))).toEqual({
       from: StrategyState.WaitingForEntryFill,
       to: StrategyState.WaitingForSignal,
       changed: true,
@@ -124,6 +124,21 @@ describe('StrategyInstance.apply', () => {
     const instance = new StrategyInstance(strategy, state)
 
     expect(instance.apply(decision(StrategyAction.None))).toEqual({
+      from: state,
+      to: state,
+      changed: false,
+      event: null,
+    })
+  })
+
+  it.each([
+    StrategyState.WaitingForSignal,
+    StrategyState.WaitingForExitSignal,
+    StrategyState.WaitingForExitFill,
+  ])('Invalidate en %s (sin orden de entrada pendiente) → sin cambio ni evento', (state) => {
+    const instance = new StrategyInstance(strategy, state)
+
+    expect(instance.apply(decision(StrategyAction.Invalidate))).toEqual({
       from: state,
       to: state,
       changed: false,
@@ -186,8 +201,6 @@ describe('StrategyInstance (decisiones imposibles)', () => {
   it.each([
     [StrategyState.WaitingForExitSignal, StrategyAction.Enter],
     [StrategyState.WaitingForExitFill, StrategyAction.Enter],
-    [StrategyState.WaitingForSignal, StrategyAction.Cancel],
-    [StrategyState.WaitingForExitSignal, StrategyAction.Cancel],
     [StrategyState.WaitingForSignal, StrategyAction.Exit],
     [StrategyState.WaitingForEntryFill, StrategyAction.Exit],
     [StrategyState.WaitingForSignal, StrategyAction.Add],
@@ -214,7 +227,7 @@ describe('StrategyInstance (integración con evaluate)', () => {
     const instance = new StrategyInstance(strategy)
 
     // WaitingForSignal → evaluate sin posición emite Enter
-    const enter = strategy.evaluate(context, instance.open, instance.entryPending)
+    const enter = strategy.evaluate(context, instance.open)
     expect(enter.action).toBe(StrategyAction.Enter)
     instance.apply(enter)
     expect(instance.state).toBe(StrategyState.WaitingForEntryFill)
@@ -224,7 +237,7 @@ describe('StrategyInstance (integración con evaluate)', () => {
     expect(instance.state).toBe(StrategyState.WaitingForExitSignal)
 
     // WaitingForExitSignal → evaluate con posición emite Exit
-    const exit = strategy.evaluate(context, instance.open, instance.entryPending)
+    const exit = strategy.evaluate(context, instance.open)
     expect(exit.action).toBe(StrategyAction.Exit)
     instance.apply(exit)
     expect(instance.state).toBe(StrategyState.WaitingForExitFill)
@@ -234,7 +247,7 @@ describe('StrategyInstance (integración con evaluate)', () => {
     expect(instance.state).toBe(StrategyState.WaitingForSignal)
   })
 
-  it('veto con entrada pendiente: evaluate emite Cancel y apply vuelve a WaitingForSignal', () => {
+  it('veto con entrada pendiente: evaluate emite Invalidate y apply retira la orden', () => {
     const vetoStrategy = new Strategy({
       name: 'vetoed',
       signals: [new Signal(StrategyAction.Enter, rule('go', true))],
@@ -242,12 +255,18 @@ describe('StrategyInstance (integración con evaluate)', () => {
     })
     const instance = new StrategyInstance(vetoStrategy, StrategyState.WaitingForEntryFill)
 
-    const vetoDecision = vetoStrategy.evaluate(context, instance.open, instance.entryPending)
-    expect(vetoDecision.action).toBe(StrategyAction.Cancel)
+    const vetoDecision = vetoStrategy.evaluate(context, instance.open)
+    expect(vetoDecision.action).toBe(StrategyAction.Invalidate)
 
     instance.apply(vetoDecision)
     expect(instance.state).toBe(StrategyState.WaitingForSignal)
-    // Cancel ya no es aplicable fuera de WaitingForEntryFill
-    expect(() => instance.apply(vetoDecision)).toThrow(InvalidStrategyTransitionError)
+
+    // Invalidar otra vez sin orden de entrada pendiente → no-op, no lanza.
+    expect(instance.apply(vetoDecision)).toEqual({
+      from: StrategyState.WaitingForSignal,
+      to: StrategyState.WaitingForSignal,
+      changed: false,
+      event: null,
+    })
   })
 })
