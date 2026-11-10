@@ -1,3 +1,4 @@
+import { DomainError, invalidMessage } from '@/domain/errors'
 import { Candle } from '@/domain/candles/candle'
 import { IndicatorValue } from '@/domain/indicators/indicator'
 
@@ -8,18 +9,9 @@ export interface MarketContextData {
   indicators?: Readonly<Record<string, readonly IndicatorValue[]>>
 }
 
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'un array'
-  if (typeof value === 'object') return 'un objeto'
-  return String(value)
-}
-
-export class MarketContextError extends Error {
+export class MarketContextError extends DomainError {
   constructor(reason: string, raw?: unknown) {
-    super(`Contexto de mercado inválido: ${reason} (recibido: ${formatValue(raw)})`)
-    this.name = 'MarketContextError'
+    super('MarketContextError', invalidMessage('Contexto de mercado inválido', reason, raw))
   }
 }
 

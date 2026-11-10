@@ -1,3 +1,4 @@
+import { DomainError, invalidMessage } from '@/domain/errors'
 import { assertFinitePrice, LevelPosition, PricePosition } from './pricePosition'
 import { InvalidTimeframeError, Timeframe } from './timeframe'
 
@@ -11,19 +12,10 @@ export interface CandleFields {
   volume: number
 }
 
-export class InvalidCandlesError extends Error {
+export class InvalidCandlesError extends DomainError {
   constructor(reason: string, raw: unknown) {
-    super(`Velas inválidas: ${reason} (recibido: ${formatValue(raw)})`)
-    this.name = 'InvalidCandlesError'
+    super('InvalidCandlesError', invalidMessage('Velas inválidas', reason, raw))
   }
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'un array'
-  if (typeof value === 'object') return 'un objeto'
-  return String(value)
 }
 
 function toFiniteNumber(value: unknown): number | null {

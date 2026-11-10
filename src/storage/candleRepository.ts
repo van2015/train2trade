@@ -1,3 +1,4 @@
+import { DomainError } from '@/domain/errors'
 import { Candle } from '@/domain/candles/candle'
 import { normalizeCandles } from '@/domain/candles/normalize'
 import { Timeframe } from '@/domain/candles/timeframe'
@@ -12,10 +13,13 @@ export interface CandleRange {
   to?: number
 }
 
-export class CorruptedStorageError extends Error {
+export class CorruptedStorageError extends DomainError {
   constructor(reason: string, key: string, cause?: unknown) {
-    super(`Datos corruptos en "${key}": ${reason}`, cause !== undefined ? { cause } : undefined)
-    this.name = 'CorruptedStorageError'
+    super(
+      'CorruptedStorageError',
+      `Datos corruptos en "${key}": ${reason}`,
+      cause !== undefined ? { cause } : undefined,
+    )
   }
 }
 

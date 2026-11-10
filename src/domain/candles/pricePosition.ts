@@ -1,3 +1,5 @@
+import { DomainError, invalidMessage } from '@/domain/errors'
+
 /**
  * Dónde cae un precio respecto a la vela (rango exterior `[low, high]` y cuerpo).
  * El cuerpo es cerrado: `high` solo es `UpperWick` si el cuerpo no lo toca.
@@ -26,19 +28,10 @@ export enum LevelPosition {
   Below = 'below',
 }
 
-export class InvalidPriceError extends Error {
+export class InvalidPriceError extends DomainError {
   constructor(reason: string, raw: unknown) {
-    super(`Precio inválido: ${reason} (recibido: ${formatValue(raw)})`)
-    this.name = 'InvalidPriceError'
+    super('InvalidPriceError', invalidMessage('Precio inválido', reason, raw))
   }
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'un array'
-  if (typeof value === 'object') return 'un objeto'
-  return String(value)
 }
 
 /**

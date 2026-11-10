@@ -1,3 +1,4 @@
+import { DomainError, invalidMessage } from '@/domain/errors'
 import { Candle } from '@/domain/candles/candle'
 import { Indicator, IndicatorValue } from '@/domain/indicators/indicator'
 import { MarketContext } from '@/domain/strategies/marketContext'
@@ -54,18 +55,12 @@ export interface StrategyDefinition {
   invalidationRule?: Rule
 }
 
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'un array'
-  if (typeof value === 'object') return 'un objeto'
-  return String(value)
-}
-
-export class InvalidStrategyDefinitionError extends Error {
+export class InvalidStrategyDefinitionError extends DomainError {
   constructor(reason: string, raw?: unknown) {
-    super(`Definición de estrategia inválida: ${reason} (recibido: ${formatValue(raw)})`)
-    this.name = 'InvalidStrategyDefinitionError'
+    super(
+      'InvalidStrategyDefinitionError',
+      invalidMessage('Definición de estrategia inválida', reason, raw),
+    )
   }
 }
 

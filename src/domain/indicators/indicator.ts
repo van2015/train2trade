@@ -1,3 +1,4 @@
+import { DomainError, invalidMessage } from '@/domain/errors'
 import { Candle } from '@/domain/candles/candle'
 
 export interface IndicatorValue {
@@ -22,18 +23,13 @@ export interface Indicator {
   calculate(candles: readonly Candle[]): IndicatorValue[]
 }
 
-export class InvalidPeriodError extends Error {
+export class InvalidPeriodError extends DomainError {
   constructor(period: unknown) {
-    super(`Periodo inválido: se esperaba un entero >= 1 (recibido: ${formatValue(period)})`)
-    this.name = 'InvalidPeriodError'
+    super(
+      'InvalidPeriodError',
+      invalidMessage('Periodo inválido', 'se esperaba un entero >= 1', period),
+    )
   }
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  if (Number.isNaN(value)) return 'NaN'
-  return String(value)
 }
 
 /** Valida que `period` sea un entero >= 1. Lanza `InvalidPeriodError`; devuelve el valor. */

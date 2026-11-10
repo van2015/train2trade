@@ -1,3 +1,4 @@
+import { DomainError, formatValue } from '@/domain/errors'
 import { Candle, CandleFields, InvalidCandlesError } from './candle'
 import { normalizeCandles } from './normalize'
 
@@ -34,20 +35,11 @@ const CANONICAL_LAYOUT: RowLayout = { time: 0, open: 1, high: 2, low: 3, close: 
 
 type RowContext = { line?: number; raw?: unknown }
 
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'un array'
-  if (typeof value === 'object') return 'un objeto'
-  return String(value)
-}
-
-export class InvalidCsvError extends Error {
+export class InvalidCsvError extends DomainError {
   constructor(reason: string, context?: RowContext) {
     const location = context?.line !== undefined ? ` (línea ${context.line})` : ''
     const received = context && 'raw' in context ? ` (recibido: ${formatValue(context.raw)})` : ''
-    super(`CSV inválido: ${reason}${location}${received}`)
-    this.name = 'InvalidCsvError'
+    super('InvalidCsvError', `CSV inválido: ${reason}${location}${received}`)
   }
 }
 

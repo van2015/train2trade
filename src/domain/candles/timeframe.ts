@@ -1,3 +1,5 @@
+import { DomainError, formatValue } from '@/domain/errors'
+
 const TIMEFRAME_CODES = ['1m', '5m', '15m', '1h', '4h', '1d'] as const
 
 export type TimeframeCode = (typeof TIMEFRAME_CODES)[number]
@@ -11,17 +13,13 @@ const TIMEFRAME_MS: Record<TimeframeCode, number> = {
   '1d': 86_400_000,
 }
 
-export class InvalidTimeframeError extends Error {
+export class InvalidTimeframeError extends DomainError {
   constructor(value: unknown) {
-    super(`Timeframe no soportado: ${formatValue(value)}. Usa uno de ${TIMEFRAME_CODES.join(', ')}`)
-    this.name = 'InvalidTimeframeError'
+    super(
+      'InvalidTimeframeError',
+      `Timeframe no soportado: ${formatValue(value)}. Usa uno de ${TIMEFRAME_CODES.join(', ')}`,
+    )
   }
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  return String(value)
 }
 
 /**

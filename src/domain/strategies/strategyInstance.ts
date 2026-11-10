@@ -1,3 +1,4 @@
+import { DomainError, invalidMessage } from '@/domain/errors'
 import { Strategy, StrategyAction, StrategyDecision } from './strategy'
 
 export enum StrategyState {
@@ -27,18 +28,12 @@ export interface StrategyTransition {
   event: StrategyEvent | null
 }
 
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'un array'
-  if (typeof value === 'object') return 'un objeto'
-  return String(value)
-}
-
-export class InvalidStrategyTransitionError extends Error {
+export class InvalidStrategyTransitionError extends DomainError {
   constructor(reason: string, raw?: unknown) {
-    super(`Transición de estrategia inválida: ${reason} (recibido: ${formatValue(raw)})`)
-    this.name = 'InvalidStrategyTransitionError'
+    super(
+      'InvalidStrategyTransitionError',
+      invalidMessage('Transición de estrategia inválida', reason, raw),
+    )
   }
 }
 

@@ -1,3 +1,4 @@
+import { DomainError, formatValue } from '@/domain/errors'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
@@ -9,19 +10,13 @@ export interface TimeRange {
 }
 
 /** Error de un proveedor de datos: red caída, HTTP de error o cuerpo inesperado. */
-export class MarketDataError extends Error {
+export class MarketDataError extends DomainError {
   constructor(reason: string, detail?: unknown) {
-    super(detail !== undefined ? `${reason} (recibido: ${formatValue(detail)})` : reason)
-    this.name = 'MarketDataError'
+    super(
+      'MarketDataError',
+      detail !== undefined ? `${reason} (recibido: ${formatValue(detail)})` : reason,
+    )
   }
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'un array'
-  if (typeof value === 'object') return 'un objeto'
-  return String(value)
 }
 
 /**

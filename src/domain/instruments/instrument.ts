@@ -1,18 +1,11 @@
+import { DomainError, invalidMessage } from '@/domain/errors'
+
 const SYMBOL_PATTERN = /^[A-Z0-9]+$/
 
-export class InvalidInstrumentError extends Error {
+export class InvalidInstrumentError extends DomainError {
   constructor(reason: string, raw: unknown) {
-    super(`Instrumento inválido: ${reason} (recibido: ${formatValue(raw)})`)
-    this.name = 'InvalidInstrumentError'
+    super('InvalidInstrumentError', invalidMessage('Instrumento inválido', reason, raw))
   }
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === 'string') return `"${value}"`
-  if (value === null) return 'null'
-  if (Array.isArray(value)) return 'un array'
-  if (typeof value === 'object') return 'un objeto'
-  return String(value)
 }
 
 /** Normaliza una parte (base o quote): trim + mayúsculas, solo `[A-Z0-9]`. Devuelve `null` si no es válida. */
