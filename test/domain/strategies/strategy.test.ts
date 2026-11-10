@@ -151,14 +151,14 @@ describe('Strategy.evaluate (aplicabilidad)', () => {
     })
   })
 
-  it('sin posición, señales de posición true → Hold', () => {
+  it('sin posición, señales de posición true → None', () => {
     const strategy = strategyWith([
       new Signal(StrategyAction.Exit, rule('e', true)),
       new Signal(StrategyAction.Reduce, rule('r', true), { fraction: 0.5 }),
       new Signal(StrategyAction.Add, rule('d', true), { fraction: 0.5 }),
     ])
 
-    expect(strategy.evaluate(context, false).action).toBe(StrategyAction.Hold)
+    expect(strategy.evaluate(context, false).action).toBe(StrategyAction.None)
   })
 
   it('con posición y Exit dispara → Exit con reason', () => {
@@ -172,10 +172,10 @@ describe('Strategy.evaluate (aplicabilidad)', () => {
     })
   })
 
-  it('con posición, solo Enter true → Hold', () => {
+  it('con posición, solo Enter true → None', () => {
     const strategy = strategyWith([new Signal(StrategyAction.Enter, rule('e', true))])
 
-    expect(strategy.evaluate(context, true).action).toBe(StrategyAction.Hold)
+    expect(strategy.evaluate(context, true).action).toBe(StrategyAction.None)
   })
 
   it('con posición y Reduce dispara → Reduce con su fraction', () => {
@@ -204,26 +204,26 @@ describe('Strategy.evaluate (aplicabilidad)', () => {
     })
   })
 
-  it('ninguna señal dispara → Hold con reason null', () => {
+  it('ninguna señal dispara → None con reason null', () => {
     const strategy = strategyWith([
       new Signal(StrategyAction.Enter, rule('a', false)),
       new Signal(StrategyAction.Exit, rule('b', false)),
     ])
 
     expect(strategy.evaluate(context, false)).toEqual({
-      action: StrategyAction.Hold,
+      action: StrategyAction.None,
       fraction: null,
       price: null,
       reason: null,
     })
-    expect(strategy.evaluate(context, true).action).toBe(StrategyAction.Hold)
+    expect(strategy.evaluate(context, true).action).toBe(StrategyAction.None)
   })
 
-  it('regla con dato faltante (calentamiento) → Hold', () => {
+  it('regla con dato faltante (calentamiento) → None', () => {
     const strategy = strategyWith([new Signal(StrategyAction.Enter, new Greater('rsi', 30))])
 
     expect(strategy.evaluate(contextWith({ rsi: [50, 50, 50, null] }), false).action).toBe(
-      StrategyAction.Hold,
+      StrategyAction.None,
     )
   })
 })
@@ -309,13 +309,13 @@ describe('Strategy.evaluate (invalidación)', () => {
   const vetoOn = rule(vetoName, true)
   const vetoOff = rule(vetoName, false)
 
-  it('veto sin posición y sin pendiente → Hold con reason del veto, sin evaluar las señales', () => {
+  it('veto sin posición y sin pendiente → None con reason del veto, sin evaluar las señales', () => {
     const strategy = strategyWith([new Signal(StrategyAction.Enter, rule('e', true))], {
       invalidationRule: vetoOn,
     })
 
     expect(strategy.evaluate(context, false)).toEqual({
-      action: StrategyAction.Hold,
+      action: StrategyAction.None,
       fraction: null,
       price: null,
       reason: vetoName,
@@ -351,14 +351,14 @@ describe('Strategy.evaluate (invalidación)', () => {
     expect(exitWins.evaluate(context, true).action).toBe(StrategyAction.Exit)
   })
 
-  it('veto con posición → Add bloqueado: Hold con reason del veto', () => {
+  it('veto con posición → Add bloqueado: None con reason del veto', () => {
     const strategy = strategyWith(
       [new Signal(StrategyAction.Add, rule('d', true), { fraction: 0.5 })],
       { invalidationRule: vetoOn },
     )
 
     expect(strategy.evaluate(context, true)).toEqual({
-      action: StrategyAction.Hold,
+      action: StrategyAction.None,
       fraction: null,
       price: null,
       reason: vetoName,

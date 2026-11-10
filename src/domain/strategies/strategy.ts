@@ -6,7 +6,7 @@ import { resolveRef, Rule, SeriesRef } from '@/domain/strategies/rules'
 
 export enum StrategyAction {
   /** Sin señal: no hacer nada (resultado de evaluate, nunca acción de una señal). */
-  Hold = 'hold',
+  None = 'none',
   /** Abrir posición nueva (solo aplicable sin posición abierta). */
   Enter = 'enter',
   /** Aumentar la posición existente (solo con posición abierta). */
@@ -19,8 +19,8 @@ export enum StrategyAction {
   Cancel = 'cancel',
 }
 
-/** Señales: ni resultados (`Hold`) ni el veto (`Cancel`), ambos excluidos a nivel de tipos. */
-export type SignalAction = Exclude<StrategyAction, StrategyAction.Hold | StrategyAction.Cancel>
+/** Señales: ni resultados (`None`) ni el veto (`Cancel`), ambos excluidos a nivel de tipos. */
+export type SignalAction = Exclude<StrategyAction, StrategyAction.None | StrategyAction.Cancel>
 
 export interface SignalConfig {
   /** Obligatoria en Add/Reduce (0 < f <= 1), prohibida en Enter/Exit. */
@@ -31,11 +31,11 @@ export interface SignalConfig {
 
 export interface StrategyDecision {
   action: StrategyAction
-  /** Fracción para Add/Reduce; null en Enter/Exit/Hold. */
+  /** Fracción para Add/Reduce; null en Enter/Exit/None. */
   fraction: number | null
-  /** Precio objetivo resuelto en la vela actual; null → market. null en Hold. */
+  /** Precio objetivo resuelto en la vela actual; null → market. null en None. */
   price: number | null
-  /** name de la señal que disparó; null en Hold. */
+  /** name de la señal que disparó; null en None. */
   reason: string | null
 }
 
@@ -50,7 +50,7 @@ export interface StrategyDefinition {
   signals: readonly Signal[]
   /**
    * Regla de invalidación opcional. Si dispara: con entrada pendiente → `Cancel`;
-   * sin posición → `Hold` (no entra); con posición → bloquea `Add` pero permite `Reduce`/`Exit`.
+   * sin posición → `None` (no entra); con posición → bloquea `Add` pero permite `Reduce`/`Exit`.
    */
   invalidationRule?: Rule
 }
@@ -161,11 +161,11 @@ export class Strategy {
    * de entrada (limit) pendiente de rellenar (implica `!open`, por defecto false).
    *
    * 1. `invalidationRule` dispara → con entrada pendiente `Cancel`; sin posición
-   *    `Hold` (no entra); con posición se bloquea `Add` pero `Reduce`/`Exit` se
+   *    `None` (no entra); con posición se bloquea `Add` pero `Reduce`/`Exit` se
    *    evalúan igual (invalidar nunca impide cerrar). `reason` = nombre de la regla.
    * 2. Sin veto: recorre `signals` en orden y devuelve la primera cuya acción sea
    *    aplicable, cuya regla sea true y cuyo `limitPrice` (si existe) resuelva a número.
-   * 3. Si ninguna, `Hold` (con `reason` del veto si lo había, si no `null`).
+   * 3. Si ninguna, `None` (con `reason` del veto si lo había, si no `null`).
    *
    * `entryPending` sin veto no suprime `Enter`: interpretar la repetición como
    * reemplazo de la orden es labor del execution model (Fase 3).
@@ -180,7 +180,7 @@ export class Strategy {
       return { action: StrategyAction.Cancel, fraction: null, price: null, reason: vetoReason }
     }
     if (vetoReason !== null && !open) {
-      return { action: StrategyAction.Hold, fraction: null, price: null, reason: vetoReason }
+      return { action: StrategyAction.None, fraction: null, price: null, reason: vetoReason }
     }
 
     const vetoed = vetoReason !== null
@@ -204,7 +204,7 @@ export class Strategy {
       }
     }
 
-    return { action: StrategyAction.Hold, fraction: null, price: null, reason: vetoReason }
+    return { action: StrategyAction.None, fraction: null, price: null, reason: vetoReason }
   }
 
   /** `"name@version"` — identidad reproducible para registrar resultados. */
