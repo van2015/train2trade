@@ -72,6 +72,7 @@ export class NextOpenExecutionModel implements ExecutionModel {
 
     return new Fill({
       orderId: order.id,
+      side: order.side,
       price,
       qty: order.qty,
       fee: (price * order.qty * this.feeBps) / BPS,

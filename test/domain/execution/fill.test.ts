@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { Fill, FillData, InvalidFillError } from '@/domain/execution/fill'
+import { OrderSide } from '@/domain/execution/order'
 
 const fillData = {
   orderId: 'o1',
+  side: OrderSide.Buy,
   price: 100,
   qty: 2,
   fee: 0.05,
@@ -13,6 +15,7 @@ describe('Fill — construcción', () => {
   it('conserva los datos de un relleno válido', () => {
     const fill = new Fill(fillData)
     expect(fill.orderId).toBe('o1')
+    expect(fill.side).toBe(OrderSide.Buy)
     expect(fill.price).toBe(100)
     expect(fill.qty).toBe(2)
     expect(fill.fee).toBe(0.05)
@@ -27,6 +30,7 @@ describe('Fill — construcción', () => {
   it.each([
     ['orderId vacío', { orderId: '' }],
     ['orderId no string', { orderId: 3 }],
+    ['side desconocido', { side: 'long' }],
     ['price cero', { price: 0 }],
     ['price negativo', { price: -1 }],
     ['price no finito', { price: Number.NaN }],

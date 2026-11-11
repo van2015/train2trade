@@ -1,8 +1,11 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
+import { OrderSide } from '@/domain/execution/order'
 
 export interface FillData {
   /** Orden que produjo el relleno. */
   orderId: string
+  /** Lado de la orden rellenada (`buy` abre/aumenta, `sell` reduce/cierra). */
+  side: OrderSide
   /** Precio efectivo de ejecución (con slippage y mejora de límite ya aplicados), finito > 0. */
   price: number
   /** Cantidad rellenada, finita > 0. */
@@ -26,16 +29,20 @@ export class InvalidFillError extends DomainError {
  */
 export class Fill {
   readonly orderId: string
+  readonly side: OrderSide
   readonly price: number
   readonly qty: number
   readonly fee: number
   readonly time: number
 
   constructor(data: FillData) {
-    const { orderId, price, qty, fee, time } = data
+    const { orderId, side, price, qty, fee, time } = data
 
     if (typeof orderId !== 'string' || orderId.trim() === '') {
       throw new InvalidFillError('el orderId no puede estar vacío', orderId)
+    }
+    if (!Object.values(OrderSide).includes(side)) {
+      throw new InvalidFillError('side debe ser "buy" o "sell"', side)
     }
     if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
       throw new InvalidFillError('price debe ser un número finito > 0', price)
@@ -51,6 +58,7 @@ export class Fill {
     }
 
     this.orderId = orderId
+    this.side = side
     this.price = price
     this.qty = qty
     this.fee = fee
