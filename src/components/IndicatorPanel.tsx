@@ -24,9 +24,8 @@ function clampPeriod(raw: string): number | null {
 }
 
 /**
- * Panel de activación y configuración de los indicadores del gráfico.
- * Los periodos se validan aquí (entero >= 1) para que `buildLines` nunca reciba
- * un valor que hiciera fallar al indicador del dominio.
+ * Activación y configuración de indicadores. Los periodos se validan aquí
+ * (entero >= 1) para que `buildLines` nunca reciba un valor inválido.
  */
 export function IndicatorPanel({ settings, onChange }: IndicatorPanelProps) {
   const update = (key: keyof IndicatorSettings, patch: Partial<IndicatorToggle>) => {

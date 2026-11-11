@@ -3,10 +3,7 @@ import { MarketContext } from '@/domain/strategies/marketContext'
 /** Referencia a una serie: alias de indicador registrado en el contexto o constante numérica. */
 export type SeriesRef = string | number
 
-/**
- * Regla de entrada/salida: evaluación pura sobre un `MarketContext`.
- * Las reglas no ejecutan órdenes (eso es Fase 3); solo responden "sí/no".
- */
+/** Regla de entrada/salida: evaluación pura; solo responde "sí/no", no ejecuta órdenes (Fase 3). */
 export interface Rule {
   /** Descripción estable para observabilidad/debug, p. ej. `"rsi > 30"`. */
   readonly name: string
@@ -14,7 +11,6 @@ export interface Rule {
   evaluate(context: MarketContext): boolean
 }
 
-/** Resuelve `ref` hace `back` velas: constante → el número; alias → `context.value(...)`. */
 export function resolveRef(context: MarketContext, ref: SeriesRef, back?: number): number | null {
   if (typeof ref === 'number') return ref
   return context.value(ref, back)
@@ -36,7 +32,6 @@ function crosses(
   return direction === 'above' ? prevA <= prevB && currA > currB : prevA >= prevB && currA < currB
 }
 
-/** `a` cruza por encima de `b` en la vela actual: `prev(a) <= prev(b)` y `curr(a) > curr(b)`. */
 export class CrossesAbove implements Rule {
   readonly name: string
 
@@ -52,7 +47,6 @@ export class CrossesAbove implements Rule {
   }
 }
 
-/** `a` cruza por debajo de `b` en la vela actual: `prev(a) >= prev(b)` y `curr(a) < curr(b)`. */
 export class CrossesBelow implements Rule {
   readonly name: string
 
@@ -68,7 +62,6 @@ export class CrossesBelow implements Rule {
   }
 }
 
-/** Estado (no cruce): `a > b` en la vela actual. false si falta dato. */
 export class Greater implements Rule {
   readonly name: string
 
@@ -86,7 +79,6 @@ export class Greater implements Rule {
   }
 }
 
-/** Estado (no cruce): `a < b` en la vela actual. false si falta dato. */
 export class Lower implements Rule {
   readonly name: string
 
@@ -104,7 +96,6 @@ export class Lower implements Rule {
   }
 }
 
-/** Todas las reglas verdaderas, con cortocircuito. 0 reglas → RangeError. */
 export class All implements Rule {
   readonly name: string
   readonly rules: readonly Rule[]
@@ -125,7 +116,6 @@ export class All implements Rule {
   }
 }
 
-/** Al menos una verdadera, con cortocircuito. 0 reglas → RangeError. */
 export class Any implements Rule {
   readonly name: string
   readonly rules: readonly Rule[]
@@ -146,7 +136,6 @@ export class Any implements Rule {
   }
 }
 
-/** Negación de una regla. */
 export class Not implements Rule {
   readonly name: string
 

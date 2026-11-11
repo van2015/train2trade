@@ -9,17 +9,13 @@ export interface IndicatorValue {
 }
 
 /**
- * Contrato de los indicadores: cálculo puro sobre velas, sin React ni gráficos.
- * La misma entrada produce la misma salida (chart y estrategias comparten código).
- *
- * - La entrada se ordena defensivamente por tiempo (no se muta).
- * - La salida está alineada con la entrada: misma longitud y mismos `time`.
- * - Sin redondeos: el formateo es responsabilidad de la UI.
+ * Contrato de indicadores: cálculo puro, sin React ni gráficos (chart y
+ * estrategias comparten el mismo código). La salida está alineada con la
+ * entrada y sin redondeos (el formateo es de la UI).
  */
 export interface Indicator {
   /** Identificador estable, p. ej. `"sma"`. */
   readonly name: string
-  /** Serie alineada con la entrada: misma longitud y orden ascendente por tiempo. */
   calculate(candles: readonly Candle[]): IndicatorValue[]
 }
 
@@ -32,7 +28,7 @@ export class InvalidPeriodError extends DomainError {
   }
 }
 
-/** Valida que `period` sea un entero >= 1. Lanza `InvalidPeriodError`; devuelve el valor. */
+/** Valida y devuelve `period` (entero >= 1); lanza `InvalidPeriodError`. */
 export function assertPeriod(period: unknown): number {
   if (typeof period !== 'number' || !Number.isInteger(period) || period < 1) {
     throw new InvalidPeriodError(period)
@@ -40,7 +36,7 @@ export function assertPeriod(period: unknown): number {
   return period
 }
 
-/** Copia de las velas ordenadas ascendente por `time` (nunca muta la entrada). */
+/** Copia de las velas ordenadas por `time` (nunca muta la entrada). */
 export function sortedByTime(candles: readonly Candle[]): Candle[] {
   return [...candles].sort((a, b) => a.time - b.time)
 }

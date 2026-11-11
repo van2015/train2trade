@@ -30,16 +30,10 @@ function toFiniteNumber(value: unknown): number | null {
 }
 
 /**
- * Value object inmutable que representa una vela OHLCV.
- *
- * - Invariantes garantizados por `Candle.from`: campos numéricos finitos y `high >= low`.
- * - Formato wire/persistencia: objeto plano (`toJSON`), revivido con `from()`.
- * - Comportamiento: dirección del cuerpo, tamaño del cuerpo, rango,
- *   construcción de velas agregadas (`Candle.aggregate`) y relación de
- *   un precio con la vela (`positionOf`, `contains`, `closePosition`, ...).
+ * Value object inmutable OHLCV. Los invariantes (campos finitos, `high >= low`)
+ * los garantiza `Candle.from`.
  */
 export class Candle {
-  /** Timestamp en milisegundos (UTC) */
   readonly time: number
   readonly open: number
   readonly high: number
@@ -56,11 +50,7 @@ export class Candle {
     this.volume = fields.volume
   }
 
-  /**
-   * Construye una vela validando invariantes. Acepta strings numéricos (formato de API).
-   * Lanza `InvalidCandlesError` si algún campo no es finito, falta o `high < low`.
-   * Es idempotente sobre instancias.
-   */
+  /** Construye validando invariantes (acepta strings numéricos). Idempotente sobre instancias. */
   static from(value: unknown): Candle {
     if (value instanceof Candle) return value
     if (value === null || typeof value !== 'object') {
@@ -94,11 +84,7 @@ export class Candle {
     return new Candle(candles)
   }
 
-  /**
-   * Construye la vela que representa un grupo de velas ordenadas en un bucket
-   * de `timeframe`: open de la primera, close de la última, extremos del grupo,
-   * volumen sumado y `time` al inicio del bucket.
-   */
+  /** Vela del bucket: open de la primera, close de la última, extremos y volumen agregados. */
   static aggregate(group: readonly Candle[], timeframe: Timeframe): Candle {
     if (!Timeframe.is(timeframe)) {
       throw new InvalidTimeframeError(timeframe)
@@ -140,20 +126,15 @@ export class Candle {
     return this.close < this.open
   }
 
-  /** Tamaño absoluto del cuerpo (|close - open|). */
   get bodySize(): number {
     return Math.abs(this.close - this.open)
   }
 
-  /** Amplitud total de la vela (high - low). */
   get range(): number {
     return this.high - this.low
   }
 
-  /**
-   * Dónde cae `price` respecto a la vela. El cuerpo es cerrado: `open`/`close`
-   * son `Body`. Lanza `InvalidPriceError` si `price` no es un número finito.
-   */
+  /** Dónde cae `price` respecto a la vela (cuerpo cerrado). */
   positionOf(price: number): PricePosition {
     assertFinitePrice(price)
 

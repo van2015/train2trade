@@ -1,9 +1,8 @@
 import { Candle, InvalidCandlesError } from './candle'
 
 /**
- * Normaliza la respuesta cruda del exchange a Candle[]:
- * parseo e invariantes delegados en `Candle.from`, orden ascendente por tiempo,
- * sin duplicados (gana el último) y descartando las velas inválidas.
+ * Respuesta cruda del exchange → `Candle[]`: invariantes delegados en
+ * `Candle.from`, orden ascendente y sin duplicados (gana el último).
  */
 export function normalizeCandles(raw: unknown): Candle[] {
   if (!Array.isArray(raw)) {
@@ -17,7 +16,7 @@ export function normalizeCandles(raw: unknown): Candle[] {
       const candle = Candle.from(item)
       byTime.set(candle.time, candle)
     } catch {
-      // Vela inválida: se descarta (mismo criterio que high < low o campos ausentes).
+      // Vela inválida: se descarta para no interrumpir la importación.
     }
   }
 

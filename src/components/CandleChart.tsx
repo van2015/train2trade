@@ -23,7 +23,6 @@ import {
   toVolumeData,
 } from './chartData'
 
-/** Índice del panel inferior donde viven los indicadores en panel propio (RSI). */
 const LOWER_PANE_INDEX = 1
 
 export interface CandleChartProps {
@@ -50,13 +49,8 @@ function lineOptions(line: ChartLine) {
 }
 
 /**
- * Gráfico de velas con volumen e indicadores superpuestos.
- *
- * - El gráfico se crea una sola vez y se destruye al desmontar.
- * - Los datos de velas/volumen se actualizan cuando cambia `candles` (con `fitContent`,
- *   de modo que cambiar de indicador no resetea el zoom del usuario).
- * - Las líneas de indicador se sincronizan por id: se crean, actualizan y eliminan
- *   según `lines`. Las de `pane: 'lower'` viven en un panel inferior automático.
+ * Gráfico de velas con volumen e indicadores. El zoom solo se recalcula al
+ * cambiar `candles`, nunca al cambiar de indicador.
  */
 export function CandleChart({ candles, lines }: CandleChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -149,7 +143,7 @@ export function CandleChart({ candles, lines }: CandleChartProps) {
     chart.timeScale().fitContent()
   }, [candles])
 
-  // 3) Series de indicadores: se crean, actualizan y eliminan según `lines`.
+  // 3) Series de indicadores según `lines`.
   useEffect(() => {
     const chart = chartRef.current
     if (chart === null) return

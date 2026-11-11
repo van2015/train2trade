@@ -1,12 +1,3 @@
-/**
- * Errores del dominio: mensajes compartidos y base común.
- *
- * - `formatValue` formatea un valor desconocido para mostrarlo en un mensaje.
- * - `invalidMessage` construye el patrón estándar de validación.
- * - `DomainError` fija `this.name` a la clase concreta: los errores se
- *   identifican por `name` (convención del proyecto), no solo por `instanceof`.
- */
-
 /** Formatea un valor desconocido para mostrarlo en un mensaje de error. */
 export function formatValue(value: unknown): string {
   if (typeof value === 'string') return `"${value}"`

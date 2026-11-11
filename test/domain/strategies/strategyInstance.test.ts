@@ -28,8 +28,8 @@ function decision(action: StrategyAction, fraction: number | null = null): Strat
 const strategy = new Strategy({
   name: 'test',
   signals: [
-    new Signal(StrategyAction.Enter, rule('go', true)),
-    new Signal(StrategyAction.Exit, rule('stop', true)),
+    new Signal(StrategyAction.RequestEntry, rule('go', true)),
+    new Signal(StrategyAction.RequestExit, rule('stop', true)),
   ],
 })
 
@@ -57,10 +57,10 @@ describe('StrategyInstance (construcción)', () => {
 })
 
 describe('StrategyInstance.apply', () => {
-  it('Enter desde WaitingForSignal → WaitingForEntryFill con evento StrategyConfirmed', () => {
+  it('RequestEntry desde WaitingForSignal → WaitingForEntryFill con evento StrategyConfirmed', () => {
     const instance = new StrategyInstance(strategy)
 
-    expect(instance.apply(decision(StrategyAction.Enter))).toEqual({
+    expect(instance.apply(decision(StrategyAction.RequestEntry))).toEqual({
       from: StrategyState.WaitingForSignal,
       to: StrategyState.WaitingForEntryFill,
       changed: true,
@@ -69,10 +69,10 @@ describe('StrategyInstance.apply', () => {
     expect(instance.state).toBe(StrategyState.WaitingForEntryFill)
   })
 
-  it('Enter desde WaitingForEntryFill → refresh sin cambio', () => {
+  it('RequestEntry desde WaitingForEntryFill → refresh sin cambio', () => {
     const instance = new StrategyInstance(strategy, StrategyState.WaitingForEntryFill)
 
-    expect(instance.apply(decision(StrategyAction.Enter))).toEqual({
+    expect(instance.apply(decision(StrategyAction.RequestEntry))).toEqual({
       from: StrategyState.WaitingForEntryFill,
       to: StrategyState.WaitingForEntryFill,
       changed: false,
@@ -92,10 +92,10 @@ describe('StrategyInstance.apply', () => {
     expect(instance.state).toBe(StrategyState.WaitingForSignal)
   })
 
-  it('Exit desde WaitingForExitSignal → WaitingForExitFill con evento ExitRequested', () => {
+  it('RequestExit desde WaitingForExitSignal → WaitingForExitFill con evento ExitRequested', () => {
     const instance = new StrategyInstance(strategy, StrategyState.WaitingForExitSignal)
 
-    expect(instance.apply(decision(StrategyAction.Exit))).toEqual({
+    expect(instance.apply(decision(StrategyAction.RequestExit))).toEqual({
       from: StrategyState.WaitingForExitSignal,
       to: StrategyState.WaitingForExitFill,
       changed: true,
@@ -104,10 +104,10 @@ describe('StrategyInstance.apply', () => {
     expect(instance.state).toBe(StrategyState.WaitingForExitFill)
   })
 
-  it('Exit desde WaitingForExitFill → refresh sin cambio', () => {
+  it('RequestExit desde WaitingForExitFill → refresh sin cambio', () => {
     const instance = new StrategyInstance(strategy, StrategyState.WaitingForExitFill)
 
-    expect(instance.apply(decision(StrategyAction.Exit))).toEqual({
+    expect(instance.apply(decision(StrategyAction.RequestExit))).toEqual({
       from: StrategyState.WaitingForExitFill,
       to: StrategyState.WaitingForExitFill,
       changed: false,
@@ -147,10 +147,10 @@ describe('StrategyInstance.apply', () => {
   })
 
   it.each([
-    [StrategyState.WaitingForExitSignal, StrategyAction.Add],
-    [StrategyState.WaitingForExitSignal, StrategyAction.Reduce],
-    [StrategyState.WaitingForExitFill, StrategyAction.Add],
-    [StrategyState.WaitingForExitFill, StrategyAction.Reduce],
+    [StrategyState.WaitingForExitSignal, StrategyAction.RequestAdd],
+    [StrategyState.WaitingForExitSignal, StrategyAction.RequestReduce],
+    [StrategyState.WaitingForExitFill, StrategyAction.RequestAdd],
+    [StrategyState.WaitingForExitFill, StrategyAction.RequestReduce],
   ] as const)('%s + %s → sin cambio', (state, action) => {
     const instance = new StrategyInstance(strategy, state)
 
@@ -199,12 +199,12 @@ describe('StrategyInstance.onFill', () => {
 
 describe('StrategyInstance (decisiones imposibles)', () => {
   it.each([
-    [StrategyState.WaitingForExitSignal, StrategyAction.Enter],
-    [StrategyState.WaitingForExitFill, StrategyAction.Enter],
-    [StrategyState.WaitingForSignal, StrategyAction.Exit],
-    [StrategyState.WaitingForEntryFill, StrategyAction.Exit],
-    [StrategyState.WaitingForSignal, StrategyAction.Add],
-    [StrategyState.WaitingForEntryFill, StrategyAction.Reduce],
+    [StrategyState.WaitingForExitSignal, StrategyAction.RequestEntry],
+    [StrategyState.WaitingForExitFill, StrategyAction.RequestEntry],
+    [StrategyState.WaitingForSignal, StrategyAction.RequestExit],
+    [StrategyState.WaitingForEntryFill, StrategyAction.RequestExit],
+    [StrategyState.WaitingForSignal, StrategyAction.RequestAdd],
+    [StrategyState.WaitingForEntryFill, StrategyAction.RequestReduce],
   ] as const)('%s + %s → InvalidStrategyTransitionError', (state, action) => {
     const instance = new StrategyInstance(strategy, state)
 
@@ -213,7 +213,7 @@ describe('StrategyInstance (decisiones imposibles)', () => {
 
   it('el error tiene name InvalidStrategyTransitionError', () => {
     try {
-      new StrategyInstance(strategy).apply(decision(StrategyAction.Exit))
+      new StrategyInstance(strategy).apply(decision(StrategyAction.RequestExit))
       throw new Error('debía lanzar InvalidStrategyTransitionError')
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidStrategyTransitionError)
@@ -226,9 +226,9 @@ describe('StrategyInstance (integración con evaluate)', () => {
   it('ciclo completo: señal → fill → señal → fill hasta WaitingForSignal', () => {
     const instance = new StrategyInstance(strategy)
 
-    // WaitingForSignal → evaluate sin posición emite Enter
+    // WaitingForSignal → evaluate sin posición emite RequestEntry
     const enter = strategy.evaluate(context, instance.open)
-    expect(enter.action).toBe(StrategyAction.Enter)
+    expect(enter.action).toBe(StrategyAction.RequestEntry)
     instance.apply(enter)
     expect(instance.state).toBe(StrategyState.WaitingForEntryFill)
 
@@ -236,9 +236,9 @@ describe('StrategyInstance (integración con evaluate)', () => {
     instance.onFill()
     expect(instance.state).toBe(StrategyState.WaitingForExitSignal)
 
-    // WaitingForExitSignal → evaluate con posición emite Exit
+    // WaitingForExitSignal → evaluate con posición emite RequestExit
     const exit = strategy.evaluate(context, instance.open)
-    expect(exit.action).toBe(StrategyAction.Exit)
+    expect(exit.action).toBe(StrategyAction.RequestExit)
     instance.apply(exit)
     expect(instance.state).toBe(StrategyState.WaitingForExitFill)
 
@@ -250,7 +250,7 @@ describe('StrategyInstance (integración con evaluate)', () => {
   it('veto con entrada pendiente: evaluate emite Invalidate y apply retira la orden', () => {
     const vetoStrategy = new Strategy({
       name: 'vetoed',
-      signals: [new Signal(StrategyAction.Enter, rule('go', true))],
+      signals: [new Signal(StrategyAction.RequestEntry, rule('go', true))],
       invalidationRule: rule('session closed', true),
     })
     const instance = new StrategyInstance(vetoStrategy, StrategyState.WaitingForEntryFill)

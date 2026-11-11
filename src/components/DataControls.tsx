@@ -3,15 +3,9 @@ import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
 import type { TimeRange } from '@/api/marketDataProvider'
 
-/** Sugerencias mostradas en el desplegable de instrumentos. */
 const SUGGESTED_INSTRUMENTS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT']
 
-/**
- * Convierte los dos campos de fecha (`YYYY-MM-DD`) en un `TimeRange` de la API.
- * - Ambos vacíos → `undefined` (las velas más recientes).
- * - `from` al inicio del día UTC, `to` al final del día UTC (ambos inclusivos).
- * Lanza `RangeError` si alguna fecha es inválida o el rango está invertido.
- */
+/** Fechas `YYYY-MM-DD` → `TimeRange` UTC de día completo (inclusivo); vacías → `undefined`. */
 export function buildRange(fromDate: string, toDate: string): TimeRange | undefined {
   const from = fromDate === '' ? undefined : Date.parse(`${fromDate}T00:00:00Z`)
   const to = toDate === '' ? undefined : Date.parse(`${toDate}T23:59:59.999Z`)
@@ -41,9 +35,8 @@ export interface DataControlsProps {
 }
 
 /**
- * Selector de instrumento/timeframe, rango de fechas opcional y botón de descarga
- * del exchange. La validación del instrumento y del rango es local: solo se
- * notifica cuando la entrada es válida.
+ * Selector de instrumento/timeframe, rango de fechas y descarga. Validación
+ * local: solo se notifica al padre cuando la entrada es válida.
  */
 export function DataControls({
   instruments,

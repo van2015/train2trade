@@ -2,14 +2,8 @@ import { Candle } from '@/domain/candles/candle'
 import { assertPeriod, Indicator, IndicatorValue, sortedByTime } from './indicator'
 
 /**
- * Relative Strength Index con suavizado de Wilder sobre cierres.
- *
- * - `null` en los primeros `period` índices (el índice 0 no tiene cambio y los
- *   cambios `1..period` forman la primera media).
- * - Primeras medias: media aritmética de los primeros `period` cambios.
- * - Después: `avg = (avgPrevio * (period - 1) + cambio) / period`.
- * - `avgLoss === 0 → 100` (incluido el caso de precios planos, por convención).
- * - `avgGain === 0 y avgLoss > 0 → 0` (cae de la fórmula).
+ * RSI con suavizado de Wilder sobre cierres. Precios planos (`avgLoss === 0`)
+ * → 100 por convención.
  */
 export class Rsi implements Indicator {
   readonly name = 'rsi'

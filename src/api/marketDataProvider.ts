@@ -19,16 +19,9 @@ export class MarketDataError extends DomainError {
   }
 }
 
-/**
- * Contrato de un proveedor de datos de mercado. Los subsistemas dependen de esta
- * interfaz, no de un exchange concreto: la implementación puede ser Binance, un CSV, etc.
- */
+/** Contrato de proveedor de datos: los subsistemas no dependen de un exchange concreto. */
 export interface MarketDataProvider {
-  /**
-   * Velas ordenadas ascendentes para el instrumento y timeframe dados.
-   * Sin `range` devuelve las más recientes; con `range` las del rango indicado.
-   * Lanza `MarketDataError` ante fallos de red o respuestas inválidas.
-   */
+  /** Velas ascendentes; sin `range` las más recientes. Fallos → `MarketDataError`. */
   getCandles(
     instrument: Instrument,
     timeframe: Timeframe,

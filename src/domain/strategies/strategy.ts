@@ -5,59 +5,49 @@ import { MarketContext } from '@/domain/strategies/marketContext'
 import { resolveRef, Rule, SeriesRef } from '@/domain/strategies/rules'
 
 export enum StrategyAction {
-  /** Sin señal: no hacer nada (resultado de evaluate, nunca acción de una señal). */
+  /** Sin señal: no hacer nada (solo resultado de evaluate). */
   None = 'none',
-  /** Abrir posición nueva (solo aplicable sin posición abierta). */
-  Enter = 'enter',
-  /** Aumentar la posición existente (solo con posición abierta). */
-  Add = 'add',
-  /** Reducir la posición existente, cerrando su fracción (solo con posición abierta). */
-  Reduce = 'reduce',
-  /** Cerrar toda la posición (solo con posición abierta). */
-  Exit = 'exit',
-  /**
-   * Veto de la `invalidationRule` (resultado de evaluate, nunca acción de una
-   * señal): retira la orden de entrada pendiente si la hay; sin posición no
-   * entra; con posición bloquea `Add` pero nunca impide `Reduce`/`Exit`.
-   */
+  /** Solicita orden de entrada (solo sin posición abierta). */
+  RequestEntry = 'request_entry',
+  /** Solicita aumentar la posición (solo con posición abierta). */
+  RequestAdd = 'request_add',
+  /** Solicita reducir la posición (solo con posición abierta). */
+  RequestReduce = 'request_reduce',
+  /** Solicita orden de salida (solo con posición abierta). */
+  RequestExit = 'request_exit',
+  /** Resultado: veto de `invalidationRule`. */
   Invalidate = 'invalidate',
 }
 
-/** Señales: ni resultados (`None`) ni el veto (`Invalidate`), ambos excluidos a nivel de tipos. */
 export type SignalAction = Exclude<StrategyAction, StrategyAction.None | StrategyAction.Invalidate>
 
 export interface SignalConfig {
-  /** Obligatoria en Add/Reduce (0 < f <= 1), prohibida en Enter/Exit. */
+  /** Obligatoria en RequestAdd/RequestReduce (0 < f <= 1), prohibida en el resto. */
   fraction?: number
-  /** Precio objetivo declarativo: alias de indicador (normal) o constante. Resuelto al evaluar. */
+  /** Precio objetivo declarativo: alias de indicador o constante. */
   limitPrice?: SeriesRef
 }
 
 export interface StrategyDecision {
   action: StrategyAction
-  /** Fracción para Add/Reduce; null en Enter/Exit/None. */
+  /** Fracción (0, 1] para RequestAdd/RequestReduce; null en el resto. */
   fraction: number | null
-  /** Precio objetivo resuelto en la vela actual; null → market. null en None. */
+  /** Precio resuelto en la vela actual; null → market. */
   price: number | null
-  /** name de la señal que disparó, o el de la regla de invalidación en `Invalidate`; null en `None`. */
+  /** Señal o regla de invalidación que lo provocó; null en `None`. */
   reason: string | null
 }
 
 export interface StrategyDefinition {
-  /** Nombre estable de la estrategia (no vacío). */
+  /** Nombre estable (no vacío). */
   name: string
-  /** Versión de la definición (entero >= 1, por defecto 1). Cambiar reglas/indicadores exige subirla. */
+  /** Versión (entero >= 1); subirla al cambiar reglas o indicadores. */
   version?: number
-  /** Alias → indicador: define qué series hay que calcular antes de evaluar. */
+  /** Alias → indicador: series a calcular antes de evaluar. */
   indicators?: Readonly<Record<string, Indicator>>
-  /** Señales en orden de prioridad: la primera aplicable que dispare gana. No vacío. */
+  /** En orden de prioridad: gana la primera aplicable. No vacío. */
   signals: readonly Signal[]
-  /**
-   * Regla de invalidación opcional. Si dispara → `Invalidate`: la instancia
-   * retira la orden de entrada pendiente si la hay; sin posición no entra;
-   * con posición bloquea `Add` pero permite `Reduce`/`Exit` (invalidar nunca
-   * impide cerrar).
-   */
+  /** Si dispara → `Invalidate`. */
   invalidationRule?: Rule
 }
 
@@ -70,10 +60,7 @@ export class InvalidStrategyDefinitionError extends DomainError {
   }
 }
 
-/**
- * Condición + acción: la unidad de la que se compone una estrategia.
- * `name` para observabilidad: `"enter: fast crossesAbove slow"` (con precio: `"… @ sma20"`).
- */
+/** Condición + acción. Su `name` (`"request_entry: rsi > 30"`) sirve de observabilidad. */
 export class Signal {
   readonly name: string
 
@@ -83,7 +70,8 @@ export class Signal {
     readonly config: SignalConfig = {},
   ) {
     const { fraction, limitPrice } = config
-    const needsFraction = action === StrategyAction.Add || action === StrategyAction.Reduce
+    const needsFraction =
+      action === StrategyAction.RequestAdd || action === StrategyAction.RequestReduce
 
     if (needsFraction) {
       if (
@@ -117,17 +105,12 @@ export class Signal {
   }
 }
 
-/**
- * Definición de estrategia (sin estado ni ejecución): señales priorizadas,
- * indicadores declarados y versión. No sabe si evalúa un backtest, una replay
- * ni una operación real, ni conoce órdenes ni brokers (§14).
- */
+/** Definición sin estado ni ejecución: no conoce órdenes ni brokers (§14). */
 export class Strategy {
   readonly name: string
   readonly version: number
   readonly indicators: Readonly<Record<string, Indicator>>
   readonly signals: readonly Signal[]
-  /** Regla de invalidación; `null` si la definición no declara ninguna. */
   readonly invalidationRule: Rule | null
 
   constructor(definition: StrategyDefinition) {
@@ -150,10 +133,7 @@ export class Strategy {
     this.invalidationRule = invalidationRule ?? null
   }
 
-  /**
-   * Calcula las series declaradas sobre `velas` y construye el `MarketContext`
-   * alineado (misma longitud/`time` por construcción).
-   */
+  /** Calcula los indicadores declarados y construye el `MarketContext` alineado. */
   buildContext(candles: readonly Candle[]): MarketContext {
     const series: Record<string, IndicatorValue[]> = {}
     for (const [alias, indicator] of Object.entries(this.indicators)) {
@@ -163,19 +143,8 @@ export class Strategy {
   }
 
   /**
-   * Evaluación pura. `open` = posición abierta (⇔ `WaitingForExitSignal` o
-   * `WaitingForExitFill` en la instancia); no conoce órdenes pendientes: qué
-   * significa invalidar en cada fase lo decide la instancia.
-   *
-   * 1. `invalidationRule` dispara y no hay posición → `Invalidate` con
-   *    `reason` = nombre de la regla (también cubre la entrada pendiente, que
-   *    implica `!open`).
-   * 2. Con posición: recorre `signals` en orden y devuelve la primera cuya
-   *    acción sea aplicable (el veto bloquea `Add`, nunca `Reduce`/`Exit`),
-   *    cuya regla sea true y cuyo `limitPrice` (si existe) resuelva a número.
-   * 3. Si ninguna dispara: `Invalidate` si había veto, `None` si no.
-   *
-   * Invalidar nunca impide cerrar: `Reduce`/`Exit` se evalúan igual con veto.
+   * Evaluación pura. `open` = posición abierta. Sin veto devuelve la primera
+   * señal aplicable que dispare; con veto, `Invalidate`.
    */
   evaluate(context: MarketContext, open: boolean): StrategyDecision {
     const vetoReason =
@@ -195,7 +164,7 @@ export class Strategy {
       let price: number | null = null
       if (signal.config.limitPrice !== undefined) {
         const resolved = resolveRef(context, signal.config.limitPrice)
-        // Sin el precio objetivo la señal no dispara: nunca caemos a market en silencio.
+        // Sin precio resuelto no dispara: nunca caemos a market en silencio.
         if (resolved === null) continue
         price = resolved
       }
@@ -214,15 +183,14 @@ export class Strategy {
     return { action: StrategyAction.None, fraction: null, price: null, reason: null }
   }
 
-  /** `"name@version"` — identidad reproducible para registrar resultados. */
+  /** Identidad reproducible (`name@version`) para registrar resultados. */
   toString(): string {
     return `${this.name}@${this.version}`
   }
 }
 
 function isApplicable(action: SignalAction, open: boolean, vetoed: boolean): boolean {
-  if (action === StrategyAction.Enter) return !open
-  // El veto bloquea exponer más, pero nunca Reduce/Exit.
-  if (action === StrategyAction.Add) return open && !vetoed
+  if (action === StrategyAction.RequestEntry) return !open
+  if (action === StrategyAction.RequestAdd) return open && !vetoed // el veto nunca bloquea cerrar
   return open
 }

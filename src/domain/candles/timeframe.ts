@@ -22,13 +22,7 @@ export class InvalidTimeframeError extends DomainError {
   }
 }
 
-/**
- * Value object que representa un timeframe soportado.
- *
- * - Internado: `Timeframe.from('1h') === Timeframe.HOUR`, con `===` o `equals`.
- * - Formato wire/persistencia: string (`toString`/`toJSON` → `"1h"`).
- * - Límite de parseo estricto: solo los códigos de `Timeframe.ALL`.
- */
+/** Timeframe soportado. Internado: `Timeframe.from('1h') === Timeframe.HOUR`. */
 export class Timeframe {
   static readonly MINUTE = new Timeframe('1m')
   static readonly FIVE_MINUTES = new Timeframe('5m')

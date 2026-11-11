@@ -26,21 +26,17 @@ export const CHART_COLORS = {
   rsi: '#ab47bc',
 } as const
 
-/** Dónde se pinta una línea de indicador. */
 export type ChartLinePane = 'price' | 'lower'
 
-/** Línea de indicador ya calculada, lista para dibujar. */
 export interface ChartLine {
   /** Identificador estable (`sma`, `ema`, `rsi`); la UI lo usa para sincronizar series. */
   id: string
-  /** Etiqueta mostrada junto al último valor. */
   label: string
   color: string
   values: readonly IndicatorValue[]
   pane: ChartLinePane
   /** Rango fijo del eje de precios (p. ej. RSI 0–100) en vez de auto-escalado. */
   fixedRange?: { min: number; max: number }
-  /** Niveles de referencia dibujados como líneas discontinuas (p. ej. RSI 30/70). */
   referenceLines?: readonly number[]
 }
 
@@ -54,12 +50,11 @@ export function formatChartTime(ms: number): string {
   return new Date(ms).toISOString().slice(0, 16).replace('T', ' ')
 }
 
-/** Formato estable de precio/volumen para la leyenda (hasta 8 decimales, sin notación científica). */
+/** Precio/volumen para la leyenda: hasta 8 decimales, sin notación científica. */
 export function formatChartPrice(value: number): string {
   return value.toLocaleString('en-US', { maximumFractionDigits: 8 })
 }
 
-/** Velas → datos de la serie de velas (tiempo en segundos). */
 export function toCandlestickData(candles: readonly Candle[]): CandlestickData[] {
   return candles.map((candle) => ({
     time: toChartTime(candle.time),
@@ -70,7 +65,6 @@ export function toCandlestickData(candles: readonly Candle[]): CandlestickData[]
   }))
 }
 
-/** Velas → datos del histograma de volumen, coloreado según la dirección de la vela. */
 export function toVolumeData(candles: readonly Candle[]): HistogramData[] {
   return candles.map((candle) => ({
     time: toChartTime(candle.time),
@@ -80,8 +74,8 @@ export function toVolumeData(candles: readonly Candle[]): HistogramData[] {
 }
 
 /**
- * Valores de indicador → datos de línea. Los `null` del periodo de calentamiento
- * se emiten como datos en blanco para que la línea no dibuje un segmento falso.
+ * Valores → línea. Los `null` (calentamiento) van como datos en blanco: si no,
+ * la línea uniría los extremos con un segmento falso.
  */
 export function toLineData(values: readonly IndicatorValue[]): (LineData | WhitespaceData)[] {
   return values.map((entry) =>
@@ -91,10 +85,7 @@ export function toLineData(values: readonly IndicatorValue[]): (LineData | White
   )
 }
 
-/**
- * Formato de precio adaptado a la magnitud del último cierre, para que un altcoin
- * de fracciones de céntimo no se muestre como `0.00`.
- */
+/** Precisión adaptada a la magnitud del último cierre (evita mostrar altcoins como `0.00`). */
 export function priceFormatFor(lastClose: number): { precision: number; minMove: number } {
   const magnitude = Math.abs(lastClose)
   if (magnitude >= 1_000) return { precision: 2, minMove: 0.01 }
@@ -103,14 +94,12 @@ export function priceFormatFor(lastClose: number): { precision: number; minMove:
   return { precision: 8, minMove: 0.00000001 }
 }
 
-/** Estado de un indicador concreto en el panel de control. */
 export interface IndicatorToggle {
   enabled: boolean
   /** Entero >= 1; garantizado por el panel de control. */
   period: number
 }
 
-/** Configuración de los indicadores visibles en el gráfico. */
 export interface IndicatorSettings {
   sma: IndicatorToggle
   ema: IndicatorToggle
@@ -123,10 +112,7 @@ export const DEFAULT_INDICATOR_SETTINGS: IndicatorSettings = {
   rsi: { enabled: false, period: 14 },
 }
 
-/**
- * Calcula las líneas de indicador activas sobre las velas dadas.
- * Los periodos deben ser enteros >= 1 (si no, el indicador lanza `InvalidPeriodError`).
- */
+/** Calcula las líneas de indicador activas (periodos inválidos → `InvalidPeriodError`). */
 export function buildLines(candles: readonly Candle[], settings: IndicatorSettings): ChartLine[] {
   const lines: ChartLine[] = []
 

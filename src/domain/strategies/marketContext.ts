@@ -16,12 +16,8 @@ export class MarketContextError extends DomainError {
 }
 
 /**
- * Información disponible para evaluar una estrategia en un instante.
- *
- * - Look-ahead: solo recibe las velas visibles; nunca expone velas futuras.
- * - Invariantes: velas no vacías, estrictamente ascendentes y sin duplicados;
- *   cada serie con la misma longitud y `time` que las velas.
- * - Inmutable: colecciones congeladas.
+ * Información disponible para evaluar una estrategia: solo velas visibles,
+ * nunca futuras (§12B). Invariantes y congelado se garantizan en `from`.
  */
 export class MarketContext {
   private readonly visibleCandles: readonly Candle[]
@@ -35,7 +31,7 @@ export class MarketContext {
     this.series = series
   }
 
-  /** Construye (o devuelve si ya es contexto) validando invariantes. Lanza `MarketContextError`. */
+  /** Construye validando invariantes; idempotente sobre un contexto ya construido. */
   static from(data: MarketContextData | MarketContext): MarketContext {
     if (data instanceof MarketContext) return data
 
@@ -83,12 +79,11 @@ export class MarketContext {
     return new MarketContext(Object.freeze([...candles]), Object.freeze(frozenSeries))
   }
 
-  /** Tiempo de mercado: timestamp de la vela actual (ms UTC). */
+  /** Timestamp de la vela actual (ms UTC). */
   get time(): number {
     return this.current.time
   }
 
-  /** Vela actual (la más reciente visible). */
   get current(): Candle {
     const last = this.visibleCandles[this.visibleCandles.length - 1]
     if (last === undefined) {
@@ -97,27 +92,19 @@ export class MarketContext {
     return last
   }
 
-  /** Vela anterior; `undefined` si solo hay una. */
   get previous(): Candle | undefined {
     return this.visibleCandles[this.visibleCandles.length - 2]
   }
 
-  /** Número de velas visibles. */
   get length(): number {
     return this.visibleCandles.length
   }
 
-  /** Velas visibles, orden ascendente (congeladas). */
   get candles(): readonly Candle[] {
     return this.visibleCandles
   }
 
-  /**
-   * Valor del indicador `id` hace `back` velas (0 = actual, 1 = anterior, …).
-   * `null` si la serie aún no tiene dato (calentamiento) o `back` exige ir más allá del inicio.
-   * Lanza `MarketContextError` si `id` no está registrado (error de configuración)
-   * y `RangeError` si `back` no es un entero >= 0.
-   */
+  /** Valor del indicador `id` hace `back` velas (0 = actual); `null` en calentamiento. */
   value(id: string, back = 0): number | null {
     if (!Number.isInteger(back) || back < 0) {
       throw new RangeError(`back debe ser un entero >= 0 (recibido: ${back})`)

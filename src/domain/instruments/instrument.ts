@@ -8,7 +8,7 @@ export class InvalidInstrumentError extends DomainError {
   }
 }
 
-/** Normaliza una parte (base o quote): trim + mayúsculas, solo `[A-Z0-9]`. Devuelve `null` si no es válida. */
+/** Trim + mayúsculas, solo `[A-Z0-9]`; `null` si no es válida. */
 function normalizePart(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const part = value.trim().toUpperCase()
@@ -16,18 +16,11 @@ function normalizePart(value: unknown): string | null {
 }
 
 /**
- * Value object inmutable que representa un par de trading (ej. BTC/USDT).
- *
- * - Invariantes: base y quote no vacías, mayúsculas, alfanuméricas (`[A-Z0-9]`).
- * - Internado: `Instrument.from('BTC/USDT') === Instrument.of('BTC', 'USDT')`.
- * - Formato wire/persistencia: string canónico `"BTC/USDT"` (`toString`/`toJSON`).
- * - `from` es idempotente (acepta instancia, string o `{ base, quote }`).
- * - `exchangeSymbol` da el símbolo sin separador para la capa de datos (`BTCUSDT`).
+ * Par de trading inmutable (ej. `BTC/USDT`). Internado: `from('BTC/USDT') ===
+ * of('BTC', 'USDT')`. Formato wire: string canónico.
  */
 export class Instrument {
-  /** Moneda base, ej. `"BTC"`. */
   readonly base: string
-  /** Moneda cotizada, ej. `"USDT"`. */
   readonly quote: string
 
   private static readonly CACHE = new Map<string, Instrument>()
@@ -37,10 +30,7 @@ export class Instrument {
     this.quote = quote
   }
 
-  /**
-   * Construye desde `"BTC/USDT"`, `{ base, quote }` o una instancia (idempotente).
-   * Lanza `InvalidInstrumentError` si el valor no tiene forma de par válido.
-   */
+  /** Desde `"BTC/USDT"`, `{ base, quote }` o una instancia (idempotente). */
   static from(value: unknown): Instrument {
     if (value instanceof Instrument) return value
 
@@ -60,7 +50,7 @@ export class Instrument {
     throw new InvalidInstrumentError('se esperaba un string "BASE/QUOTE" o { base, quote }', value)
   }
 
-  /** Construye desde las partes ya separadas (normaliza y cachea). Lanza `InvalidInstrumentError`. */
+  /** Desde las partes separadas; normaliza y cachea (internado). */
   static of(base: unknown, quote: unknown): Instrument {
     const normalizedBase = normalizePart(base)
     if (normalizedBase === null) {
@@ -84,7 +74,7 @@ export class Instrument {
     return value instanceof Instrument
   }
 
-  /** true si `value` tiene forma de par válido sin lanzar (p. ej. validación en formularios). */
+  /** Validación sin lanzar (p. ej. en formularios). */
   static isValid(value: unknown): boolean {
     try {
       Instrument.from(value)
@@ -94,7 +84,7 @@ export class Instrument {
     }
   }
 
-  /** Símbolo canónico para el exchange, sin separador: `"BTCUSDT"`. */
+  /** Símbolo sin separador para el exchange: `"BTCUSDT"`. */
   get exchangeSymbol(): string {
     return `${this.base}${this.quote}`
   }
@@ -103,12 +93,10 @@ export class Instrument {
     return this === other || (this.base === other.base && this.quote === other.quote)
   }
 
-  /** `"BTC/USDT"`. */
   toString(): string {
     return `${this.base}/${this.quote}`
   }
 
-  /** `"BTC/USDT"`. */
   toJSON(): string {
     return this.toString()
   }

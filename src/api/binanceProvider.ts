@@ -16,13 +16,8 @@ export interface BinanceProviderOptions {
 }
 
 /**
- * Proveedor de velas contra la API pública de Binance (`/api/v3/klines`).
- *
- * - Los códigos de `Timeframe` (1m, 5m, 15m, 1h, 4h, 1d) coinciden con los intervalos
- *   de Binance, así que viajan sin traducción.
- * - Sin `range` devuelve las `MAX_CANDLES` más recientes; con `range` pide exactamente
- *   `candleLimitForRange` velas (nunca más de `MAX_CANDLES` por petición).
- * - Los fallos (red, HTTP, cuerpo inesperado) se envuelven en `MarketDataError`.
+ * Velas contra la API pública de Binance (`/api/v3/klines`): los códigos de
+ * `Timeframe` coinciden con sus intervalos; fallos → `MarketDataError`.
  */
 export class BinanceProvider implements MarketDataProvider {
   private readonly baseUrl: string
@@ -92,9 +87,8 @@ export class BinanceProvider implements MarketDataProvider {
 }
 
 /**
- * Mapea una fila de klines (`[openTime, open, high, low, close, volume, ...]`) a campos
- * de vela. Devuelve `null` si la fila no tiene la forma esperada: `normalizeCandles`
- * la descartará igual que descarta cualquier otra vela inválida.
+ * Fila de klines → campos de vela; `null` si la forma no es la esperada
+ * (la descartará `normalizeCandles`).
  */
 function toCandleFields(row: unknown): unknown {
   if (!Array.isArray(row) || row.length < 6) return null

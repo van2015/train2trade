@@ -1,10 +1,7 @@
 import { Candle } from './candle'
 import { InvalidTimeframeError, Timeframe } from './timeframe'
 
-/**
- * Agrupa velas por bucket de `timeframe` y devuelve la vela agregada de cada
- * bucket (la fusión OHLCV vive en `Candle.aggregate`).
- */
+/** Agrupa por bucket de `timeframe` y devuelve la vela agregada de cada bucket. */
 export function aggregateCandles(candles: Candle[], timeframe: Timeframe): Candle[] {
   if (!Timeframe.is(timeframe)) {
     throw new InvalidTimeframeError(timeframe)

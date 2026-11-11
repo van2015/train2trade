@@ -27,11 +27,8 @@ function describeError(error: unknown): string {
 }
 
 /**
- * Pantalla principal de la Fase 1: seleccionar instrumento/timeframe, descargar
- * velas del exchange o importar un CSV, y visualizarlas con indicadores.
- *
- * Toda la lógica vive fuera de React (dominio, repositorio, proveedor); este
- * componente solo coordina estado y casos de uso.
+ * Pantalla principal (Fase 1): descargar o importar velas y visualizarlas con
+ * indicadores. La lógica vive fuera de React; este componente solo coordina.
  */
 export function App({ repository, provider }: AppProps) {
   const [instrument, setInstrument] = useState<Instrument>(() => Instrument.of('BTC', 'USDT'))
@@ -42,7 +39,6 @@ export function App({ repository, provider }: AppProps) {
   const [status, setStatus] = useState<Status>(null)
   const [busy, setBusy] = useState(false)
 
-  /** Recarga desde el repositorio las velas del par actual y la lista de instrumentos. */
   const reload = useCallback(() => {
     setInstruments(repository.listInstruments())
     try {

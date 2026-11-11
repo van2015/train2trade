@@ -28,9 +28,8 @@ export interface CsvImportPanelProps {
 }
 
 /**
- * Importación de velas desde un CSV. Lee el fichero, lo parsea con
- * `CsvCandlesImporter` (dominio puro) y entrega las velas ya validadas.
- * El guardado en el repositorio lo decide el componente padre.
+ * Importación de velas desde CSV: lee, parsea con `CsvCandlesImporter` (dominio
+ * puro) y entrega velas validadas. El guardado lo decide el padre.
  */
 export function CsvImportPanel({
   target,

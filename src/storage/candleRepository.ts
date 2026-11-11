@@ -4,7 +4,7 @@ import { normalizeCandles } from '@/domain/candles/normalize'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
 
-/** Prefijo de todas las claves de este repositorio (deja espacio para otros repos en el mismo Storage). */
+/** Prefijo de claves (deja espacio para otros repos en el mismo Storage). */
 const KEY_PREFIX = 'candles:'
 
 /** Rango de consulta por timestamps Unix en ms (ambos límites inclusivos). */
@@ -32,12 +32,8 @@ function bySymbol(a: Instrument, b: Instrument): number {
 }
 
 /**
- * Repositorio de velas con `Storage` inyectado (localStorage en producción,
- * un doble en memoria en tests). Sin I/O de red ni React.
- *
- * - Clave por (instrumento, timeframe): `candles:BTC/USDT:1h`.
- * - Persistencia en JSON de objetos planos; se reviven con `Candle.from`.
- * - Entrada corrupta (JSON inválido o velas inválidas) → `CorruptedStorageError`.
+ * Repositorio de velas con `Storage` inyectado (localStorage en prod, doble en
+ * memoria en tests). Clave `candles:BTC/USDT:1h`; corrupta → `CorruptedStorageError`.
  */
 export class CandleRepository {
   private readonly storage: Storage
@@ -55,10 +51,7 @@ export class CandleRepository {
     this.storage.setItem(key, JSON.stringify(merged))
   }
 
-  /**
-   * Velas ordenadas ascendentes; `range` opcional `[from, to]` inclusivo.
-   * Lanza `RangeError` si `from > to`.
-   */
+  /** Velas en `range` inclusivo; `from > to` → `RangeError`. */
   find(instrument: Instrument, timeframe: Timeframe, range?: CandleRange): Candle[] {
     const from = range?.from
     const to = range?.to
@@ -118,7 +111,7 @@ export class CandleRepository {
     return [...symbols].map((symbol) => Instrument.from(symbol)).sort(bySymbol)
   }
 
-  /** Elimina todas las claves de velas (no toca claves ajenas con el mismo prefijo literal). */
+  /** Elimina todas las claves de velas (solo las nuestras). */
   clear(): void {
     for (const key of this.keys()) {
       if (key.startsWith(KEY_PREFIX)) this.storage.removeItem(key)

@@ -4,24 +4,23 @@ import { normalizeCandles } from './normalize'
 
 export type CsvDelimiter = ',' | ';' | '\t'
 
-/** Formato del campo tiempo en el CSV. */
 export type CsvTimestampFormat = 'unixMs' | 'unixSeconds' | 'iso8601'
 
 export interface CsvColumnRef {
-  /** Nombre de la cabecera o índice numérico de columna (0-based). */
+  /** Nombre de cabecera o índice de columna (0-based). */
   column: string | number
 }
 
 export interface CsvCandlesImporterOptions {
-  /** Delimitador de columnas. Si se omite, se detecta automáticamente (`,` `;` o tabulador). */
+  /** Si se omite, se detecta automáticamente (`,` `;` o tabulador). */
   delimiter?: CsvDelimiter
-  /** true si la primera fila es cabecera (por defecto). */
+  /** ¿Primera fila es cabecera? Por defecto `true`. */
   hasHeader?: boolean
-  /** Formato del campo tiempo (por defecto `unixMs`). */
+  /** Por defecto `unixMs`. */
   timestampFormat?: CsvTimestampFormat
-  /** Mapeo campo OHLCV → columna (nombre de cabecera o índice 0-based). Orden canónico si se omite. */
+  /** Mapeo campo OHLCV → columna. Orden canónico si se omite. */
   columns?: Partial<Record<keyof CandleFields, CsvColumnRef>>
-  /** Qué hacer con una fila inválida: omitirla (por defecto) o lanzar `InvalidCsvError`. */
+  /** Por defecto `skip` (omitir la fila). */
   onInvalidRow?: 'skip' | 'throw'
 }
 
@@ -30,7 +29,6 @@ const FIELD_KEYS = ['time', 'open', 'high', 'low', 'close', 'volume'] as const
 /** Índices de columna (0-based) de cada campo OHLCV dentro de una fila. */
 type RowLayout = Record<keyof CandleFields, number>
 
-/** Orden canónico por defecto: time, open, high, low, close, volume. */
 const CANONICAL_LAYOUT: RowLayout = { time: 0, open: 1, high: 2, low: 3, close: 4, volume: 5 }
 
 type RowContext = { line?: number; raw?: unknown }
@@ -47,11 +45,7 @@ function isBlank(line: string): boolean {
   return line.trim() === ''
 }
 
-/**
- * Resuelve los índices de columna de cada campo: `columns` tiene prioridad
- * (nombre buscado en la cabecera o índice numérico) y, si se omite, se usa el
- * orden canónico. Lanza `InvalidCsvError` si un nombre no aparece en la cabecera.
- */
+/** Índices de columna: `columns` tiene prioridad; si se omite, el orden canónico. */
 function resolveLayout(
   header: string[] | null,
   columns?: Partial<Record<keyof CandleFields, CsvColumnRef>>,
@@ -97,11 +91,7 @@ function parseTimestamp(raw: string, format: CsvTimestampFormat, context: RowCon
   return format === 'unixSeconds' ? value * 1000 : value
 }
 
-/**
- * Parsea una línea a una vela: extrae cada campo según `layout`, convierte el
- * tiempo según `timestampFormat` y valida invariantes con `Candle.from`.
- * Lanza `InvalidCsvError` (envolviendo `InvalidCandlesError`) con el contexto de la fila.
- */
+/** Línea → vela: extrae campos, convierte el tiempo y valida con `Candle.from`. */
 function parseCandleRow(
   line: string,
   delimiter: CsvDelimiter,
@@ -139,13 +129,8 @@ function parseCandleRow(
 }
 
 /**
- * Importador de velas desde texto CSV. Dominio puro: no hace I/O (la lectura
- * del fichero vive en la UI).
- *
- * - Parseo e invariantes de cada fila delegados en `Candle.from`.
- * - El documento completo deduplica y ordena (mismo criterio que `normalizeCandles`).
- * - Errores: `InvalidCsvError` con `this.name` y número de línea cuando aplique.
- * - `parseRow` siempre lanza ante una fila inválida (ignora `onInvalidRow`).
+ * Importador de velas desde texto CSV. Dominio puro: no hace I/O (el fichero
+ * lo lee la UI). El documento completo deduplica y ordena como `normalizeCandles`.
  */
 export class CsvCandlesImporter {
   private readonly options: CsvCandlesImporterOptions
@@ -154,7 +139,7 @@ export class CsvCandlesImporter {
     this.options = options
   }
 
-  /** Parsea el documento completo: cabecera, filas, deduplicado y orden ascendente por tiempo. */
+  /** Parsea el documento completo (deduplicado y ordenado por tiempo). */
   parse(text: string): Candle[] {
     const lines = text.split(/\r?\n/)
     const firstIndex = lines.findIndex((line) => !isBlank(line))
@@ -190,11 +175,7 @@ export class CsvCandlesImporter {
     return normalizeCandles(parsed)
   }
 
-  /**
-   * Parsea una sola línea (sin salto de línea) a una vela válida.
-   * Lanza `InvalidCsvError` ante cualquier fila inválida; si se usan nombres
-   * de columna en `columns`, deben resolverse por índice numérico.
-   */
+  /** Una sola línea a una vela; siempre lanza ante fila inválida (ignora `onInvalidRow`). */
   parseRow(row: string): Candle {
     const delimiter = this.options.delimiter ?? CsvCandlesImporter.detectDelimiter(row)
     const layout = resolveLayout(null, this.options.columns)
@@ -202,7 +183,7 @@ export class CsvCandlesImporter {
     return parseCandleRow(row, delimiter, layout, this.options.timestampFormat ?? 'unixMs', context)
   }
 
-  /** Detecta el delimitador de un documento (`,` `;` o tabulador) contando la primera línea no vacía. */
+  /** Detecta el delimitador (`,` `;` o tabulador) de la primera línea no vacía. */
   static detectDelimiter(text: string): CsvDelimiter {
     const line = text.split(/\r?\n/).find((candidate) => !isBlank(candidate)) ?? ''
     const candidates: readonly CsvDelimiter[] = [',', ';', '\t']

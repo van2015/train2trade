@@ -1,13 +1,7 @@
 import { Candle } from '@/domain/candles/candle'
 import { assertPeriod, Indicator, IndicatorValue, sortedByTime } from './indicator'
 
-/**
- * Media Móvil Exponencial sobre cierres.
- *
- * - `null` en los primeros `period - 1` valores (calentamiento).
- * - Semilla = SMA de los primeros `period` cierres.
- * - Después: `close * k + emaAnterior * (1 - k)` con `k = 2 / (period + 1)`.
- */
+/** EMA sobre cierres; semilla = SMA de los primeros `period` cierres (no el primero). */
 export class Ema implements Indicator {
   readonly name = 'ema'
   readonly period: number

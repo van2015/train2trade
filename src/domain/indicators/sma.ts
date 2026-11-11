@@ -1,12 +1,7 @@
 import { Candle } from '@/domain/candles/candle'
 import { assertPeriod, Indicator, IndicatorValue, sortedByTime } from './indicator'
 
-/**
- * Media Móvil Simple sobre cierres.
- *
- * - `null` en los primeros `period - 1` valores (calentamiento).
- * - Desde ahí: media de los últimos `period` cierres, ventana incluye la vela actual.
- */
+/** SMA sobre cierres; la ventana incluye la vela actual. */
 export class Sma implements Indicator {
   readonly name = 'sma'
   readonly period: number
