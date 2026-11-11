@@ -16,123 +16,108 @@ export function resolveRef(context: MarketContext, ref: SeriesRef, back?: number
   return context.value(ref, back)
 }
 
-function crosses(
-  context: MarketContext,
-  a: SeriesRef,
-  b: SeriesRef,
-  direction: 'above' | 'below',
-): boolean {
-  const currA = resolveRef(context, a)
-  const currB = resolveRef(context, b)
-  const prevA = resolveRef(context, a, 1)
-  const prevB = resolveRef(context, b, 1)
-
-  if (currA === null || currB === null || prevA === null || prevB === null) return false
-
-  return direction === 'above' ? prevA <= prevB && currA > currB : prevA >= prevB && currA < currB
-}
-
-export class CrossesAbove implements Rule {
+export class Crosses implements Rule {
   readonly name: string
 
   constructor(
     readonly a: SeriesRef,
     readonly b: SeriesRef,
+    private readonly direction: 'above' | 'below',
   ) {
-    this.name = `${a} crossesAbove ${b}`
+    this.name = `${a} crosses${direction === 'above' ? 'Above' : 'Below'} ${b}`
   }
 
   evaluate(context: MarketContext): boolean {
-    return crosses(context, this.a, this.b, 'above')
+    const currA = resolveRef(context, this.a)
+    const currB = resolveRef(context, this.b)
+    const prevA = resolveRef(context, this.a, 1)
+    const prevB = resolveRef(context, this.b, 1)
+
+    if (currA === null || currB === null || prevA === null || prevB === null) return false
+
+    return this.direction === 'above'
+      ? prevA <= prevB && currA > currB
+      : prevA >= prevB && currA < currB
   }
 }
 
-export class CrossesBelow implements Rule {
+export class CrossesAbove extends Crosses {
+  constructor(a: SeriesRef, b: SeriesRef) {
+    super(a, b, 'above')
+  }
+}
+
+export class CrossesBelow extends Crosses {
+  constructor(a: SeriesRef, b: SeriesRef) {
+    super(a, b, 'below')
+  }
+}
+
+export class Comparison implements Rule {
   readonly name: string
 
   constructor(
     readonly a: SeriesRef,
     readonly b: SeriesRef,
+    private readonly op: '>' | '<',
   ) {
-    this.name = `${a} crossesBelow ${b}`
-  }
-
-  evaluate(context: MarketContext): boolean {
-    return crosses(context, this.a, this.b, 'below')
-  }
-}
-
-export class Greater implements Rule {
-  readonly name: string
-
-  constructor(
-    readonly a: SeriesRef,
-    readonly b: SeriesRef,
-  ) {
-    this.name = `${a} > ${b}`
+    this.name = `${a} ${op} ${b}`
   }
 
   evaluate(context: MarketContext): boolean {
     const a = resolveRef(context, this.a)
     const b = resolveRef(context, this.b)
-    return a !== null && b !== null && a > b
+    if (a === null || b === null) return false
+    return this.op === '>' ? a > b : a < b
   }
 }
 
-export class Lower implements Rule {
+export class Greater extends Comparison {
+  constructor(a: SeriesRef, b: SeriesRef) {
+    super(a, b, '>')
+  }
+}
+
+export class Lower extends Comparison {
+  constructor(a: SeriesRef, b: SeriesRef) {
+    super(a, b, '<')
+  }
+}
+
+export class Logical implements Rule {
   readonly name: string
+  readonly rules: readonly Rule[]
 
   constructor(
-    readonly a: SeriesRef,
-    readonly b: SeriesRef,
+    private readonly mode: 'AND' | 'OR',
+    ...rules: Rule[]
   ) {
-    this.name = `${a} < ${b}`
-  }
-
-  evaluate(context: MarketContext): boolean {
-    const a = resolveRef(context, this.a)
-    const b = resolveRef(context, this.b)
-    return a !== null && b !== null && a < b
-  }
-}
-
-export class All implements Rule {
-  readonly name: string
-  readonly rules: readonly Rule[]
-
-  constructor(...rules: Rule[]) {
     if (rules.length === 0) {
-      throw new RangeError('All requiere al menos una regla')
+      throw new RangeError(`${mode} requiere al menos una regla`)
     }
     this.rules = rules
-    this.name = `(${rules.map((rule) => rule.name).join(' AND ')})`
+    this.name = `(${rules.map((rule) => rule.name).join(` ${mode} `)})`
   }
 
   evaluate(context: MarketContext): boolean {
     for (const rule of this.rules) {
-      if (!rule.evaluate(context)) return false
+      const result = rule.evaluate(context)
+      if (this.mode === 'AND' && !result) return false
+      if (this.mode === 'OR' && result) return true
     }
-    return true
+    return this.mode === 'AND'
   }
 }
 
-export class Any implements Rule {
-  readonly name: string
-  readonly rules: readonly Rule[]
-
+export class All extends Logical {
   constructor(...rules: Rule[]) {
-    if (rules.length === 0) {
-      throw new RangeError('Any requiere al menos una regla')
-    }
-    this.rules = rules
-    this.name = `(${rules.map((rule) => rule.name).join(' OR ')})`
+    super('AND', ...rules)
   }
+}
 
-  evaluate(context: MarketContext): boolean {
-    for (const rule of this.rules) {
-      if (rule.evaluate(context)) return true
-    }
-    return false
+export class Any extends Logical {
+  constructor(...rules: Rule[]) {
+    super('OR', ...rules)
   }
 }
 
