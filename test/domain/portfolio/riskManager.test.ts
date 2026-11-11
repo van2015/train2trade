@@ -109,3 +109,47 @@ describe('RiskManager — canAdd (aprobación de aumentos)', () => {
     expect(() => risk.canAdd(portfolio, 100, Number.NaN)).toThrow(InvalidRiskError)
   })
 })
+
+describe('RiskManager — addQty (tamaño de los aumentos)', () => {
+  it('usa la fracción del presupuesto disponible (holgura de exposición y efectivo)', () => {
+    const portfolio = new Portfolio(1_000)
+    portfolio.applyFill(buy(4, 100)) // exposición 400, cash 600, equity 1000
+    const risk = new RiskManager()
+    // presupuesto = min(1000 - 400, 600) = 600
+    expect(risk.addQty(portfolio, 100, 0.5)).toBeCloseTo(3, 10)
+    expect(risk.addQty(portfolio, 100, 1)).toBeCloseTo(6, 10)
+  })
+
+  it('limita por la holgura de exposición máxima', () => {
+    const portfolio = new Portfolio(1_000)
+    portfolio.applyFill(buy(5, 100)) // exposición 500, equity 1000
+    const capped = new RiskManager({ maxPositionFraction: 0.6 }) // tope 600 → holgura 100
+    expect(capped.addQty(portfolio, 100, 1)).toBeCloseTo(1, 10)
+    // sin holgura (tope 500 = exposición) → no es admisible
+    expect(new RiskManager({ maxPositionFraction: 0.5 }).addQty(portfolio, 100, 1)).toBeNull()
+  })
+
+  it('limita por la reserva de efectivo', () => {
+    const portfolio = new Portfolio(1_000)
+    portfolio.applyFill(buy(4, 100)) // cash 600, equity 1000
+    const risk = new RiskManager({ minCashReserve: 0.5 }) // efectivo disponible 100
+    expect(risk.addQty(portfolio, 100, 1)).toBeCloseTo(1, 10)
+  })
+
+  it('reserva la comisión estimada', () => {
+    const portfolio = new Portfolio(1_000)
+    portfolio.applyFill(buy(4, 100)) // cash 600, holgura 600
+    const risk = new RiskManager({ feeBps: 100 }) // 1%
+    // 600 / (100 * 1.01)
+    expect(risk.addQty(portfolio, 100, 1)).toBeCloseTo(600 / 101, 10)
+  })
+
+  it('valida price y fraction', () => {
+    const risk = new RiskManager()
+    const portfolio = new Portfolio(1_000)
+    expect(() => risk.addQty(portfolio, 100, 0)).toThrow(InvalidRiskError)
+    expect(() => risk.addQty(portfolio, 100, 1.5)).toThrow(InvalidRiskError)
+    expect(() => risk.addQty(portfolio, 100, Number.NaN)).toThrow(InvalidRiskError)
+    expect(() => risk.addQty(portfolio, -1, 0.5)).toThrow(InvalidRiskError)
+  })
+})
