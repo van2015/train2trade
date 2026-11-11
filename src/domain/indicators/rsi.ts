@@ -14,46 +14,53 @@ export class Rsi implements Indicator {
   }
 
   calculate(candles: readonly Candle[]): IndicatorValue[] {
-    const values: IndicatorValue[] = []
-    let previousClose: number | null = null
-    let changeCount = 0
-    let seedGain = 0
-    let seedLoss = 0
-    let avgGain = 0
-    let avgLoss = 0
+    const state = new RsiAccumulator(this.period)
+    return sortedByTime(candles).map((candle) => ({
+      time: candle.time,
+      value: state.next(candle.close),
+    }))
+  }
+}
 
-    for (const candle of sortedByTime(candles)) {
-      if (previousClose === null) {
-        previousClose = candle.close
-        values.push({ time: candle.time, value: null })
-        continue
-      }
+/** Estado del cálculo: siembra de las primeras medias y después suavizado de Wilder. */
+class RsiAccumulator {
+  private previousClose: number | null = null
+  private changeCount = 0
+  private seedGain = 0
+  private seedLoss = 0
+  private avgGain = 0
+  private avgLoss = 0
 
-      const change = candle.close - previousClose
-      previousClose = candle.close
-      const gain = Math.max(change, 0)
-      const loss = Math.max(-change, 0)
-      changeCount += 1
+  constructor(private readonly period: number) {}
 
-      if (changeCount < this.period) {
-        seedGain += gain
-        seedLoss += loss
-        values.push({ time: candle.time, value: null })
-        continue
-      }
-
-      if (changeCount === this.period) {
-        avgGain = (seedGain + gain) / this.period
-        avgLoss = (seedLoss + loss) / this.period
-      } else {
-        avgGain = (avgGain * (this.period - 1) + gain) / this.period
-        avgLoss = (avgLoss * (this.period - 1) + loss) / this.period
-      }
-
-      values.push({ time: candle.time, value: rsiFrom(avgGain, avgLoss) })
+  /** RSI de la vela; `null` durante el calentamiento. */
+  next(close: number): number | null {
+    if (this.previousClose === null) {
+      this.previousClose = close
+      return null
     }
 
-    return values
+    const change = close - this.previousClose
+    this.previousClose = close
+    const gain = Math.max(change, 0)
+    const loss = Math.max(-change, 0)
+    this.changeCount += 1
+
+    if (this.changeCount < this.period) {
+      this.seedGain += gain
+      this.seedLoss += loss
+      return null
+    }
+
+    if (this.changeCount === this.period) {
+      this.avgGain = (this.seedGain + gain) / this.period
+      this.avgLoss = (this.seedLoss + loss) / this.period
+    } else {
+      this.avgGain = (this.avgGain * (this.period - 1) + gain) / this.period
+      this.avgLoss = (this.avgLoss * (this.period - 1) + loss) / this.period
+    }
+
+    return rsiFrom(this.avgGain, this.avgLoss)
   }
 }
 
