@@ -3,7 +3,7 @@
 > Resumen de implementado y lo pendiente. Fuente de verdad de requisitos: [`AGENTS.md`](../AGENTS.md)
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
-> Última actualización: 2026-11-08 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
+> Última actualización: 2026-11-11 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
 > (**338 tests**, 23 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
@@ -47,12 +47,12 @@ por `index.html` + `vite.config.ts`. Comandos: `pnpm dev`, `pnpm build`, `pnpm p
 
 ### Fase 2 — Dominio de estrategias (completa)
 
-| Módulo                                                                                                                                                                    | Archivos                                    | Tests |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----- |
-| `MarketContext` — qué ve la estrategia, sin look-ahead                                                                                                                    | `src/domain/strategies/marketContext.ts`    | 15    |
-| Reglas — `CrossesAbove/Below`, `Greater/Lower`, `All/Any/Not`, `resolveRef`                                                                                               | `src/domain/strategies/rules.ts`            | 19    |
-| `Strategy` + `Signal` — señales priorizadas (Enter/Add/Reduce/Exit), `limitPrice` por alias, regla de invalidación (veto → `Cancel`), versionado `name@version`           | `src/domain/strategies/strategy.ts`         | 34    |
-| `StrategyInstance` — máquina de estados `Closed → Confirmed → Opened → Closing → Closed`, eventos de dominio (`StrategyConfirmed`, `PositionOpened`, …), `apply`/`onFill` | `src/domain/strategies/strategyInstance.ts` | 32    |
+| Módulo                                                                                                                                                                                                        | Archivos                                    | Tests |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----- |
+| `MarketContext` — qué ve la estrategia, sin look-ahead                                                                                                                                                        | `src/domain/strategies/marketContext.ts`    | 15    |
+| Reglas — `CrossesAbove/Below`, `Greater/Lower`, `All/Any/Not` (con núcleos `Crosses`/`Comparison`/`Logical`), `resolveRef`                                                                                    | `src/domain/strategies/rules.ts`            | 19    |
+| `Strategy` + `Signal` — señales priorizadas (`RequestEntry`/`RequestAdd`/`RequestReduce`/`RequestExit`), `limitPrice` por alias, regla de invalidación (veto → `Invalidate`), versionado `name@version`       | `src/domain/strategies/strategy.ts`         | 34    |
+| `StrategyInstance` — máquina de estados `WaitingForSignal → WaitingForEntryFill → WaitingForExitSignal → WaitingForExitFill`, eventos de dominio (`StrategyConfirmed`, `PositionOpened`, …), `apply`/`onFill` | `src/domain/strategies/strategyInstance.ts` | 32    |
 
 ### Indicadores (reutilizables por gráfico y estrategias)
 
@@ -62,9 +62,9 @@ por `index.html` + `vite.config.ts`. Comandos: `pnpm dev`, `pnpm build`, `pnpm p
 ### Resultado de Fase 2 cumplido
 
 Se pueden **definir y evaluar estrategias sin ejecutar operaciones**: reglas puras, decisiones
-(`enter`/`add`/`reduce`/`exit`/`hold`/`cancel`) con fracción y precio objetivo, y ciclo de vida de la
-instancia con eventos. El estado `Profit`/`Loss` de AGENTS.md se queda para Fase 3 (requiere P&L de
-posiciones reales/simuladas).
+(`request_entry`/`request_add`/`request_reduce`/`request_exit`/`none`/`invalidate`) con fracción y
+precio objetivo, y ciclo de vida de la instancia con eventos. El estado `Profit`/`Loss` de AGENTS.md
+se queda para Fase 3 (requiere P&L de posiciones reales/simuladas).
 
 ## Pendiente
 
