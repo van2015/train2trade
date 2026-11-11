@@ -86,8 +86,10 @@ export function findConfigProblem(config: BacktestConfig): ConfigProblem | null 
 /**
  * Ejecución automática sobre datos históricos (§7A): ensambla el stack de la
  * Fase 3 (`Portfolio + RiskManager + HistoricalBroker + RecordingBroker +
- * StrategyRunner`) y recorre las velas cronológicamente con un `MarketClock`
- * (§12A). Determinista (§12C): misma config → mismo resultado, sin `Date.now`.
+ * StrategyRunner`) y recorre las velas cronológicamente. El `MarketClock`
+ * (§12A) se inyecta en el runner, que es quien lo avanza — fuente única de la
+ * progresión temporal. Determinista (§12C): misma config → mismo resultado,
+ * sin `Date.now`.
  *
  * Orden anti look-ahead (heredado del runner): por vela, avance de mercado →
  * decisión → envío; la orden de la vela N rellena en N+1.
@@ -108,14 +110,13 @@ export function runBacktest(config: BacktestConfig): BacktestResult {
   // Costes estimados := costes reales (fuente única: `execution`).
   const riskManager = new RiskManager({ ...risk, ...executionModel.config })
   const broker = new RecordingBroker(new HistoricalBroker(portfolio, executionModel), portfolio)
-  const runner = new StrategyRunner(strategy, broker, portfolio, riskManager)
-  const clock = new MarketClock()
+  const runner = new StrategyRunner(strategy, broker, portfolio, riskManager, new MarketClock())
 
   const equityCurve: EquityPoint[] = []
   const events: ExecutionEvent[] = []
 
   for (const [index, candle] of candles.entries()) {
-    clock.advanceTo(candle.time)
+    // El reloj lo avanza el runner (§12A): el bucle no lo duplica.
     events.push(...runner.onCandle(candles.slice(0, index + 1)))
     equityCurve.push({ time: candle.time, equity: portfolio.equity(candle.close) })
   }

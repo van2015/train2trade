@@ -4,6 +4,7 @@ import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
 import { CrossesAbove, CrossesBelow, Rule } from '@/domain/strategies/rules'
+import { MarketContextError } from '@/domain/strategies/marketContext'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 
 const t0 = 1_700_000_000_000
@@ -202,6 +203,18 @@ describe('runBacktest — validación de la config', () => {
     const base = { strategy: crossStrategy(), candles: CANDLES, timeframe: Timeframe.HOUR }
     expect(() => runBacktest({ ...base, initialCapital: 0 })).toThrow(BacktestError)
     expect(() => runBacktest({ ...base, initialCapital: Number.NaN })).toThrow(BacktestError)
+  })
+
+  it('rechaza velas no ascendentes (el contexto del runner valida antes de mutar)', () => {
+    const descending = [...CANDLES].reverse()
+    expect(() =>
+      runBacktest({
+        strategy: crossStrategy(),
+        candles: descending,
+        timeframe: Timeframe.HOUR,
+        initialCapital: 1_000,
+      }),
+    ).toThrow(MarketContextError)
   })
 })
 

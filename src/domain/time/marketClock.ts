@@ -9,8 +9,10 @@ export class MarketClockError extends DomainError {
 /**
  * Tiempo de simulación (§12A): avance controlado e independiente del reloj del
  * sistema — determinista, nunca lee `Date.now`. El tiempo es estrictamente
- * creciente (no se repite ni se retrocede una vela), el mismo invariante
- * monótono que exige `StrategyRunner`. Base del replay interactivo (Fase 5).
+ * creciente (no se repite ni se retrocede una vela). Es la **única fuente**
+ * de ese invariante: el `StrategyRunner` avanza uno inyectado (o el suyo
+ * propio) en vez de reimplementar la regla. Base del replay interactivo
+ * (Fase 5).
  */
 export class MarketClock {
   private current: number | null = null

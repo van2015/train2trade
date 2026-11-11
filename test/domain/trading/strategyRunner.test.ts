@@ -10,6 +10,7 @@ import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { StrategyState } from '@/domain/strategies/strategyInstance'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 import { RiskConfig, RiskManager } from '@/domain/portfolio/riskManager'
+import { MarketClockError } from '@/domain/time/marketClock'
 import { StrategyRunner } from '@/domain/trading/strategyRunner'
 
 const t0 = 1_700_000_000_000
@@ -112,8 +113,10 @@ describe('StrategyRunner — construcción y validación', () => {
   it('exige velas estrictamente ascendentes entre llamadas (replay determinista)', () => {
     const { runner } = setup()
     runner.onCandle([C0])
-    expect(() => runner.onCandle([C0])).toThrow(MarketContextError)
-    expect(() => runner.onCandle([candle(-1)])).toThrow(MarketContextError)
+    expect(runner.clock.now).toBe(C0.time) // el reloj avanza con cada vela aceptada
+    expect(() => runner.onCandle([C0])).toThrow(MarketClockError) // tiempo no progresa
+    expect(() => runner.onCandle([candle(-1)])).toThrow(MarketClockError) // retroceso
+    expect(runner.clock.now).toBe(C0.time) // una llamada rechazada no avanza el reloj
   })
 })
 

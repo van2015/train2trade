@@ -3,9 +3,10 @@ import { Broker } from '@/domain/execution/broker'
 import { Order, OrderSide, OrderType } from '@/domain/execution/order'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 import { RiskManager } from '@/domain/portfolio/riskManager'
-import { MarketContext, MarketContextError } from '@/domain/strategies/marketContext'
+import { MarketContext } from '@/domain/strategies/marketContext'
 import { Strategy, StrategyAction, StrategyDecision } from '@/domain/strategies/strategy'
 import { StrategyEvent, StrategyInstance } from '@/domain/strategies/strategyInstance'
+import { MarketClock } from '@/domain/time/marketClock'
 
 /** Eventos del ciclo: los de dominio de la instancia + los de la ejecución (§12D). */
 export type ExecutionEvent =
@@ -31,6 +32,12 @@ type OrderKind = 'entry' | 'exit' | 'adjust'
  * siempre es admisible. Un rechazo del broker emite `OrderRejected` y deja la
  * instancia como estaba; con la señal viva se reenvía en la misma vela.
  *
+ * **Tiempo (§12A):** `onCandle` avanza un `MarketClock` (inyectado por el
+ * composition root o interno) como **única fuente** del invariante "tiempo
+ * estrictamente creciente"; el runner no reimplementa la regla. La validación
+ * ocurre antes de mutar nada: una llamada inválida no avanza el reloj ni
+ * toca el estado.
+ *
  * Tamaños: entrada → `risk.entryQty`; add → `risk.addQty` con la fracción de
  * la señal; reduce → fracción de la posición; exit → posición completa.
  * Si el riesgo no admite la operación, no se confirma ni se envía nada.
@@ -41,41 +48,42 @@ export class StrategyRunner {
   readonly broker: Broker
   readonly portfolio: Portfolio
   readonly risk: RiskManager
+  /** Tiempo de simulación del runner: avanza con cada vela aceptada. */
+  readonly clock: MarketClock
 
   private pendingOrder: Order | null = null
   private pendingKind: OrderKind | null = null
   private orderSeq = 0
-  private lastTime: number | null = null
 
   constructor(
     strategy: Strategy,
     broker: Broker,
     portfolio: Portfolio,
     risk: RiskManager = new RiskManager(),
+    clock: MarketClock = new MarketClock(),
   ) {
     this.strategy = strategy
     this.instance = new StrategyInstance(strategy)
     this.broker = broker
     this.portfolio = portfolio
     this.risk = risk
+    this.clock = clock
   }
 
-  /** Procesa la vela visible (velas ascendentes desde el inicio) y devuelve los eventos. */
+  /**
+   * Procesa la vela visible (velas ascendentes desde el inicio) y devuelve los
+   * eventos. Si el tiempo no progresa estrictamente → `MarketClockError`.
+   */
   onCandle(candles: readonly Candle[]): ExecutionEvent[] {
     // 1. Contexto primero: valida las velas antes de mutar nada.
     const context = this.strategy.buildContext(candles)
     const candle = context.current
-    if (this.lastTime !== null && candle.time <= this.lastTime) {
-      throw new MarketContextError(
-        'el runner exige velas estrictamente ascendentes entre llamadas',
-        candle.time,
-      )
-    }
-    this.lastTime = candle.time
+    // 2. Tiempo: progresión estricta vía MarketClock (la regla no se duplica).
+    this.clock.advanceTo(candle.time)
 
     const events: ExecutionEvent[] = []
 
-    // 2. Avance de mercado: rellena órdenes decididas antes de esta vela.
+    // 3. Avance de mercado: rellena órdenes decididas antes de esta vela.
     for (const fill of this.broker.advance(candle)) {
       if (this.pendingOrder !== null && fill.orderId === this.pendingOrder.id) {
         const kind = this.pendingKind
@@ -96,7 +104,7 @@ export class StrategyRunner {
       events.push('OrderRejected')
     }
 
-    // 3. Evaluación al cierre (siempre después del avance: sin look-ahead).
+    // 4. Evaluación al cierre (siempre después del avance: sin look-ahead).
     const decision = this.strategy.evaluate(context, this.instance.open)
     events.push(...this.applyDecision(decision, context, candle.time))
     return events
