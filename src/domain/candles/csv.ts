@@ -146,20 +146,26 @@ export class CsvCandlesImporter {
     if (firstIndex === -1) return []
 
     const delimiter = this.options.delimiter ?? CsvCandlesImporter.detectDelimiter(text)
+    const hasHeader = this.options.hasHeader ?? true
+    const layout = resolveLayout(
+      hasHeader ? (lines[firstIndex] ?? '').split(delimiter) : null,
+      this.options.columns,
+    )
+    const startIndex = hasHeader ? firstIndex + 1 : firstIndex
+
+    return normalizeCandles(this.parseRows(lines, startIndex, delimiter, layout))
+  }
+
+  private parseRows(
+    lines: readonly string[],
+    startIndex: number,
+    delimiter: CsvDelimiter,
+    layout: RowLayout,
+  ): Candle[] {
     const timestampFormat = this.options.timestampFormat ?? 'unixMs'
-
-    let layout: RowLayout
-    let startIndex: number
-    if (this.options.hasHeader ?? true) {
-      layout = resolveLayout((lines[firstIndex] ?? '').split(delimiter), this.options.columns)
-      startIndex = firstIndex + 1
-    } else {
-      layout = resolveLayout(null, this.options.columns)
-      startIndex = firstIndex
-    }
-
     const strict = (this.options.onInvalidRow ?? 'skip') === 'throw'
     const parsed: Candle[] = []
+
     for (let index = startIndex; index < lines.length; index += 1) {
       const line = lines[index]
       if (line === undefined || isBlank(line)) continue
@@ -172,7 +178,7 @@ export class CsvCandlesImporter {
       }
     }
 
-    return normalizeCandles(parsed)
+    return parsed
   }
 
   /** Una sola línea a una vela; siempre lanza ante fila inválida (ignora `onInvalidRow`). */
