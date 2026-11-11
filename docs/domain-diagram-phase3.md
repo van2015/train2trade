@@ -98,7 +98,6 @@ flowchart TB
     strategies -.-> indicators
     strategies -.-> errors
     execution -.-> candles
-    execution -.-> portfolio
     execution -.-> errors
     portfolio -.-> execution
     portfolio -.-> errors
@@ -110,23 +109,28 @@ flowchart TB
 
 - **Sólida** `──►` = pertenencia (`src/domain/` → paquete).
 - **Discontinua** `- -►` = dependencia de importación (paquete → paquete del que importa).
-- Capas que emergen de arriba abajo: `trading` → `execution`/`portfolio` → `strategies` →
-  `indicators` → `candles`/`instruments` → `errors` (raíz de errores, abajo del todo).
-- El ciclo `execution ↔ portfolio` (broker → portfolio y `Position`/`Fill` → execution) se dibuja
-  con las dos flechas: son piezas de un mismo subsistema de ejecución.
+- Capas que emergen de arriba abajo: `trading` → `strategies`/`portfolio` →
+  `execution`/`indicators` → `candles`/`instruments` → `errors` (raíz de errores, abajo del todo).
+- **Sin ciclos**: `execution` **no** importa de `portfolio` gracias al puerto
+  `Account` (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y
+  `Portfolio` la implementa (`portfolio → execution`, un solo sentido).
 
 ### Detalle de las dependencias (las mismas flechas discontinuas del diagrama)
 
-| Paquete       | Importa de                                       | Nota                                         |
-| ------------- | ------------------------------------------------ | -------------------------------------------- |
-| `errors`      | —                                                | raíz de la jerarquía de errores              |
-| `candles`     | `errors`                                         |                                              |
-| `instruments` | `errors`                                         |                                              |
-| `indicators`  | `candles`, `errors`                              |                                              |
-| `strategies`  | `candles`, `indicators`, `errors`                |                                              |
-| `execution`   | `candles`, `portfolio`, `errors`                 | `HistoricalBroker` usa `Portfolio`           |
-| `portfolio`   | `execution`, `errors`                            | `Position`/`Fill`/`OrderSide` de `execution` |
-| `trading`     | `strategies`, `execution`, `portfolio`, `errors` | orquestador (hoja del árbol)                 |
+| Paquete       | Importa de                                       | Nota                                                     |
+| ------------- | ------------------------------------------------ | -------------------------------------------------------- |
+| `errors`      | —                                                | raíz de la jerarquía de errores                          |
+| `candles`     | `errors`                                         |                                                          |
+| `instruments` | `errors`                                         |                                                          |
+| `indicators`  | `candles`, `errors`                              |                                                          |
+| `strategies`  | `candles`, `indicators`, `errors`                |                                                          |
+| `execution`   | `candles`, `errors`                              | usa el puerto `Account` (sin dependencia de `portfolio`) |
+| `portfolio`   | `execution`, `errors`                            | `Position`/`Fill`/`OrderSide` de `execution`             |
+| `trading`     | `strategies`, `execution`, `portfolio`, `errors` | orquestador (hoja del árbol)                             |
+
+> El ciclo histórico `execution ↔ portfolio` se resolvió con el puerto `Account`
+> (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y `Portfolio` la
+> implementa, así que la dependencia queda en un solo sentido `portfolio → execution`.
 
 ## 2. Diagrama de clases
 
@@ -394,6 +398,12 @@ classDiagram
             +marketValue(price: number) number
             +unrealizedPnl(price: number) number
         }
+        class Account {
+            <<interface>>
+            +cash: number
+            +position: Position
+            +applyFill(fill: Fill)
+        }
         class Broker {
             <<interface>>
             +submitOrder(order: Order) Order
@@ -403,7 +413,7 @@ classDiagram
             +pendingOrders() Order[]
         }
         class HistoricalBroker {
-            +portfolio: Portfolio
+            +account: Account
             +executionModel: ExecutionModel
             -pending: Order[]
             +submitOrder(order: Order) Order
@@ -501,7 +511,8 @@ classDiagram
     RiskManager ..> RiskConfig
 
     %% ---- grafo de objetos entre subsistemas ----
-    HistoricalBroker --> Portfolio : efectivo y posición
+    HistoricalBroker ..> Account : puerto (sin ciclo)
+    Portfolio ..|> Account : implements
     HistoricalBroker --> ExecutionModel : modelo inyectado
     StrategyRunner --> Strategy
     StrategyRunner --> StrategyInstance
@@ -608,6 +619,6 @@ Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimit
 - `<<union>>` marca tipos de unión (`StrategyEvent`, `ExecutionEvent`); `<<enumeration>>` enums;
   `<<interned>>` value objects con caché (`Instrument`, `Timeframe`); `<<valueObject>>` VO inmutable.
 - El diagrama de paquetes distingue **pertenencia** (sólida, raíz → paquete) de **dependencia de
-  importación** (discontinua, paquete → paquete); el ciclo `execution ↔ portfolio` aparece en ambos
-  sentidos. La jerarquía de errores va aparte (sección 3).
+  importación** (discontinua, paquete → paquete); no hay ciclos (el `execution ↔ portfolio` quedó
+  eliminado con el puerto `Account`). La jerarquía de errores va aparte (sección 3).
 - Verificado con el parser real de Mermaid 11 (`mermaid.parse`).

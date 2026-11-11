@@ -10,7 +10,9 @@ import {
   OrderType,
 } from '@/domain/execution/order'
 import { NextOpenExecutionModel } from '@/domain/execution/executionModel'
-import { InvalidPortfolioError, Portfolio } from '@/domain/portfolio/portfolio'
+import { Account } from '@/domain/execution/account'
+import { Fill } from '@/domain/execution/fill'
+import { Portfolio } from '@/domain/portfolio/portfolio'
 
 const t0 = 1_700_000_000_000
 const step = 60_000
@@ -52,7 +54,7 @@ describe('HistoricalBroker — envío y avance', () => {
     expect(submitted).toBeInstanceOf(Order)
     expect(broker.pendingOrders().map((pending) => pending.id)).toEqual(['o1'])
     expect(broker.positions()).toEqual([])
-    expect(broker.portfolio.cash).toBe(1_000)
+    expect(broker.account.cash).toBe(1_000)
   })
 
   it('submitOrder rechaza una orden que no está pending', () => {
@@ -72,8 +74,8 @@ describe('HistoricalBroker — envío y avance', () => {
     expect(fills[0]?.price).toBe(100)
     expect(fills[0]?.qty).toBe(2)
     expect(market.status).toBe(OrderStatus.Filled)
-    expect(broker.portfolio.cash).toBe(800)
-    expect(broker.portfolio.position?.qty).toBe(2)
+    expect(broker.account.cash).toBe(800)
+    expect(broker.account.position?.qty).toBe(2)
     expect(broker.pendingOrders()).toEqual([])
     expect(broker.positions().map((position) => position.qty)).toEqual([2])
   })
@@ -99,7 +101,7 @@ describe('HistoricalBroker — envío y avance', () => {
     expect(fills.map((fill) => fill.orderId)).toEqual(['o1', 'o2'])
     expect(first.status).toBe(OrderStatus.Filled)
     expect(second.status).toBe(OrderStatus.Filled)
-    expect(broker.portfolio.cash).toBe(800)
+    expect(broker.account.cash).toBe(800)
   })
 })
 
@@ -115,8 +117,8 @@ describe('HistoricalBroker — rechazos controlados', () => {
     expect(fills).toEqual([])
     expect(orderToReject.status).toBe(OrderStatus.Rejected)
     expect(orderToReject.rejectReason).toBe('efectivo insuficiente')
-    expect(broker.portfolio.cash).toBe(100)
-    expect(broker.portfolio.position).toBeNull()
+    expect(broker.account.cash).toBe(100)
+    expect(broker.account.position).toBeNull()
     expect(broker.pendingOrders()).toEqual([])
   })
 
@@ -127,22 +129,22 @@ describe('HistoricalBroker — rechazos controlados', () => {
     expect(fills).toEqual([])
     expect(sellOrder.status).toBe(OrderStatus.Rejected)
     expect(sellOrder.rejectReason).toBe('sin posición abierta')
-    expect(broker.portfolio.cash).toBe(1_000)
+    expect(broker.account.cash).toBe(1_000)
   })
 
   it('rechaza una venta superior a la posición abierta sin mutar el portfolio', () => {
     const broker = makeBroker()
     broker.submitOrder(order('entry', { qty: 1 }))
     broker.advance(candleAt(0, { open: 100 }))
-    const cashAfterEntry = broker.portfolio.cash
+    const cashAfterEntry = broker.account.cash
 
     const oversell = broker.submitOrder(order('over', { side: OrderSide.Sell, qty: 5 }))
     const fills = broker.advance(candleAt(1, { open: 110 }))
     expect(fills).toEqual([])
     expect(oversell.status).toBe(OrderStatus.Rejected)
     expect(oversell.rejectReason).toBe('sin posición suficiente')
-    expect(broker.portfolio.cash).toBe(cashAfterEntry)
-    expect(broker.portfolio.position?.qty).toBe(1)
+    expect(broker.account.cash).toBe(cashAfterEntry)
+    expect(broker.account.position?.qty).toBe(1)
   })
 })
 
@@ -154,7 +156,7 @@ describe('HistoricalBroker — cancelación', () => {
     expect(limit.status).toBe(OrderStatus.Cancelled)
     expect(broker.pendingOrders()).toEqual([])
     expect(broker.advance(candleAt(0, { open: 90, low: 89 }))).toEqual([])
-    expect(broker.portfolio.position).toBeNull()
+    expect(broker.account.position).toBeNull()
   })
 
   it('cancelOrder con id inexistente o ya resuelta lanza InvalidOrderError', () => {
@@ -177,15 +179,13 @@ describe('HistoricalBroker — configuración', () => {
   })
 
   it('con un modelo con comisión la descuenta el portfolio', () => {
-    const broker = new HistoricalBroker(
-      new Portfolio(1_000),
-      new NextOpenExecutionModel({ feeBps: 100 }), // 1%
-    )
+    const portfolio = new Portfolio(1_000)
+    const broker = new HistoricalBroker(portfolio, new NextOpenExecutionModel({ feeBps: 100 })) // 1%
     broker.submitOrder(order('o1', { qty: 1 }))
     const fills = broker.advance(candleAt(0, { open: 100 }))
     expect(fills[0]?.fee).toBeCloseTo(1, 10)
-    expect(broker.portfolio.cash).toBeCloseTo(899, 10)
-    expect(broker.portfolio.feesPaid).toBeCloseTo(1, 10)
+    expect(broker.account.cash).toBeCloseTo(899, 10) // vía el puerto Account
+    expect(portfolio.feesPaid).toBeCloseTo(1, 10) // miembro propio de Portfolio
   })
 
   it('cumple el contrato Broker (sustituible por cualquier implementación)', () => {
@@ -200,7 +200,8 @@ describe('HistoricalBroker — configuración', () => {
 
 describe('HistoricalBroker — ciclo entrada/salida', () => {
   it('ejecuta una entrada y una salida completas contra el portfolio', () => {
-    const broker = makeBroker()
+    const portfolio = new Portfolio(1_000)
+    const broker = new HistoricalBroker(portfolio, new NextOpenExecutionModel())
     broker.submitOrder(order('entry', { qty: 5 }))
     broker.advance(candleAt(0, { open: 100 })) // cash 500, posición 5
 
@@ -208,9 +209,52 @@ describe('HistoricalBroker — ciclo entrada/salida', () => {
     const fills = broker.advance(candleAt(1, { open: 110 })) // cash 1050
 
     expect(fills).toHaveLength(1)
-    expect(broker.portfolio.cash).toBe(1_050)
-    expect(broker.portfolio.position).toBeNull()
-    expect(broker.portfolio.realizedPnl).toBe(50)
+    expect(broker.account.cash).toBe(1_050)
+    expect(broker.account.position).toBeNull()
+    expect(portfolio.realizedPnl).toBe(50)
     expect(broker.positions()).toEqual([])
+  })
+})
+
+describe('HistoricalBroker — puerto Account', () => {
+  it('funciona con cualquier Account: no depende de Portfolio concreto', () => {
+    const applied: Fill[] = []
+    const account: Account = {
+      get cash() {
+        return 500
+      },
+      position: null,
+      applyFill(fill) {
+        applied.push(fill)
+      },
+    }
+    const broker = new HistoricalBroker(account, new NextOpenExecutionModel())
+    broker.submitOrder(order('o1', { qty: 1 }))
+    const fills = broker.advance(candleAt(0, { open: 100 }))
+
+    expect(fills).toHaveLength(1)
+    expect(applied).toHaveLength(1)
+    expect(applied[0]?.price).toBe(100)
+    expect(broker.positions()).toEqual([])
+  })
+
+  it('lee el efectivo del puerto para el rechazo controlado', () => {
+    const account: Account = {
+      get cash() {
+        return 10
+      },
+      position: null,
+      applyFill() {
+        throw new Error('no debería ejecutarse: efectivo insuficiente')
+      },
+    }
+    const broker = new HistoricalBroker(account, new NextOpenExecutionModel())
+    const rejected = broker.submitOrder(order('o1', { type: OrderType.Limit, price: 100, qty: 1 }))
+    // limit toca el precio (open 100 <= límite 100) pero cuesta 100 > cash 10
+    const fills = broker.advance(candleAt(0, { open: 100 }))
+
+    expect(fills).toEqual([])
+    expect(rejected.status).toBe(OrderStatus.Rejected)
+    expect(rejected.rejectReason).toBe('efectivo insuficiente')
   })
 })

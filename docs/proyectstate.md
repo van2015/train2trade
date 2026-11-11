@@ -4,7 +4,7 @@
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
 > Última actualización: 2026-11-11 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**479 tests**, 32 archivos). `pnpm build` compila sin errores.
+> (**481 tests**, 32 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
@@ -70,22 +70,26 @@ se queda para Fase 3 (requiere P&L de posiciones reales/simuladas).
 
 Plan detallado: [`fase3-plan.md`](./fase3-plan.md). Sin UI (visualización, Fase 4); long-only.
 
-| Módulo                                                                                                                                   | Archivos                                                | Tests |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----- |
-| `Order` — side/type/qty/price, transiciones `Pending → Filled/Cancelled/Rejected`                                                        | `src/domain/execution/order.ts`                         | 24    |
-| `Fill` + `ExecutionModel` (`NextOpenExecutionModel`: apertura siguiente, slippage, fee, límite tocado)                                   | `src/domain/execution/fill.ts`, `executionModel.ts`     | 14+16 |
-| `Position` (long-only) — coste unitario **con fees**, P&L realizado, `unrealizedPnl`                                                     | `src/domain/execution/position.ts`                      | 12    |
-| `Portfolio` (§8) — invariante `cash >= 0`, `equity`, exposición, realizado/comisiones acumulados                                         | `src/domain/portfolio/portfolio.ts`                     | 14    |
-| `RiskManager` (§8) — `entryQty`/`addQty`/`canAdd`, reserva de efectivo, tope de exposición, fee+slippage estimados, qty con 12 decimales | `src/domain/portfolio/riskManager.ts`                   | 26    |
-| `Broker` (interfaz §6) + `HistoricalBroker` — avance por vela, rechazos controlados, cancelación                                         | `src/domain/execution/broker.ts`, `historicalBroker.ts` | 14    |
-| `StrategyRunner` — decide → envía orden → rellena → actualiza instancia; `ExecutionEvent[]`                                              | `src/domain/trading/strategyRunner.ts`                  | 16    |
-| E2E: cruce de SMA con fees/slippage, anti look-ahead explícito, determinismo, veto con orden pendiente                                   | `test/domain/trading/runnerIntegration.test.ts`         | 5     |
+| Módulo                                                                                                                                   | Archivos                                                              | Tests |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ----- |
+| `Order` — side/type/qty/price, transiciones `Pending → Filled/Cancelled/Rejected`                                                        | `src/domain/execution/order.ts`                                       | 24    |
+| `Fill` + `ExecutionModel` (`NextOpenExecutionModel`: apertura siguiente, slippage, fee, límite tocado)                                   | `src/domain/execution/fill.ts`, `executionModel.ts`                   | 14+16 |
+| `Position` (long-only) — coste unitario **con fees**, P&L realizado, `unrealizedPnl`                                                     | `src/domain/execution/position.ts`                                    | 12    |
+| `Portfolio` (§8) — invariante `cash >= 0`, `equity`, exposición, realizado/comisiones acumulados                                         | `src/domain/portfolio/portfolio.ts`                                   | 14    |
+| `RiskManager` (§8) — `entryQty`/`addQty`/`canAdd`, reserva de efectivo, tope de exposición, fee+slippage estimados, qty con 12 decimales | `src/domain/portfolio/riskManager.ts`                                 | 26    |
+| `Broker` (interfaz §6) + `HistoricalBroker` + puerto `Account` — avance por vela, rechazos controlados, cancelación                      | `src/domain/execution/broker.ts`, `historicalBroker.ts`, `account.ts` | 16    |
+| `StrategyRunner` — decide → envía orden → rellena → actualiza instancia; `ExecutionEvent[]`                                              | `src/domain/trading/strategyRunner.ts`                                | 16    |
+| E2E: cruce de SMA con fees/slippage, anti look-ahead explícito, determinismo, veto con orden pendiente                                   | `test/domain/trading/runnerIntegration.test.ts`                       | 5     |
 
 **Invariante anti look-ahead** (central, testeado): en cada vela el runner primero avanza el broker
 (rellena órdenes decididas antes) y después evalúa; una orden decidida en la vela N solo rellena en
 N+1. Los rechazos del broker emiten `OrderRejected` y la señal viva reenvía la orden. Los eventos de
 ejecución (`OrderSubmitted/Filled/Rejected/Cancelled`) se devuelven junto a los `StrategyEvent`
 existentes (§12D); la máquina de estados no cambió.
+
+**Sin ciclos entre paquetes**: `HistoricalBroker` depende del puerto `Account`
+(`src/domain/execution/account.ts`, efectivo/posición/`applyFill`) en vez de `Portfolio`, con lo que
+la dependencia va en un solo sentido `portfolio → execution` (ver [`domain-diagram-phase3.md`](./domain-diagram-phase3.md)).
 
 **Resultado de Fase 3 cumplido:** una estrategia puede generar operaciones y gestionar posiciones de
 forma determinista y reproducible, sin conocer backtest, replay ni React (§14). El P&L `Profit`/`Loss`

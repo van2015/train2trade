@@ -4,7 +4,7 @@
 > "una estrategia puede generar operaciones y gestionar posiciones".
 >
 > **Estado: completado (2026-11-11)** — T1…T8 implementados con TDD (ver `git log`: un commit por
-> tarea), `pnpm test && pnpm typecheck && pnpm format:check` en verde (**479 tests**) y
+> tarea), `pnpm test && pnpm typecheck && pnpm format:check` en verde (**481 tests**) y
 > `proyectstate.md` actualizado. Requisitos: AGENTS.md §6/§8.
 
 ## Decisiones cerradas

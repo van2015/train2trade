@@ -1,15 +1,17 @@
 import { Candle } from '@/domain/candles/candle'
+import { Account } from '@/domain/execution/account'
 import { Broker } from '@/domain/execution/broker'
 import { ExecutionModel, NextOpenExecutionModel } from '@/domain/execution/executionModel'
 import { Fill } from '@/domain/execution/fill'
 import { InvalidOrderError, Order, OrderSide } from '@/domain/execution/order'
 import { Position } from '@/domain/execution/position'
-import { Portfolio } from '@/domain/portfolio/portfolio'
 
 /**
  * Broker de datos históricos (§6): ejecuta las órdenes pendientes con el
  * `ExecutionModel` inyectado cada vez que recibe una vela, aplicando los
- * rellenos al `Portfolio` (que mueve efectivo y posición).
+ * rellenos a la `Account` inyectada (que mueve efectivo y posición; en la app
+ * esa cuenta es un `Portfolio`, pero el broker no lo conoce → sin ciclo
+ * `execution ↔ portfolio`).
  *
  * Rechazos **controlados** (orden → `Rejected` con motivo, sin excepción):
  * - compra cuyo coste (precio + comisión) supera el efectivo disponible;
@@ -17,16 +19,16 @@ import { Portfolio } from '@/domain/portfolio/portfolio'
  *
  * Excepciones (`InvalidOrderError`) solo para errores de integración: enviar
  * una orden no pendiente o cancelar un id desconocido/resuelto.
- * Determinista: mismo portfolio + mismas velas + mismo modelo → mismos rellenos.
+ * Determinista: misma cuenta + mismas velas + mismo modelo → mismos rellenos.
  */
 export class HistoricalBroker implements Broker {
-  readonly portfolio: Portfolio
+  readonly account: Account
   readonly executionModel: ExecutionModel
 
   private pending: Order[] = []
 
-  constructor(portfolio: Portfolio, executionModel: ExecutionModel = new NextOpenExecutionModel()) {
-    this.portfolio = portfolio
+  constructor(account: Account, executionModel: ExecutionModel = new NextOpenExecutionModel()) {
+    this.account = account
     this.executionModel = executionModel
   }
 
@@ -69,7 +71,7 @@ export class HistoricalBroker implements Broker {
         continue
       }
 
-      this.portfolio.applyFill(fill)
+      this.account.applyFill(fill)
       order.fill()
       this.remove(order)
       fills.push(fill)
@@ -79,7 +81,7 @@ export class HistoricalBroker implements Broker {
   }
 
   positions(): readonly Position[] {
-    const position = this.portfolio.position
+    const position = this.account.position
     return position === null ? [] : [position]
   }
 
@@ -91,10 +93,10 @@ export class HistoricalBroker implements Broker {
   private rejectionReason(order: Order, fill: Fill): string | null {
     if (order.side === OrderSide.Buy) {
       const cost = fill.price * fill.qty + fill.fee
-      return cost > this.portfolio.cash ? 'efectivo insuficiente' : null
+      return cost > this.account.cash ? 'efectivo insuficiente' : null
     }
 
-    const position = this.portfolio.position
+    const position = this.account.position
     if (position === null || position.isEmpty) return 'sin posición abierta'
     return fill.qty > position.qty ? 'sin posición suficiente' : null
   }

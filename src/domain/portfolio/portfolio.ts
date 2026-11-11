@@ -1,4 +1,5 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
+import { Account } from '@/domain/execution/account'
 import { Fill } from '@/domain/execution/fill'
 import { OrderSide } from '@/domain/execution/order'
 import { Position } from '@/domain/execution/position'
@@ -21,7 +22,7 @@ export class InvalidPortfolioError extends DomainError {
  * - `equity(price) = cash + marketValue(price)` — sin doble conteo de fees,
  *   porque el coste de entrada ya salió del cash y vive en `avgEntryPrice`.
  */
-export class Portfolio {
+export class Portfolio implements Account {
   readonly initialCapital: number
 
   private cashValue: number
