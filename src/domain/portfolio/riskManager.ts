@@ -8,6 +8,8 @@ export interface RiskConfig {
   minCashReserve?: number
   /** Comisión estimada en bps (debe coincidir con el `ExecutionModel`). Por defecto 0. */
   feeBps?: number
+  /** Slippage estimado en bps (debe coincidir con el `ExecutionModel`). Por defecto 0. */
+  slippageBps?: number
 }
 
 export class InvalidRiskError extends DomainError {
@@ -37,16 +39,18 @@ function roundDownQty(qty: number): number {
  * decide *qué* operación quiere; aquí se determina si es admisible dada la
  * cuenta. Reduce/Exit nunca se bloquean (cerrar siempre es admisible).
  *
- * El `feeBps` solo estima la comisión para no aprobar operaciones que el
- * `Portfolio` rechazaría después por efectivo; el rechazo real lo hace el broker.
+ * El `feeBps`/`slippageBps` solo estiman el coste real para no aprobar
+ * operaciones que el `Portfolio` rechazaría después por efectivo; el rechazo
+ * real lo hace el broker.
  */
 export class RiskManager {
   readonly maxPositionFraction: number
   readonly minCashReserve: number
   readonly feeBps: number
+  readonly slippageBps: number
 
   constructor(config: RiskConfig = {}) {
-    const { maxPositionFraction = 1, minCashReserve = 0, feeBps = 0 } = config
+    const { maxPositionFraction = 1, minCashReserve = 0, feeBps = 0, slippageBps = 0 } = config
 
     if (
       typeof maxPositionFraction !== 'number' ||
@@ -70,10 +74,23 @@ export class RiskManager {
     if (typeof feeBps !== 'number' || !Number.isFinite(feeBps) || feeBps < 0) {
       throw new InvalidRiskError('feeBps debe ser un número finito >= 0', feeBps)
     }
+    if (typeof slippageBps !== 'number' || !Number.isFinite(slippageBps) || slippageBps < 0) {
+      throw new InvalidRiskError('slippageBps debe ser un número finito >= 0', slippageBps)
+    }
 
     this.maxPositionFraction = maxPositionFraction
     this.minCashReserve = minCashReserve
     this.feeBps = feeBps
+    this.slippageBps = slippageBps
+  }
+
+  /**
+   * Coste unitario efectivo de una compra con slippage y comisión (ambos en
+   * bps, multiplicativos como en el `ExecutionModel`): así el presupuesto nunca
+   * se agota por un coste real superior al estimado.
+   */
+  private unitCost(price: number): number {
+    return price * (1 + this.slippageBps / BPS) * (1 + this.feeBps / BPS)
   }
 
   /**
@@ -92,7 +109,7 @@ export class RiskManager {
     )
     if (funds <= 0) return null
 
-    const qty = roundDownQty(funds / (price * (1 + this.feeBps / BPS)))
+    const qty = roundDownQty(funds / this.unitCost(price))
     return qty > 0 ? qty : null
   }
 
@@ -112,7 +129,7 @@ export class RiskManager {
     const budget = Math.min(headroom, cashAvailable) * fraction
     if (budget <= 0) return null
 
-    const qty = roundDownQty(budget / (price * (1 + this.feeBps / BPS)))
+    const qty = roundDownQty(budget / this.unitCost(price))
     return qty > 0 ? qty : null
   }
 
@@ -125,7 +142,7 @@ export class RiskManager {
     assertPositive(qty, 'qty')
 
     const equity = portfolio.equity(price)
-    const cost = price * qty * (1 + this.feeBps / BPS)
+    const cost = this.unitCost(price) * qty
     if (cost > portfolio.cash - equity * this.minCashReserve) return false
 
     const exposureAfter = portfolio.exposure(price) + price * qty

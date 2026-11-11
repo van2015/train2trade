@@ -16,6 +16,7 @@ describe('RiskManager — configuración', () => {
     expect(risk.maxPositionFraction).toBe(1)
     expect(risk.minCashReserve).toBe(0)
     expect(risk.feeBps).toBe(0)
+    expect(risk.slippageBps).toBe(0)
     expect(
       new RiskManager({ maxPositionFraction: 0.5, minCashReserve: 0.1 }).maxPositionFraction,
     ).toBe(0.5)
@@ -30,6 +31,8 @@ describe('RiskManager — configuración', () => {
     ['minCashReserve >= 1', { minCashReserve: 1 }],
     ['feeBps negativo', { feeBps: -1 }],
     ['feeBps no finito', { feeBps: Number.POSITIVE_INFINITY }],
+    ['slippageBps negativo', { slippageBps: -1 }],
+    ['slippageBps no finito', { slippageBps: Number.NaN }],
   ] as const)('rechaza %s', (_label, config) => {
     expect(() => new RiskManager(config as unknown as RiskConfig)).toThrow(InvalidRiskError)
   })
@@ -61,6 +64,14 @@ describe('RiskManager — entryQty (tamaño de la entrada)', () => {
     const risk = new RiskManager({ maxPositionFraction: 1, feeBps: 100 }) // 1%
     // 1000 / (100 * 1.01) = 9.9009…
     expect(risk.entryQty(portfolio, 100)).toBeCloseTo(1_000 / 101, 10)
+  })
+
+  it('reserva slippage y comisión de forma multiplicativa (coherente con el modelo)', () => {
+    const portfolio = new Portfolio(1_000)
+    const risk = new RiskManager({ slippageBps: 10, feeBps: 10 })
+    // 1000 / (100 * 1.001 * 1.001)
+    expect(risk.entryQty(portfolio, 100)).toBeCloseTo(1_000 / (100 * 1.001 * 1.001), 9)
+    expect(risk.addQty(portfolio, 100, 1)).toBeCloseTo(1_000 / (100 * 1.001 * 1.001), 9)
   })
 
   it('devuelve null sin efectivo disponible y valida el precio', () => {
