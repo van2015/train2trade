@@ -69,6 +69,16 @@ Antes de dar por terminada una tarea: `pnpm format`. No añadir estilos a mano n
 pnpm test && pnpm typecheck && pnpm format:check   # los tres en verde
 ```
 
+## Git
+
+**El agente nunca realiza commits.** No ejecuta `git commit` (ni `--amend`) ni ningún comando que
+cree o reescriba el historial (`git merge`, `git rebase`, `git cherry-pick`, `git revert`…). Deja el
+árbol de trabajo como lo encuentre.
+
+En su lugar, **al terminar una tarea solo sugiere un mensaje de commit** para que lo aplique quien
+gestione el repositorio. El mensaje sigue el estilo del historial existente (Conventional Commits):
+prefijo `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`…, en inglés, conciso y en imperativo.
+
 # Propuesta de arquitectura: plataforma de desarrollo y experimentación de estrategias de trading
 
 Plantearía la aplicación como un laboratorio de trading, no simplemente como un backtester con un editor de estrategias y un visor de gráficos.
