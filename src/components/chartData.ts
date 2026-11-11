@@ -1,10 +1,12 @@
 import type {
+  AreaData,
   CandlestickData,
   HistogramData,
   LineData,
   UTCTimestamp,
   WhitespaceData,
 } from 'lightweight-charts'
+import { EquityPoint } from '@/domain/backtest/metrics'
 import { Candle } from '@/domain/candles/candle'
 import { IndicatorValue } from '@/domain/indicators/indicator'
 import { Ema } from '@/domain/indicators/ema'
@@ -24,6 +26,7 @@ export const CHART_COLORS = {
   sma: '#2962ff',
   ema: '#ff9800',
   rsi: '#ab47bc',
+  equity: '#7e57c2',
 } as const
 
 export type ChartLinePane = 'price' | 'lower'
@@ -83,6 +86,11 @@ export function toLineData(values: readonly IndicatorValue[]): (LineData | White
       ? { time: toChartTime(entry.time) }
       : { time: toChartTime(entry.time), value: entry.value },
   )
+}
+
+/** Curva de equity (backtest Fase 4) → serie de área. */
+export function toEquityAreaData(points: readonly EquityPoint[]): AreaData[] {
+  return points.map((point) => ({ time: toChartTime(point.time), value: point.equity }))
 }
 
 /** Precisión adaptada a la magnitud del último cierre (evita mostrar altcoins como `0.00`). */

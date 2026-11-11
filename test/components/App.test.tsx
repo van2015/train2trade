@@ -50,6 +50,7 @@ const { chartMock, seriesMock } = vi.hoisted(() => {
 
 vi.mock('lightweight-charts', () => ({
   createChart: vi.fn(() => chartMock),
+  AreaSeries: 'AreaSeries',
   CandlestickSeries: 'CandlestickSeries',
   HistogramSeries: 'HistogramSeries',
   LineSeries: 'LineSeries',
@@ -124,6 +125,32 @@ describe('App', () => {
     expect(screen.queryByTestId('status')).not.toBeInTheDocument()
     expect(screen.getByTestId('chart-instrument')).toHaveTextContent('BTC/USDT · 1h')
     expect(screen.getByText('sin datos')).toBeInTheDocument()
+  })
+
+  it('incluye el panel de backtest (deshabilitado sin datos)', () => {
+    renderApp()
+
+    expect(screen.getByLabelText('Capital inicial')).toHaveValue(1_000)
+    expect(screen.getByRole('button', { name: 'Ejecutar backtest' })).toBeDisabled()
+  })
+
+  it('ejecuta un backtest desde la UI con las velas del repositorio', () => {
+    // Serie con cruce SMA(2)/SMA(3): sube en i4 y baja en i7 (igual que los E2E).
+    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
+    repository.save(
+      Instrument.of('BTC', 'USDT'),
+      Timeframe.HOUR,
+      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
+    )
+
+    renderApp()
+    fireEvent.change(screen.getByLabelText('SMA rápida'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('SMA lenta'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
+
+    expect(screen.getByTestId('backtest-summary')).toHaveTextContent('sma-cross@1')
+    expect(screen.getByTestId('backtest-metrics')).toHaveTextContent('Beneficio neto')
+    expect(screen.getByTestId('backtest-trades')).toBeInTheDocument()
   })
 
   it('carga las velas existentes del repositorio al montar', () => {

@@ -5,6 +5,7 @@ import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
 import { CandleRepository } from '@/storage/candleRepository'
 import { CandleChart } from './CandleChart'
+import { BacktestPanel } from './BacktestPanel'
 import { CsvImportPanel } from './CsvImportPanel'
 import { DataControls } from './DataControls'
 import { IndicatorPanel } from './IndicatorPanel'
@@ -96,7 +97,7 @@ export function App({ repository, provider }: AppProps) {
     <div className="app">
       <header className="app__header">
         <h1 className="app__title">train2trade</h1>
-        <p className="app__subtitle">Laboratorio de estrategias · Fase 1</p>
+        <p className="app__subtitle">Laboratorio de estrategias · Fase 4</p>
       </header>
 
       <div className="app__body">
@@ -119,6 +120,8 @@ export function App({ repository, provider }: AppProps) {
           />
 
           <IndicatorPanel settings={settings} onChange={setSettings} />
+
+          <BacktestPanel candles={candles} timeframe={timeframe} />
 
           {status !== null && (
             <p className={`status status--${status.kind}`} role="status" data-testid="status">

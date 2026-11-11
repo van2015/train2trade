@@ -5,6 +5,7 @@ import {
   priceFormatFor,
   toCandlestickData,
   toChartTime,
+  toEquityAreaData,
   toLineData,
   toVolumeData,
 } from '@/components/chartData'
@@ -116,5 +117,22 @@ describe('priceFormatFor', () => {
 
   it('usa el valor absoluto (también funciona con precios negativos)', () => {
     expect(priceFormatFor(-5_000)).toEqual({ precision: 2, minMove: 0.01 })
+  })
+})
+
+describe('toEquityAreaData', () => {
+  it('convierte la curva de equity a datos de área (tiempo en segundos)', () => {
+    const points = [
+      { time: 1_700_000_000_000, equity: 1_234.5 },
+      { time: 1_700_000_060_000, equity: 1_300 },
+    ]
+    expect(toEquityAreaData(points)).toEqual([
+      { time: 1_700_000_000, value: 1_234.5 },
+      { time: 1_700_000_060, value: 1_300 },
+    ])
+  })
+
+  it('la curva vacía produce []', () => {
+    expect(toEquityAreaData([])).toEqual([])
   })
 })
