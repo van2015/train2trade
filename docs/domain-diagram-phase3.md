@@ -1,7 +1,8 @@
 # Diagrama de clases del dominio (Fase 3)
 
-> Diagramas Mermaid de `src/domain/` tras completar la **Fase 3 — Ejecución simulada**
-> (2026-11-11). Fuente de verdad del código: los propios archivos; requisitos: [`AGENTS.md`](../AGENTS.md).
+> Diagramas Mermaid de `src/domain/` tras completar las **Fases 3 (Ejecución simulada) y 4
+> (Backtesting)** (2026-11-11). Fuente de verdad del código: los propios archivos; requisitos:
+> [`AGENTS.md`](../AGENTS.md).
 >
 > **Todos los diagramas están organizados de arriba abajo como árboles jerárquicos** (`direction TB` /
 > `flowchart TB`): raíz arriba, subsistemas debajo, tipos hoja al final. El diagrama de paquetes
@@ -11,7 +12,7 @@
 ## 1. Diagrama de paquetes
 
 Mermaid no incluye `packageDiagram` (es de PlantUML); se representa con `flowchart TB` + `subgraph`:
-raíz `src/domain/` → 8 paquetes → tipos de cada paquete.
+raíz `src/domain/` → 10 paquetes → tipos de cada paquete.
 
 ```mermaid
 flowchart TB
@@ -80,6 +81,19 @@ flowchart TB
         ExecutionEvent["ExecutionEvent"]
     end
 
+    subgraph time["time/"]
+        MarketClock["MarketClock"]
+    end
+
+    subgraph backtest["backtest/"]
+        Trade["Trade"]
+        RecordingBroker["RecordingBroker"]
+        Metrics["Metrics"]
+        BacktestResult["BacktestResult"]
+        Experiment["Experiment"]
+        RunBacktest["runBacktest()"]
+    end
+
     Domain --> errors
     Domain --> candles
     Domain --> instruments
@@ -88,6 +102,8 @@ flowchart TB
     Domain --> execution
     Domain --> portfolio
     Domain --> trading
+    Domain --> time
+    Domain --> backtest
 
     %% dependencias entre paquetes (quién importa de quién): discontinua
     candles -.-> errors
@@ -105,28 +121,39 @@ flowchart TB
     trading -.-> execution
     trading -.-> portfolio
     trading -.-> errors
+    time -.-> errors
+    backtest -.-> candles
+    backtest -.-> time
+    backtest -.-> strategies
+    backtest -.-> execution
+    backtest -.-> portfolio
+    backtest -.-> trading
+    backtest -.-> errors
 ```
 
 - **Sólida** `──►` = pertenencia (`src/domain/` → paquete).
 - **Discontinua** `- -►` = dependencia de importación (paquete → paquete del que importa).
-- Capas que emergen de arriba abajo: `trading` → `strategies`/`portfolio` →
-  `execution`/`indicators` → `candles`/`instruments` → `errors` (raíz de errores, abajo del todo).
+- Capas que emergen de arriba abajo: `backtest` → `trading` → `strategies`/`portfolio` →
+  `execution`/`indicators` → `candles`/`instruments`/`time` → `errors` (raíz de errores, abajo del
+  todo).
 - **Sin ciclos**: `execution` **no** importa de `portfolio` gracias al puerto
   `Account` (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y
   `Portfolio` la implementa (`portfolio → execution`, un solo sentido).
 
 ### Detalle de las dependencias (las mismas flechas discontinuas del diagrama)
 
-| Paquete       | Importa de                                       | Nota                                                     |
-| ------------- | ------------------------------------------------ | -------------------------------------------------------- |
-| `errors`      | —                                                | raíz de la jerarquía de errores                          |
-| `candles`     | `errors`                                         |                                                          |
-| `instruments` | `errors`                                         |                                                          |
-| `indicators`  | `candles`, `errors`                              |                                                          |
-| `strategies`  | `candles`, `indicators`, `errors`                |                                                          |
-| `execution`   | `candles`, `errors`                              | usa el puerto `Account` (sin dependencia de `portfolio`) |
-| `portfolio`   | `execution`, `errors`                            | `Position`/`Fill`/`OrderSide` de `execution`             |
-| `trading`     | `strategies`, `execution`, `portfolio`, `errors` | orquestador (hoja del árbol)                             |
+| Paquete       | Importa de                                                                     | Nota                                                     |
+| ------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| `errors`      | —                                                                              | raíz de la jerarquía de errores                          |
+| `candles`     | `errors`                                                                       |                                                          |
+| `instruments` | `errors`                                                                       |                                                          |
+| `indicators`  | `candles`, `errors`                                                            |                                                          |
+| `strategies`  | `candles`, `indicators`, `errors`                                              |                                                          |
+| `execution`   | `candles`, `errors`                                                            | usa el puerto `Account` (sin dependencia de `portfolio`) |
+| `portfolio`   | `execution`, `errors`                                                          | `Position`/`Fill`/`OrderSide` de `execution`             |
+| `trading`     | `strategies`, `execution`, `portfolio`, `errors`                               | orquestador del runner                                   |
+| `time`        | `errors`                                                                       | tiempo de simulación (§12A)                              |
+| `backtest`    | `candles`, `strategies`, `execution`, `portfolio`, `trading`, `time`, `errors` | motor + `Experiment` (§7/§9)                             |
 
 > El ciclo histórico `execution ↔ portfolio` se resolvió con el puerto `Account`
 > (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y `Portfolio` la
@@ -480,6 +507,75 @@ classDiagram
         }
     }
 
+    namespace time {
+        class MarketClock {
+            -current: number
+            +now: number
+            +advanceTo(time: number)
+        }
+    }
+
+    namespace backtest {
+        class Trade {
+            +entryTime: number
+            +entryPrice: number
+            +exitTime: number
+            +exitPrice: number
+            +qty: number
+            +pnl: number
+            +fees: number
+            +win: boolean
+            +durationMs: number
+        }
+        class RecordingBroker {
+            +account: Account
+            -tradeLog: Trade[]
+            -orderLog: Order[]
+            +trades: Trade[]
+            +orders: Order[]
+            +advance(candle: Candle) Fill[]
+        }
+        class Metrics {
+            <<interface>>
+            +netProfit: number
+            +roi: number
+            +maxDrawdown: number
+            +sharpe: number
+            +profitFactor: number
+            +winRate: number
+            +avgTrade: number
+            +expectancy: number
+        }
+        class EquityPoint {
+            <<interface>>
+            +time: number
+            +equity: number
+        }
+        class BacktestResult {
+            <<interface>>
+            +trades: Trade[]
+            +equityCurve: EquityPoint[]
+            +metrics: Metrics
+            +finalEquity: number
+            +orders: Order[]
+            +events: ExecutionEvent[]
+        }
+        class Experiment {
+            +strategyId: string
+            +timeframe: Timeframe
+            +period: object
+            +initialCapital: number
+            +execution: object
+            +risk: object
+            +result: BacktestResult
+            +run(config) Experiment
+        }
+        class runBacktest {
+            <<function>>
+            +runBacktest(config) BacktestResult
+        }
+    }
+
     %% ---- herencia (árboles) ----
     Indicator <|.. Sma
     Indicator <|.. Ema
@@ -495,6 +591,7 @@ classDiagram
     Logical <|-- All
     Logical <|-- Any
     HistoricalBroker ..|> Broker : implementa
+    RecordingBroker ..|> Broker : implementa
 
     %% ---- composición por subsistema ----
     MarketContext --> Candle : velas visibles
@@ -509,6 +606,14 @@ classDiagram
     Position --> Fill
     Portfolio --> Position
     RiskManager ..> RiskConfig
+    RecordingBroker --> Account
+    RecordingBroker ..> Trade : registra cierres
+    RecordingBroker ..> Order : registra órdenes
+    Experiment ..> BacktestResult : resultado
+    Experiment ..> runBacktest : ejecuta
+    runBacktest ..> BacktestResult : produce
+    BacktestResult --> Metrics
+    BacktestResult --> Trade
 
     %% ---- grafo de objetos entre subsistemas ----
     HistoricalBroker ..> Account : puerto (sin ciclo)
@@ -519,6 +624,8 @@ classDiagram
     StrategyRunner --> Broker
     StrategyRunner --> Portfolio
     StrategyRunner --> RiskManager
+    runBacktest ..> StrategyRunner : ensambla el stack
+    runBacktest ..> MarketClock : tiempo de simulación (§12A)
 ```
 
 ## 3. Jerarquía de errores
@@ -615,9 +722,12 @@ Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimit
 - **Valores anulables** se escriben sin `|` (Mermaid no admite pipes en miembros); son `null` cuando
   el código lo indica: `Order.price`, `StrategyDecision.fraction/price/reason`,
   `IndicatorValue.value` (calentamiento), `Portfolio.position`, `Strategy.invalidationRule`,
-  `RiskManager.entryQty/addQty` (devuelven `number | null`).
+  `RiskManager.entryQty/addQty` (devuelven `number | null`), `MarketClock.now` (antes del primer
+  avance) y todos los campos `null`-ables de `Metrics` (`sharpe`, `profitFactor`, `winRate`,
+  `avgTrade`, `expectancy` → se muestran como "—").
 - `<<union>>` marca tipos de unión (`StrategyEvent`, `ExecutionEvent`); `<<enumeration>>` enums;
-  `<<interned>>` value objects con caché (`Instrument`, `Timeframe`); `<<valueObject>>` VO inmutable.
+  `<<interned>>` value objects con caché (`Instrument`, `Timeframe`); `<<valueObject>>` VO inmutable;
+  `<<function>>` funciones de caso de uso (`runBacktest`).
 - El diagrama de paquetes distingue **pertenencia** (sólida, raíz → paquete) de **dependencia de
   importación** (discontinua, paquete → paquete); no hay ciclos (el `execution ↔ portfolio` quedó
   eliminado con el puerto `Account`). La jerarquía de errores va aparte (sección 3).

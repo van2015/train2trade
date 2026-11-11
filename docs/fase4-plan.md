@@ -3,8 +3,10 @@
 > Desglose de tareas para la Fase 4 de [`AGENTS.md`](../AGENTS.md) (§7A Backtesting, §9 Results &
 > Analytics, §12A/§12C, §13 Fase 4): _"ejecutar un experimento completo sobre datos históricos"_.
 >
-> Estado: **propuesto** (2026-11-11). Requisitos: AGENTS.md §7/§9/§12/§13. Estado del proyecto:
-> [`proyectstate.md`](./proyectstate.md). Fase anterior: [`fase3-plan.md`](./fase3-plan.md).
+> **Estado: completado (2026-11-11)** — T1…T8 implementados con TDD; `pnpm test && pnpm typecheck &&
+pnpm format:check` en verde (**565 tests**, `pnpm build` OK) y `proyectstate.md` actualizado.
+> Pendiente: aplicar los mensajes de commit sugeridos por tarea (AGENTS.md §Git: el agente no hace
+> commits). Requisitos: AGENTS.md §7/§9/§12/§13.
 
 ## Decisiones cerradas
 
@@ -77,7 +79,7 @@ interface Metrics {
   netProfit: number
   roi: number
   maxDrawdown: number // fracción en [0, 1]
-  sharpe: number | null // sin riesgo libre; n < 2 retornos → null
+  sharpe: number | null // sin riesgo libre; n < 2 retornos o equity plano → null; varianza 0 con media ≠ 0 → ±∞
   profitFactor: number | null // sin pérdidas → null (se muestra "—")
   winRate: number | null // sin trades cerrados → null
   avgTrade: number | null
@@ -166,8 +168,9 @@ MarketClock` y recorre las velas: `clock.advanceTo` → `runner.onCandle(candles
   editor de estrategias sigue pendiente), botón _Ejecutar backtest_, tabla de métricas (`—` en
   nulls), equity curve y tabla resumida de trades.
 - `EquityChart`: serie de área con `lightweight-charts` (mismo patrón que `CandleChart`).
-- **Aceptación:** valida inputs (capital > 0, periodos enteros ≥ 2); sin velas → aviso, sin crash;
-  ejecutar pinta métricas y equity; smoke test en `App.test.tsx`.
+- **Aceptación:** valida inputs (capital > 0, bps ≥ 0, **periodos enteros ≥ 1** — mismo criterio
+  que `IndicatorPanel`); sin velas → aviso y botón deshabilitado, sin crash; ejecutar pinta métricas
+  y equity; smoke test en `App.test.tsx` + E2E UI (velas del repositorio → métricas).
 
 ### T8 — E2E, docs y cierre de fase
 
@@ -202,15 +205,21 @@ un mensaje de commit** para que lo aplique quien gestione el repo.
 - Eventos estructurados con payload (§12D): hoy el payload vive en `RecordingBroker`; si aparecen
   suscriptores reales, se replantea la forma de `ExecutionEvent`.
 
-## Puntos abiertos a resolver durante la implementación
+## Puntos abiertos
 
-1. **Rendimiento O(n²)**: el contexto se reconstruye por vela (slicing + indicadores). Aceptado con
-   ≤ 1000 velas. **Disparador**: backtest perceptiblemente lento o > 5 000 velas → cálculo incremental
-   de indicadores.
-2. **Posición abierta al final**: se marca a mercado en `finalEquity`/equity, pero **no** genera
-   `Trade` (las métricas de trades solo ven cierres). ¿Forzar cierre a mercado al final del
-   experimento? (propongo no en esta fase; decidir en Fase 6 con comparación de experimentos).
-3. **Anualización del Sharpe**: asume velas contiguas (sin huecos) y timeframe correcto en la
-   config; documentar en el código. Si los datos traen huecos → futura corrección con gaps explícitos.
-4. **Estrategia de la UI**: solo cruce SMA paramétrico. El editor de estrategias (§4) sigue siendo
-   transversal pendiente.
+1. **Rendimiento O(n²)** (único abierto): el contexto se reconstruye por vela (slicing +
+   indicadores). Aceptado con ≤ 1000 velas. **Disparador**: backtest perceptiblemente lento o
+   > 5 000 velas → cálculo incremental de indicadores.
+
+### Resueltos durante la implementación
+
+- **Posición abierta al final**: se marca a mercado en `finalEquity`/equity y **no** genera `Trade`
+  (las métricas de trades solo ven cierres); no se fuerza el cierre — queda para Fase 6 junto con la
+  comparación de experimentos.
+- **Anualización del Sharpe**: documentada en el código (año de 365 días, sin riesgo libre, desv
+  muestral n−1); con varianza 0 y media ≠ 0 → ±∞, equity plano o < 2 retornos → `null`. Asume velas
+  contiguas: si los datos traen huecos → futura corrección con gaps explícitos.
+- **Estrategia de la UI**: cruce SMA paramétrico implementado (`sma-cross`); el editor de
+  estrategias (§4) sigue siendo transversal pendiente.
+- **Validación de periodos**: enteros ≥ 1 (mismo criterio que `IndicatorPanel`, no ≥ 2 como se
+  planteó al planificar).

@@ -4,15 +4,16 @@
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
 > Última actualización: 2026-11-11 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**481 tests**, 32 archivos). `pnpm build` compila sin errores.
+> (**565 tests**, 41 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
 App de estrategias de trading de criptomonedas: React + TypeScript, lógica en el navegador, datos de
 una API pública de exchange (Binance) y persistencia local. Existe el **dominio puro** (velas,
 instrumentos, indicadores, estrategias), el **repositorio de velas**, la **capa de API**, la UI de la
-Fase 1 (gráfica de velas con indicadores e importación) y la **ejecución simulada de la Fase 3**
-(órdenes, posiciones, portfolio, riesgo, broker y runner). Todavía no hay backtesting.
+Fase 1 (gráfica de velas con indicadores e importación), la **ejecución simulada de la Fase 3**
+(órdenes, posiciones, portfolio, riesgo, broker y runner) y el **backtesting de la Fase 4**
+(motor, métricas, experimentos y panel de UI). Falta el replay interactivo (Fase 5).
 
 ## Implementado
 
@@ -95,6 +96,28 @@ la dependencia va en un solo sentido `portfolio → execution` (ver [`domain-dia
 forma determinista y reproducible, sin conocer backtest, replay ni React (§14). El P&L `Profit`/`Loss`
 queda resuelto vía `Position`/`Portfolio` (decisión de alcance, ver plan).
 
+### Fase 4 — Backtesting (completa)
+
+Plan detallado: [`fase4-plan.md`](./fase4-plan.md). Decisiones de alcance: UI mínima (panel con
+estrategia demo de cruce SMA, sin trades sobre el gráfico), 8 métricas (§9 mínimo), experimentos en
+memoria (persistencia → Fase 6) y ≤ 1000 velas (sin paginación).
+
+| Módulo                                                                                                          | Archivos                                                                         | Tests |
+| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----- |
+| `MarketClock` (§12A) — tiempo de simulación estrictamente creciente, sin `Date.now`                             | `src/domain/time/marketClock.ts`                                                 | 12    |
+| `Trade` — un registro por cierre (parcial/total), pnl neto; `Σ pnl = realizedPnl`                               | `src/domain/backtest/trade.ts`                                                   | 16    |
+| `RecordingBroker` — decorador de `Broker`: registra órdenes y construye trades con el snapshot **previo**       | `src/domain/backtest/recordingBroker.ts`                                         | 9     |
+| Métricas §9 (mínimo): Net Profit, ROI, Max DD, Sharpe, Profit Factor, Win Rate, Avg Trade, Expectancy           | `src/domain/backtest/metrics.ts`                                                 | 16    |
+| `runBacktest` — ejecución automática (Portfolio + Risk + Broker + Runner + Clock), determinista                 | `src/domain/backtest/backtest.ts`                                                | 7     |
+| `Experiment` (§9/§12C) — registro completo: `name@version`, periodo, capital, ejecución y riesgo                | `src/domain/backtest/experiment.ts`                                              | 6     |
+| E2E: 8 métricas a mano, invariantes y determinismo de extremo a extremo                                         | `test/domain/backtest/experimentE2E.test.ts`                                     | 3     |
+| UI mínima: `BacktestPanel` (parámetros, métricas, trades) + `EquityChart` + mapper de equity + E2E desde la app | `src/components/BacktestPanel.tsx`, `EquityChart.tsx`, `chartData.ts`, `App.tsx` | 15    |
+
+**Invariantes de fase:** anti look-ahead heredado del runner (orden de la vela N rellena en N+1);
+`Σ trades.pnl = finalEquity − inicial` con posición cerrada; misma config → mismo resultado (§12C).
+El Sharpe es `media/desv de retornos por vela × √(año/timeframe)` sin riesgo libre (±∞ con varianza
+0; `null` con < 2 retornos o equity plano).
+
 ## Pendiente
 
 ### Inmediato (siguiente paso natural)
@@ -104,13 +127,6 @@ queda resuelto vía `Position`/`Portfolio` (decisión de alcance, ver plan).
   1000 velas por petición, sin paginar).
 - **Indicadores restantes**: MACD, ATR, Bollinger, VWAP (el contrato `Indicator` ya los admite;
   `buildLines` y `IndicatorPanel` solo hay que ampliarlos).
-
-### Fase 4 — Backtesting (AGENTS.md)
-
-- `MarketClock` y Market Replay Engine (§12A) — tiempo de simulación determinista, compartido entre
-  backtest y replay.
-- Ejecución automática sobre datos históricos, registro de operaciones, métricas (`Results & Analytics`:
-  Net Profit, ROI, Max Drawdown, Sharpe, …) y concepto de `Experiment` (§9).
 
 ### Fase 5 — Simulación interactiva
 
