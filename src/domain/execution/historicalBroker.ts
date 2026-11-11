@@ -92,8 +92,7 @@ export class HistoricalBroker implements Broker {
   /** Motivo de rechazo controlado; `null` si el relleno es admisible. */
   private rejectionReason(order: Order, fill: Fill): string | null {
     if (order.side === OrderSide.Buy) {
-      const cost = fill.price * fill.qty + fill.fee
-      return cost > this.account.cash ? 'efectivo insuficiente' : null
+      return fill.cost > this.account.cash ? 'efectivo insuficiente' : null
     }
 
     const position = this.account.position

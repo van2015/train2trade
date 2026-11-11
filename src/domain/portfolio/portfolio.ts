@@ -85,7 +85,7 @@ export class Portfolio implements Account {
    */
   applyFill(fill: Fill): void {
     if (fill.side === OrderSide.Buy) {
-      const cost = fill.price * fill.qty + fill.fee
+      const cost = fill.cost
       if (cost > this.cashValue) {
         throw new InvalidPortfolioError(
           `efectivo insuficiente: se necesitan ${cost} y hay ${this.cashValue}`,

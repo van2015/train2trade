@@ -180,8 +180,7 @@ describe('runBacktest — determinismo y configuración (§12C)', () => {
     const withFees = runBacktest({
       ...base,
       initialCapital: 1_000,
-      execution: { feeBps: 100 },
-      risk: { feeBps: 100 }, // coherente con el ExecutionModel (§: "debe coincidir")
+      execution: { feeBps: 100 }, // el risk estimado se deriva de aquí (fuente única)
     })
     expect(withFees.finalEquity).toBeLessThan(plain.finalEquity)
     expect(withFees.metrics.netProfit).toBeLessThan(plain.metrics.netProfit)
@@ -268,8 +267,21 @@ describe('runBacktest — config efectiva en el resultado (§12C)', () => {
     expect(result.risk).toEqual({
       maxPositionFraction: 0.5,
       minCashReserve: 0,
-      feeBps: 0,
+      feeBps: 25, // derivado de execution: fuente única de costes
       slippageBps: 0,
     })
+  })
+
+  it('los costes del risk derivan de execution (fuente única, sin duplicar)', () => {
+    const result = runBacktest({
+      strategy: crossStrategy(),
+      candles: CANDLES,
+      timeframe: Timeframe.HOUR,
+      initialCapital: 1_000,
+      execution: { slippageBps: 10, feeBps: 30 },
+    })
+    // El risk estima exactamente los costes reales: no pueden divergir.
+    expect(result.risk.feeBps).toBe(result.execution.feeBps)
+    expect(result.risk.slippageBps).toBe(result.execution.slippageBps)
   })
 })

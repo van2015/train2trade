@@ -1,5 +1,6 @@
 import { Candle } from '@/domain/candles/candle'
 import { DomainError, invalidMessage } from '@/domain/errors'
+import { feeFor, withSlippage } from '@/domain/execution/costs'
 import { Fill } from '@/domain/execution/fill'
 import { InvalidOrderError, Order, OrderType } from '@/domain/execution/order'
 
@@ -25,8 +26,6 @@ export interface ExecutionModel {
   /** Relleno de `order` con `candle`; `null` si la vela no alcanza la orden. */
   evaluate(order: Order, candle: Candle): Fill | null
 }
-
-const BPS = 10_000
 
 /**
  * Ejecución a la apertura de la siguiente vela (decisión cerrada en Fase 3):
@@ -80,14 +79,14 @@ export class NextOpenExecutionModel implements ExecutionModel {
       side: order.side,
       price,
       qty: order.qty,
-      fee: (price * order.qty * this.feeBps) / BPS,
+      fee: feeFor(price * order.qty, this.feeBps),
       time: candle.time,
     })
   }
 
   private marketPrice(order: Order, candle: Candle): number {
-    const factor = 1 + (order.side === 'buy' ? this.slippageBps : -this.slippageBps) / BPS
-    return candle.open * factor
+    const slippage = order.side === 'buy' ? this.slippageBps : -this.slippageBps
+    return withSlippage(candle.open, slippage)
   }
 
   private limitPrice(order: Order, candle: Candle): number | null {

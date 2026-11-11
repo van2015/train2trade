@@ -48,7 +48,7 @@ describe('Experiment — registro (§12C)', () => {
     const experiment = Experiment.run(
       config({
         execution: { slippageBps: 10, feeBps: 25 },
-        risk: { maxPositionFraction: 0.5, minCashReserve: 0.1, feeBps: 25, slippageBps: 10 },
+        risk: { maxPositionFraction: 0.5, minCashReserve: 0.1 },
       }),
     )
 

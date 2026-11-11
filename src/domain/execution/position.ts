@@ -15,7 +15,7 @@ export class InvalidPositionError extends DomainError {
  *
  * Contabilidad (decisión de Fase 3):
  * - `avgEntryPrice` es el **coste unitario incluyendo comisiones**: cada compra
- *   lo promedia ponderadamente con `price * qty + fee`. Así `unrealizedPnl` y
+ *   lo promedia ponderadamente con `fill.cost`. Así `unrealizedPnl` y
  *   `realizedPnl` salen ya netos de comisiones sin contarlas dos veces.
  * - `realizedPnl` solo crece al vender (parcial o total), descontando la fee de
  *   la venta. Una venta sobre posición vacía o superior a la abierta → error.
@@ -32,7 +32,7 @@ export class Position {
 
   private constructor(fill: Fill) {
     this.qtyValue = fill.qty
-    this.entryPrice = (fill.price * fill.qty + fill.fee) / fill.qty
+    this.entryPrice = fill.cost / fill.qty
     this.realized = 0
     this.fees = fill.fee
     this.openedAt = fill.time
@@ -86,7 +86,7 @@ export class Position {
     }
 
     if (fill.side === OrderSide.Buy) {
-      const totalCost = this.entryPrice * this.qtyValue + fill.price * fill.qty + fill.fee
+      const totalCost = this.entryPrice * this.qtyValue + fill.cost
       this.qtyValue += fill.qty
       this.entryPrice = totalCost / this.qtyValue
       this.fees += fill.fee

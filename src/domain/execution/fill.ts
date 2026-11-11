@@ -64,4 +64,14 @@ export class Fill {
     this.fee = fee
     this.time = time
   }
+
+  /**
+   * Coste total del relleno: notional + comisión (`price * qty + fee`).
+   * Fuente única de la fórmula de coste real (§6): la usan `Portfolio`
+   * (efectivo), `HistoricalBroker` (rechazo controlado) y `Position`
+   * (coste unitario de entrada).
+   */
+  get cost(): number {
+    return this.price * this.qty + this.fee
+  }
 }

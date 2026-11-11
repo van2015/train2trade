@@ -13,6 +13,13 @@ import { Strategy } from '@/domain/strategies/strategy'
 import { MarketClock } from '@/domain/time/marketClock'
 import { ExecutionEvent, StrategyRunner } from '@/domain/trading/strategyRunner'
 
+/**
+ * Riesgo de un backtest **sin costes**: `feeBps`/`slippageBps` no se aceptan
+ * aquí porque la fuente única es `execution` (§: "debe coincidir con el
+ * ExecutionModel"). `runBacktest` los deriva del modelo construido.
+ */
+export type BacktestRiskConfig = Omit<RiskConfig, 'feeBps' | 'slippageBps'>
+
 export interface BacktestConfig {
   strategy: Strategy
   /** Velas ascendentes y no vacías (se validan de forma incremental al recorrerlas). */
@@ -20,9 +27,9 @@ export interface BacktestConfig {
   /** Para la anualización del Sharpe y el registro del experimento (§12C). */
   timeframe: Timeframe
   initialCapital: number
-  /** Slippage/fee del `ExecutionModel`; debe coincidir con el `risk` estimado. */
+  /** Slippage/fee: fuente única de costes; el `risk` estimado se deriva de aquí. */
   execution?: ExecutionModelConfig
-  risk?: RiskConfig
+  risk?: BacktestRiskConfig
 }
 
 export interface BacktestResult {
@@ -97,8 +104,9 @@ export function runBacktest(config: BacktestConfig): BacktestResult {
   }
 
   const portfolio = new Portfolio(initialCapital)
-  const riskManager = new RiskManager(risk)
   const executionModel = new NextOpenExecutionModel(execution)
+  // Costes estimados := costes reales (fuente única: `execution`).
+  const riskManager = new RiskManager({ ...risk, ...executionModel.config })
   const broker = new RecordingBroker(new HistoricalBroker(portfolio, executionModel), portfolio)
   const runner = new StrategyRunner(strategy, broker, portfolio, riskManager)
   const clock = new MarketClock()

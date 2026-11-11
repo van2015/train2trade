@@ -139,7 +139,6 @@ export function BacktestPanel({ candles, timeframe }: BacktestPanelProps) {
         timeframe,
         initialCapital: parsed.capital,
         execution: { slippageBps: parsed.slippageBps, feeBps: parsed.feeBps },
-        risk: { feeBps: parsed.feeBps, slippageBps: parsed.slippageBps },
       })
       setError(null)
       setExperiment(next)

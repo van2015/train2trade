@@ -56,3 +56,10 @@ describe('Fill — construcción', () => {
     }
   })
 })
+
+describe('Fill — cost (fórmula única de coste real)', () => {
+  it('es notional + comisión', () => {
+    expect(new Fill(fillData).cost).toBeCloseTo(100 * 2 + 0.05, 10)
+    expect(new Fill({ ...fillData, fee: 0 }).cost).toBe(200)
+  })
+})

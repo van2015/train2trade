@@ -1,4 +1,5 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
+import { withFee, withSlippage } from '@/domain/execution/costs'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 
 export interface RiskConfig {
@@ -18,7 +19,6 @@ export class InvalidRiskError extends DomainError {
   }
 }
 
-const BPS = 10_000
 /** Tolerancia para el comparador de exposición (evita fallos por punto flotante). */
 const EXPOSURE_EPSILON = 1e-9
 /**
@@ -90,7 +90,7 @@ export class RiskManager {
    * se agota por un coste real superior al estimado.
    */
   private unitCost(price: number): number {
-    return price * (1 + this.slippageBps / BPS) * (1 + this.feeBps / BPS)
+    return withFee(withSlippage(price, this.slippageBps), this.feeBps)
   }
 
   /** Config efectiva (defaults ya resueltos): la que realmente aplicó este gestor. */
