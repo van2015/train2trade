@@ -4,15 +4,15 @@
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
 > Última actualización: 2026-11-11 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**338 tests**, 23 archivos). `pnpm build` compila sin errores.
+> (**479 tests**, 32 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
 App de estrategias de trading de criptomonedas: React + TypeScript, lógica en el navegador, datos de
 una API pública de exchange (Binance) y persistencia local. Existe el **dominio puro** (velas,
-instrumentos, indicadores, estrategias), el **repositorio de velas**, la **capa de API** y la **UI de
-la Fase 1** (gráfica de velas con indicadores e importación). Todavía no hay ejecución simulada ni
-backtesting.
+instrumentos, indicadores, estrategias), el **repositorio de velas**, la **capa de API**, la UI de la
+Fase 1 (gráfica de velas con indicadores e importación) y la **ejecución simulada de la Fase 3**
+(órdenes, posiciones, portfolio, riesgo, broker y runner). Todavía no hay backtesting.
 
 ## Implementado
 
@@ -66,6 +66,31 @@ Se pueden **definir y evaluar estrategias sin ejecutar operaciones**: reglas pur
 precio objetivo, y ciclo de vida de la instancia con eventos. El estado `Profit`/`Loss` de AGENTS.md
 se queda para Fase 3 (requiere P&L de posiciones reales/simuladas).
 
+### Fase 3 — Ejecución simulada (completa)
+
+Plan detallado: [`fase3-plan.md`](./fase3-plan.md). Sin UI (visualización, Fase 4); long-only.
+
+| Módulo                                                                                                                                   | Archivos                                                | Tests |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----- |
+| `Order` — side/type/qty/price, transiciones `Pending → Filled/Cancelled/Rejected`                                                        | `src/domain/execution/order.ts`                         | 24    |
+| `Fill` + `ExecutionModel` (`NextOpenExecutionModel`: apertura siguiente, slippage, fee, límite tocado)                                   | `src/domain/execution/fill.ts`, `executionModel.ts`     | 14+16 |
+| `Position` (long-only) — coste unitario **con fees**, P&L realizado, `unrealizedPnl`                                                     | `src/domain/execution/position.ts`                      | 12    |
+| `Portfolio` (§8) — invariante `cash >= 0`, `equity`, exposición, realizado/comisiones acumulados                                         | `src/domain/portfolio/portfolio.ts`                     | 14    |
+| `RiskManager` (§8) — `entryQty`/`addQty`/`canAdd`, reserva de efectivo, tope de exposición, fee+slippage estimados, qty con 12 decimales | `src/domain/portfolio/riskManager.ts`                   | 26    |
+| `Broker` (interfaz §6) + `HistoricalBroker` — avance por vela, rechazos controlados, cancelación                                         | `src/domain/execution/broker.ts`, `historicalBroker.ts` | 14    |
+| `StrategyRunner` — decide → envía orden → rellena → actualiza instancia; `ExecutionEvent[]`                                              | `src/domain/trading/strategyRunner.ts`                  | 16    |
+| E2E: cruce de SMA con fees/slippage, anti look-ahead explícito, determinismo, veto con orden pendiente                                   | `test/domain/trading/runnerIntegration.test.ts`         | 5     |
+
+**Invariante anti look-ahead** (central, testeado): en cada vela el runner primero avanza el broker
+(rellena órdenes decididas antes) y después evalúa; una orden decidida en la vela N solo rellena en
+N+1. Los rechazos del broker emiten `OrderRejected` y la señal viva reenvía la orden. Los eventos de
+ejecución (`OrderSubmitted/Filled/Rejected/Cancelled`) se devuelven junto a los `StrategyEvent`
+existentes (§12D); la máquina de estados no cambió.
+
+**Resultado de Fase 3 cumplido:** una estrategia puede generar operaciones y gestionar posiciones de
+forma determinista y reproducible, sin conocer backtest, replay ni React (§14). El P&L `Profit`/`Loss`
+queda resuelto vía `Position`/`Portfolio` (decisión de alcance, ver plan).
+
 ## Pendiente
 
 ### Inmediato (siguiente paso natural)
@@ -75,14 +100,6 @@ se queda para Fase 3 (requiere P&L de posiciones reales/simuladas).
   1000 velas por petición, sin paginar).
 - **Indicadores restantes**: MACD, ATR, Bollinger, VWAP (el contrato `Indicator` ya los admite;
   `buildLines` y `IndicatorPanel` solo hay que ampliarlos).
-
-### Fase 3 — Ejecución simulada (AGENTS.md)
-
-- Órdenes y posiciones (`Order`, `Position`, `Execution`).
-- Broker simulado (`HistoricalBroker`/`PaperTradingBroker`) que consume las decisiones y confirma
-  rellenos vía `StrategyInstance.onFill`.
-- Comisiones, slippage, gestión de capital y riesgo básico (`Portfolio & Risk`).
-- Estados `Profit`/`Loss` en la máquina de la estrategia.
 
 ### Fase 4 — Backtesting (AGENTS.md)
 

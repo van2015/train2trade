@@ -3,17 +3,18 @@
 > Desglose de tareas para la Fase 3 de [`AGENTS.md`](../AGENTS.md) (§6 Execution, §8 Portfolio & Risk):
 > "una estrategia puede generar operaciones y gestionar posiciones".
 >
-> Estado: **propuesto** (2026-11-11). Requisitos: AGENTS.md §6/§8. Estado del proyecto:
-> [`proyectstate.md`](./proyectstate.md).
+> **Estado: completado (2026-11-11)** — T1…T8 implementados con TDD (ver `git log`: un commit por
+> tarea), `pnpm test && pnpm typecheck && pnpm format:check` en verde (**479 tests**) y
+> `proyectstate.md` actualizado. Requisitos: AGENTS.md §6/§8.
 
 ## Decisiones cerradas
 
-| Decisión                | Elección                                                                                                                                                 |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Alcance de posiciones   | **Solo largo** (long-only). Sin shorts, apalancamiento, funding ni liquidaciones.                                                                        |
-| Modelo de ejecución     | **Siguiente apertura**: market se rellena al `open` de la vela siguiente + slippage (bps); limit se rellena si la vela lo toca.                          |
-| Estados `Profit`/`Loss` | **No se añaden a la máquina**: el P&L (realizado y por marcar) vive en `Position`/`Portfolio`. La máquina queda `Closed → Confirmed → Opened → Closing`. |
-| UI                      | **Solo dominio**. Sin componentes nuevos; la visualización llega en Fase 4.                                                                              |
+| Decisión                | Elección                                                                                                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alcance de posiciones   | **Solo largo** (long-only). Sin shorts, apalancamiento, funding ni liquidaciones.                                                                                                                     |
+| Modelo de ejecución     | **Siguiente apertura**: market se rellena al `open` de la vela siguiente + slippage (bps); limit se rellena si la vela lo toca.                                                                       |
+| Estados `Profit`/`Loss` | **No se añaden a la máquina**: el P&L (realizado y por marcar) vive en `Position`/`Portfolio`. La máquina queda `WaitingForSignal → WaitingForEntryFill → WaitingForExitSignal → WaitingForExitFill`. |
+| UI                      | **Solo dominio**. Sin componentes nuevos; la visualización llega en Fase 4.                                                                                                                           |
 
 ## Contratos propuestos
 
@@ -125,7 +126,7 @@ qtySold - fee` y reduce `qty` (vender más de lo abierto → error).
 - **Archivos:** `src/domain/trading/strategyRunner.ts` ↔ `test/domain/trading/strategyRunner.test.ts`
 - Ciclo por vela (`onCandle(candles visibles)`):
   1. `broker.advance(vela)` → fills → `instance.onFill()` + `portfolio` ya actualizado por el broker.
-  2. `strategy.buildContext` → `evaluate(open, entryPending)` → `instance.apply(decision)`.
+  2. `strategy.buildContext` → `evaluate(context, instance.open)` → `instance.apply(decision)`.
   3. Mapeo decisión → orden: `Enter` → Buy (`decision.price` no nulo → Limit, nulo → Market);
      `Add` → Buy con `risk` y fracción; `Reduce` → Sell `fraction * position.qty`; `Exit` → Sell
      total; `Cancel` → `broker.cancelOrder`.
@@ -162,10 +163,23 @@ Cada tarea es una ronda TDD independiente y un commit; no empezar la siguiente c
 - Persistencia de estrategias/órdenes y despacho de eventos por suscripción (transversales).
 - Estados `Profit`/`Loss` en `StrategyInstance` (decisión cerrada: vía `Position`).
 
-## Puntos abiertos a resolver durante la implementación
+## Puntos abiertos — resueltos durante la implementación
 
-1. **Semántica de `fraction` en `Add`**: fracción del capital disponible o de la posición existente?
-   Propongo capital disponible (coherente con el sizing de `RiskManager`); fijarlo en T7 con tests.
-2. **Redondeo de qty**: sin pasos de precisión del exchange por ahora; decidir decimales en T3 y
-   aplicarlo de forma consistente en Risk y Broker.
-3. **Posición a `null` vs `qty = 0`**: decidir en T3 y no propagar ambas formas.
+1. **Semántica de `fraction` en `Add`**: fracción del **presupuesto disponible** — el mínimo entre la
+   holgura de exposición (`maxPositionFraction * equity - exposición`) y el efectivo tras la reserva.
+   Resuelto en `RiskManager.addQty` (T7); `Reduce` es fracción de la posición.
+2. **Redondeo de `qty`**: `RiskManager` redondea hacia abajo a **12 decimales** (`roundDownQty`), de
+   modo que el coste nunca supera el presupuesto por punto flotante. Un exchange real usaría pasos
+   mayores (pendiente cuando haya pasos de precisión).
+3. **Posición a `null` vs `qty = 0`**: `Portfolio.position` devuelve **`null`** sin posición o tras
+   el cierre; dentro de `Position`, `qty = 0` (`isEmpty`) marca la posición agotada (la siguiente
+   entrada crea otra).
+
+### Ajustes surgidos en T8 (documentados)
+
+- **`RiskManager.slippageBps`**: el sizing solo con fee no bastaba — con `maxPositionFraction: 1` y
+  slippage, el coste real de la orden market superaba el cash y la entrada se rechazaba. El coste
+  unitario estimado es ahora multiplicativo: `price * (1 + slippageBps/1e4) * (1 + feeBps/1e4)`,
+  coherente con `NextOpenExecutionModel`.
+- **`StrategyInstance` no se tocó**: los rechazos del broker no añaden estados; el ciclo se
+  recupera reenviando la orden con la señal viva (refresh desde el mismo estado).
