@@ -105,7 +105,7 @@ export class Candle {
 
     for (const candle of sorted) {
       if (isFirst) {
-        bucketTime = Math.floor(candle.time / timeframe.ms) * timeframe.ms
+        bucketTime = timeframe.bucketOf(candle.time)
         open = candle.open
         isFirst = false
       }

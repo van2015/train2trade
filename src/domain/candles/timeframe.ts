@@ -53,6 +53,15 @@ export class Timeframe {
     this.ms = TIMEFRAME_MS[code]
   }
 
+  /**
+   * Inicio del bucket (ms UTC) que contiene `time`: redondea hacia abajo al
+   * múltiplo de `ms`. Fuente única de la fórmula de bucket temporal, usada
+   * por `aggregateCandles` y `Candle.aggregate`.
+   */
+  bucketOf(time: number): number {
+    return Math.floor(time / this.ms) * this.ms
+  }
+
   /** Parsea un código (`"1h"`) o devuelve la instancia si ya lo es. Lanza `InvalidTimeframeError`. */
   static from(value: unknown): Timeframe {
     if (value instanceof Timeframe) return value

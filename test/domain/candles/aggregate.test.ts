@@ -58,6 +58,19 @@ describe('aggregateCandles', () => {
     expect(agg).toEqual({ time: 0, open: 10, high: 16, low: 9, close: 15, volume: 6 })
   })
 
+  it('ordena los buckets ascendente aunque aparezcan desordenados en el input', () => {
+    const input = [
+      candle(5 * MIN, 3, 3, 3, 3), // bucket 5m siguiente
+      candle(0, 1, 1, 1, 1),
+      candle(MIN, 2, 2, 2, 2), // mismo bucket que time 0
+    ]
+
+    const result = aggregateCandles(input, Timeframe.FIVE_MINUTES)
+
+    expect(result.map((c) => c.time)).toEqual([0, 5 * MIN])
+    expect(result[0]).toEqual({ time: 0, open: 1, high: 2, low: 1, close: 2, volume: 2 })
+  })
+
   it('devuelve [] para input vacío', () => {
     expect(aggregateCandles([], Timeframe.FIVE_MINUTES)).toEqual([])
   })

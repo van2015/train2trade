@@ -62,6 +62,15 @@ describe('Timeframe', () => {
     expect(Timeframe.DAY.ms).toBe(86_400_000)
   })
 
+  it('bucketOf devuelve el inicio del bucket que contiene un timestamp', () => {
+    expect(Timeframe.FIVE_MINUTES.bucketOf(0)).toBe(0)
+    expect(Timeframe.FIVE_MINUTES.bucketOf(299_999)).toBe(0) // dentro del bucket
+    expect(Timeframe.FIVE_MINUTES.bucketOf(300_000)).toBe(300_000) // borde exacto
+    expect(Timeframe.FIVE_MINUTES.bucketOf(300_001)).toBe(300_000)
+    expect(Timeframe.HOUR.bucketOf(1_700_000_000_000)).toBe(1_699_999_200_000) // trunca a la hora
+    expect(Timeframe.MINUTE.bucketOf(90_000)).toBe(60_000)
+  })
+
   it('serializa a código y lo recupera (round-trip por JSON)', () => {
     expect(String(Timeframe.HOUR)).toBe('1h')
     expect(JSON.stringify({ tf: Timeframe.FOUR_HOURS })).toBe('{"tf":"4h"}')
