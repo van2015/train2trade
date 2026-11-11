@@ -2,12 +2,119 @@
 
 > Diagramas Mermaid de `src/domain/` tras completar la **Fase 3 — Ejecución simulada**
 > (2026-11-11). Fuente de verdad del código: los propios archivos; requisitos: [`AGENTS.md`](../AGENTS.md).
-> Convenciones al final del documento.
+>
+> **Todos los diagramas están organizados de arriba abajo como árboles jerárquicos** (`direction TB` /
+> `flowchart TB`): raíz arriba, subsistemas debajo, tipos hoja al final. Las dependencias entre
+> paquetes van en tabla (sección 1) y el flujo de ejecución en árbol (sección 4), para no ensuciar
+> las jerarquías con flechas cruzadas.
 
-## 1. Modelo de dominio
+## 1. Diagrama de paquetes
+
+Mermaid no incluye `packageDiagram` (es de PlantUML); se representa con `flowchart TB` + `subgraph`:
+raíz `src/domain/` → 8 paquetes → tipos de cada paquete.
+
+```mermaid
+flowchart TB
+    Domain["src/domain/"]
+
+    subgraph errors["errors/"]
+        DomainError["DomainError (abstracto)"]
+        DomainErrors["15 Invalid*Error / *Error"]
+    end
+
+    subgraph candles["candles/"]
+        Candle["Candle (VO OHLCV)"]
+        Timeframe["Timeframe (internado)"]
+        PricePosition["PricePosition"]
+        LevelPosition["LevelPosition"]
+        CsvImporter["CsvCandlesImporter"]
+    end
+
+    subgraph instruments["instruments/"]
+        Instrument["Instrument (internado)"]
+    end
+
+    subgraph indicators["indicators/"]
+        Indicator["Indicator (interface)"]
+        IndicatorValue["IndicatorValue"]
+        Sma["Sma"]
+        Ema["Ema"]
+        Rsi["Rsi"]
+    end
+
+    subgraph strategies["strategies/"]
+        MarketContext["MarketContext"]
+        Rule["Rule (interface)"]
+        Crosses["Crosses / Comparison / Logical / Not"]
+        Signal["Signal"]
+        Strategy["Strategy"]
+        StrategyInstance["StrategyInstance"]
+        StrategyAction["StrategyAction"]
+        StrategyState["StrategyState"]
+        StrategyDecision["StrategyDecision"]
+        StrategyTransition["StrategyTransition"]
+        StrategyEvent["StrategyEvent"]
+    end
+
+    subgraph execution["execution/"]
+        Order["Order"]
+        OrderSide["OrderSide"]
+        OrderType["OrderType"]
+        OrderStatus["OrderStatus"]
+        Fill["Fill"]
+        ExecutionModel["ExecutionModel (interface)"]
+        NextOpen["NextOpenExecutionModel"]
+        Position["Position"]
+        Broker["Broker (interface)"]
+        HistoricalBroker["HistoricalBroker"]
+    end
+
+    subgraph portfolio["portfolio/"]
+        Portfolio["Portfolio"]
+        RiskManager["RiskManager"]
+        RiskConfig["RiskConfig"]
+    end
+
+    subgraph trading["trading/"]
+        StrategyRunner["StrategyRunner"]
+        ExecutionEvent["ExecutionEvent"]
+    end
+
+    Domain --> errors
+    Domain --> candles
+    Domain --> instruments
+    Domain --> indicators
+    Domain --> strategies
+    Domain --> execution
+    Domain --> portfolio
+    Domain --> trading
+```
+
+### Dependencias entre paquetes (imports)
+
+| Paquete       | Importa de                                       | Nota                                         |
+| ------------- | ------------------------------------------------ | -------------------------------------------- |
+| `errors`      | —                                                | raíz de la jerarquía de errores              |
+| `candles`     | `errors`                                         |                                              |
+| `instruments` | `errors`                                         |                                              |
+| `indicators`  | `candles`, `errors`                              |                                              |
+| `strategies`  | `candles`, `indicators`, `errors`                |                                              |
+| `execution`   | `candles`, `portfolio`, `errors`                 | `HistoricalBroker` usa `Portfolio`           |
+| `portfolio`   | `execution`, `errors`                            | `Position`/`Fill`/`OrderSide` de `execution` |
+| `trading`     | `strategies`, `execution`, `portfolio`, `errors` | orquestador (hoja del árbol)                 |
+
+> Existe un ciclo `execution ↔ portfolio` (broker → portfolio y `Position`/`Fill` → execution): en la
+> práctica son piezas de un mismo subsistema de ejecución.
+
+## 2. Diagrama de clases
+
+Jerarquía de arriba abajo: herencia (`<|--`) de padre a hijos, composición dentro de cada paquete y
+solo las asociaciones de objeto entre subsistemas (el grafo fino de tipos ya se ve en los miembros).
 
 ```mermaid
 classDiagram
+    direction TB
+
     namespace candles {
         class Candle {
             <<valueObject>>
@@ -26,7 +133,7 @@ classDiagram
             +code: TimeframeCode
             +ms: number
             +from(value) Timeframe
-            +equals(other) Timeframe
+            +equals(other: Timeframe) boolean
         }
         class PricePosition {
             <<enumeration>>
@@ -341,22 +448,10 @@ classDiagram
         }
     }
 
-    %% candles
-    Candle ..> Timeframe : aggregate
-    Candle ..> PricePosition : positionOf
-    CsvCandlesImporter ..> Candle : parsea
-
-    %% indicators
-    Indicator ..> Candle : entrada
-    Indicator ..> IndicatorValue : salida
+    %% ---- herencia (árboles) ----
     Indicator <|.. Sma
     Indicator <|.. Ema
     Indicator <|.. Rsi
-
-    %% strategies
-    MarketContext --> Candle : visibles
-    MarketContext ..> IndicatorValue : series
-    Rule ..> MarketContext : evaluate
     Rule <|.. Crosses
     Rule <|.. Comparison
     Rule <|.. Logical
@@ -367,76 +462,40 @@ classDiagram
     Comparison <|-- Lower
     Logical <|-- All
     Logical <|-- Any
+    HistoricalBroker ..|> Broker : implementa
+
+    %% ---- composición por subsistema ----
+    MarketContext --> Candle : velas visibles
+    Logical --> Rule : AND / OR
     Not --> Rule : negada
-    Logical --> Rule : composición AND/OR
     Signal --> Rule : condición
-    Signal ..> StrategyAction : acción
     Strategy --> Signal : señales priorizadas
-    Strategy --> Indicator : declarados
+    Strategy --> Indicator : indicadores declarados
     Strategy ..> MarketContext : buildContext
     Strategy ..> StrategyDecision : evaluate
     StrategyInstance --> Strategy
-    StrategyInstance ..> StrategyState : máquina
-    StrategyInstance ..> StrategyTransition : produce
-    StrategyTransition ..> StrategyEvent
-    StrategyDecision ..> StrategyAction
-
-    %% execution
-    Order ..> OrderSide
-    Order ..> OrderType
-    Order ..> OrderStatus
-    Fill ..> OrderSide
-    ExecutionModel ..> Fill : devuelve
-    ExecutionModel <|.. NextOpenExecutionModel
-    Position --> Fill : applyFill
-    Broker ..> Order
-    Broker ..> Fill
-    Broker ..> Position
-    Broker ..> Candle : avance
-    HistoricalBroker ..|> Broker : implementa
-    HistoricalBroker --> Portfolio : efectivo y posición
-    HistoricalBroker --> ExecutionModel : inyectado
-
-    %% portfolio
+    Position --> Fill
     Portfolio --> Position
-    Portfolio ..> Fill : applyFill
-    RiskManager ..> Portfolio : sizing y límites
-    RiskManager ..> RiskConfig : configuración
+    RiskManager ..> RiskConfig
 
-    %% trading
+    %% ---- grafo de objetos entre subsistemas ----
+    HistoricalBroker --> Portfolio : efectivo y posición
+    HistoricalBroker --> ExecutionModel : modelo inyectado
     StrategyRunner --> Strategy
     StrategyRunner --> StrategyInstance
     StrategyRunner --> Broker
     StrategyRunner --> Portfolio
     StrategyRunner --> RiskManager
-    StrategyRunner ..> ExecutionEvent : devuelve por vela
 ```
 
-### Flujo de ejecución (cómo se relacionan los paquetes)
-
-```
-Candle ──► StrategyRunner.onCandle ──1► Broker.advance (rellenos de órdenes previas)
-                    │                          │
-                    │                          ▼
-                    │                 Portfolio.applyFill ──► Position
-                    │                          │
-                    ▼                          ▼
-        Strategy.buildContext/evaluate   StrategyInstance.onFill (eventos)
-                    │
-                    ▼
-     decisión ► RiskManager (tamaño) ► Order ► Broker.submitOrder  (se rellena en la vela N+1)
-```
-
-**Invariante anti look-ahead:** dentro de `onCandle`, `advance` (rellenos) ocurre **antes** de
-`evaluate` (decisión) y el envío **después**; una orden decidida en la vela N solo rellena en N+1.
-
-## 2. Jerarquía de errores
+## 3. Jerarquía de errores
 
 Todos los errores de dominio extienden `DomainError` (`src/domain/errors.ts`), fijan `this.name` y
 formatean el mensaje con `invalidMessage(prefix, reason, raw)` (`"… (recibido: <valor>)"`).
 
 ```mermaid
 classDiagram
+    direction TB
     class DomainError {
         <<abstract>>
         +name: string
@@ -475,32 +534,57 @@ classDiagram
     DomainError <|-- InvalidRiskError
 ```
 
-## 3. Funciones libres y tipos no dibujados
+## 4. Flujo de ejecución (árbol de arriba abajo)
+
+```mermaid
+flowchart TB
+    Candles["Candle[] — vela visible"] -->|alimenta| Runner["StrategyRunner.onCandle"]
+    Runner -->|1. avance| Broker["Broker.advance"]
+    Runner -->|2. decisión| Strategy["Strategy.evaluate"]
+    Runner -->|3. tamaño| Risk["RiskManager.entryQty / addQty"]
+    Runner -->|ciclo de vida| Instance["StrategyInstance.apply / onFill"]
+    Broker -->|evalúa| Model["ExecutionModel.evaluate"]
+    Model -->|produce| Fill["Fill (price, fee)"]
+    Fill -->|transiciones| Order["Order → Filled / Rejected"]
+    Fill -->|efectivo| Portfolio["Portfolio.applyFill"]
+    Portfolio -->|posición| Position["Position (avgEntry, PnL)"]
+    Instance -->|eventos| Events["ExecutionEvent[]"]
+```
+
+**Invariante anti look-ahead:** dentro de `onCandle`, el **1. avance** (rellenos de órdenes previas)
+ocurre antes de la **2. decisión** (cierre de la vela actual) y el envío después; una orden decidida
+en la vela N solo puede rellenar en N+1 o después.
+
+## 5. Funciones libres y tipos no dibujados
 
 No son clases, pero viven en `src/domain/`:
 
-| Archivo                    | Exporta                                                             |
-| -------------------------- | ------------------------------------------------------------------- |
-| `errors.ts`                | `formatValue(value)`, `invalidMessage(prefix, reason, raw)`         |
-| `candles/aggregate.ts`     | `aggregateCandles(candles, timeframe)`                              |
-| `candles/normalize.ts`     | `normalizeCandles(raw)` — deduplica y ordena (`Candle.from` valida) |
-| `candles/pricePosition.ts` | `assertFinitePrice(price)`                                          |
-| `indicators/indicator.ts`  | `assertPeriod(period)`, `sortedByTime(candles)`                     |
-| `strategies/rules.ts`      | `resolveRef(context, ref, back)` — alias de serie o constante       |
+| Archivo                    | Exporta                                                     |
+| -------------------------- | ----------------------------------------------------------- |
+| `errors.ts`                | `formatValue(value)`, `invalidMessage(prefix, reason, raw)` |
+| `candles/aggregate.ts`     | `aggregateCandles(candles, timeframe)`                      |
+| `candles/normalize.ts`     | `normalizeCandles(raw)` — deduplica y ordena                |
+| `candles/pricePosition.ts` | `assertFinitePrice(price)`                                  |
+| `indicators/indicator.ts`  | `assertPeriod(period)`, `sortedByTime(candles)`             |
+| `strategies/rules.ts`      | `resolveRef(context, ref, back)` — alias o constante        |
 
 Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimiter`,
 `CsvTimestampFormat`, `CsvColumnRef`, `CsvCandlesImporterOptions`, `SeriesRef`, `SignalAction`,
 `MarketContextData`, `StrategyDefinition`, `OrderData`, `FillData`, `ExecutionModelConfig`.
 
-## 4. Convenciones del diagrama
+## 6. Convenciones del diagrama
 
+- **Jerarquía vertical**: todos los diagramas usan `direction TB`/`flowchart TB` — raíz arriba,
+  hijos debajo (herencia de padre a hijos, flujo de datos hacia abajo).
 - **Visibilidad**: `+` público, `-` privado. Los `getters` se dibujan como campos (`state`, `cash`…).
-- **Constructores estáticos** (`from`, `of`, `parse`, `detectDelimiter`) y `static` en general se
-  muestran como métodos ordinarios.
+- **Constructores estáticos** (`from`, `of`, `parse`, `detectDelimiter`) se muestran como métodos
+  ordinarios.
 - **Valores anulables** se escriben sin `|` (Mermaid no admite pipes en miembros); son `null` cuando
   el código lo indica: `Order.price`, `StrategyDecision.fraction/price/reason`,
   `IndicatorValue.value` (calentamiento), `Portfolio.position`, `Strategy.invalidationRule`,
   `RiskManager.entryQty/addQty` (devuelven `number | null`).
 - `<<union>>` marca tipos de unión (`StrategyEvent`, `ExecutionEvent`); `<<enumeration>>` enums;
-  `<<interned>>` value objects con caché (`Instrument`, `Timeframe`).
-- La jerarquía de errores va aparte (sección 2) para no saturar el modelo.
+  `<<interned>>` value objects con caché (`Instrument`, `Timeframe`); `<<valueObject>>` VO inmutable.
+- El diagrama de paquetes no lleva flechas entre paquetes (romperían el árbol): las dependencias
+  están en la tabla de la sección 1. La jerarquía de errores va aparte (sección 3).
+- Verificado con el parser real de Mermaid 11 (`mermaid.parse`).
