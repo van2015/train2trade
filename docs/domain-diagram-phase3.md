@@ -4,9 +4,9 @@
 > (2026-11-11). Fuente de verdad del código: los propios archivos; requisitos: [`AGENTS.md`](../AGENTS.md).
 >
 > **Todos los diagramas están organizados de arriba abajo como árboles jerárquicos** (`direction TB` /
-> `flowchart TB`): raíz arriba, subsistemas debajo, tipos hoja al final. Las dependencias entre
-> paquetes van en tabla (sección 1) y el flujo de ejecución en árbol (sección 4), para no ensuciar
-> las jerarquías con flechas cruzadas.
+> `flowchart TB`): raíz arriba, subsistemas debajo, tipos hoja al final. El diagrama de paquetes
+> muestra además las dependencias **entre** paquetes con flechas discontinuas (de quien importa a
+> quien se importa), que se detallan en su tabla; el flujo de ejecución va en árbol (sección 4).
 
 ## 1. Diagrama de paquetes
 
@@ -88,9 +88,34 @@ flowchart TB
     Domain --> execution
     Domain --> portfolio
     Domain --> trading
+
+    %% dependencias entre paquetes (quién importa de quién): discontinua
+    candles -.-> errors
+    instruments -.-> errors
+    indicators -.-> candles
+    indicators -.-> errors
+    strategies -.-> candles
+    strategies -.-> indicators
+    strategies -.-> errors
+    execution -.-> candles
+    execution -.-> portfolio
+    execution -.-> errors
+    portfolio -.-> execution
+    portfolio -.-> errors
+    trading -.-> strategies
+    trading -.-> execution
+    trading -.-> portfolio
+    trading -.-> errors
 ```
 
-### Dependencias entre paquetes (imports)
+- **Sólida** `──►` = pertenencia (`src/domain/` → paquete).
+- **Discontinua** `- -►` = dependencia de importación (paquete → paquete del que importa).
+- Capas que emergen de arriba abajo: `trading` → `execution`/`portfolio` → `strategies` →
+  `indicators` → `candles`/`instruments` → `errors` (raíz de errores, abajo del todo).
+- El ciclo `execution ↔ portfolio` (broker → portfolio y `Position`/`Fill` → execution) se dibuja
+  con las dos flechas: son piezas de un mismo subsistema de ejecución.
+
+### Detalle de las dependencias (las mismas flechas discontinuas del diagrama)
 
 | Paquete       | Importa de                                       | Nota                                         |
 | ------------- | ------------------------------------------------ | -------------------------------------------- |
@@ -102,9 +127,6 @@ flowchart TB
 | `execution`   | `candles`, `portfolio`, `errors`                 | `HistoricalBroker` usa `Portfolio`           |
 | `portfolio`   | `execution`, `errors`                            | `Position`/`Fill`/`OrderSide` de `execution` |
 | `trading`     | `strategies`, `execution`, `portfolio`, `errors` | orquestador (hoja del árbol)                 |
-
-> Existe un ciclo `execution ↔ portfolio` (broker → portfolio y `Position`/`Fill` → execution): en la
-> práctica son piezas de un mismo subsistema de ejecución.
 
 ## 2. Diagrama de clases
 
@@ -585,6 +607,7 @@ Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimit
   `RiskManager.entryQty/addQty` (devuelven `number | null`).
 - `<<union>>` marca tipos de unión (`StrategyEvent`, `ExecutionEvent`); `<<enumeration>>` enums;
   `<<interned>>` value objects con caché (`Instrument`, `Timeframe`); `<<valueObject>>` VO inmutable.
-- El diagrama de paquetes no lleva flechas entre paquetes (romperían el árbol): las dependencias
-  están en la tabla de la sección 1. La jerarquía de errores va aparte (sección 3).
+- El diagrama de paquetes distingue **pertenencia** (sólida, raíz → paquete) de **dependencia de
+  importación** (discontinua, paquete → paquete); el ciclo `execution ↔ portfolio` aparece en ambos
+  sentidos. La jerarquía de errores va aparte (sección 3).
 - Verificado con el parser real de Mermaid 11 (`mermaid.parse`).
