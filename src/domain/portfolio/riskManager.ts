@@ -93,6 +93,16 @@ export class RiskManager {
     return price * (1 + this.slippageBps / BPS) * (1 + this.feeBps / BPS)
   }
 
+  /** Config efectiva (defaults ya resueltos): la que realmente aplicó este gestor. */
+  get config(): Required<RiskConfig> {
+    return {
+      maxPositionFraction: this.maxPositionFraction,
+      minCashReserve: this.minCashReserve,
+      feeBps: this.feeBps,
+      slippageBps: this.slippageBps,
+    }
+  }
+
   /**
    * Cantidad admisible para una entrada nueva: el menor entre
    * `maxPositionFraction * equity` y `cash - minCashReserve * equity`, ajustado

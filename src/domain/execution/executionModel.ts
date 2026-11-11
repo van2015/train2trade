@@ -59,6 +59,11 @@ export class NextOpenExecutionModel implements ExecutionModel {
     this.feeBps = feeBps
   }
 
+  /** Config efectiva (defaults ya resueltos): la que realmente aplicó este modelo. */
+  get config(): Required<ExecutionModelConfig> {
+    return { slippageBps: this.slippageBps, feeBps: this.feeBps }
+  }
+
   evaluate(order: Order, candle: Candle): Fill | null {
     if (!order.isPending) {
       throw new InvalidOrderError('evaluate solo admite órdenes pendientes', order.status)

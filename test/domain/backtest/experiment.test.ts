@@ -79,6 +79,18 @@ describe('Experiment — registro (§12C)', () => {
     })
   })
 
+  it('execution/risk registrados salen del resultado (sin copia de defaults)', () => {
+    const experiment = Experiment.run(
+      config({ execution: { feeBps: 25 }, risk: { maxPositionFraction: 0.5 } }),
+    )
+    // Si los defaults cambiaran en RiskManager/NextOpenExecutionModel, el
+    // registro tendría que seguir reflejando lo que el backtest usó de verdad.
+    expect(experiment.execution).toEqual(experiment.result.execution)
+    expect(experiment.risk).toEqual(experiment.result.risk)
+    expect(experiment.execution).toEqual({ slippageBps: 0, feeBps: 25 })
+    expect(experiment.risk.maxPositionFraction).toBe(0.5)
+  })
+
   it('strategyId es name@version', () => {
     expect(Experiment.run(config({ strategy: crossStrategy(3) })).strategyId).toBe('cross-e2e@3')
   })

@@ -57,6 +57,14 @@ describe('NextOpenExecutionModel — configuración', () => {
       InvalidExecutionModelError,
     )
   })
+
+  it('expone la config efectiva con los defaults ya resueltos', () => {
+    expect(new NextOpenExecutionModel().config).toEqual({ slippageBps: 0, feeBps: 0 })
+    expect(new NextOpenExecutionModel({ slippageBps: 10, feeBps: 25 }).config).toEqual({
+      slippageBps: 10,
+      feeBps: 25,
+    })
+  })
 })
 
 describe('NextOpenExecutionModel — órdenes de mercado', () => {

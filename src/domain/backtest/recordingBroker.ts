@@ -81,8 +81,8 @@ function buildTrade(fill: Fill, positionBefore: Position): Trade {
     exitTime: fill.time,
     exitPrice: fill.price,
     qty: fill.qty,
-    // Mismo cálculo que el incremento de `realizedPnl` en `Position.applyFill`.
-    pnl: (fill.price - positionBefore.avgEntryPrice) * fill.qty - fill.fee,
+    // Misma fórmula que `Position.applyFill` (fuente única en el dominio).
+    pnl: positionBefore.realizedPnlFor(fill),
     fees: fill.fee,
   })
 }

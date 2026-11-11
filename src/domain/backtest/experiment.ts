@@ -1,4 +1,9 @@
-import { BacktestConfig, BacktestResult, runBacktest } from '@/domain/backtest/backtest'
+import {
+  BacktestConfig,
+  BacktestResult,
+  findConfigProblem,
+  runBacktest,
+} from '@/domain/backtest/backtest'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { DomainError, invalidMessage } from '@/domain/errors'
 import { ExecutionModelConfig } from '@/domain/execution/executionModel'
@@ -46,22 +51,18 @@ export class Experiment {
     this.result = data.result
   }
 
-  /** Valida la config, ejecuta el backtest y registra todo lo que lo condiciona. */
+  /**
+   * Valida la config (reglas compartidas con `runBacktest`, traducidas aquí a
+   * `ExperimentError`), ejecuta el backtest y registra todo lo que lo
+   * condiciona. `execution`/`risk` se toman del resultado: son los valores
+   * efectivos con los que corrió, no una segunda copia de los defaults.
+   */
   static run(config: BacktestConfig): Experiment {
-    const { strategy, candles, timeframe, initialCapital, execution, risk } = config
+    const { strategy, candles, timeframe, initialCapital } = config
 
-    if (candles.length === 0) {
-      throw new ExperimentError('se necesita al menos una vela', candles.length)
-    }
-    if (!(timeframe instanceof Timeframe)) {
-      throw new ExperimentError('timeframe debe ser un Timeframe', timeframe)
-    }
-    if (
-      typeof initialCapital !== 'number' ||
-      !Number.isFinite(initialCapital) ||
-      initialCapital <= 0
-    ) {
-      throw new ExperimentError('initialCapital debe ser un número finito > 0', initialCapital)
+    const problem = findConfigProblem(config)
+    if (problem !== null) {
+      throw new ExperimentError(problem.reason, problem.raw)
     }
 
     // El backtest valida además el orden ascendente de las velas (§12C).
@@ -69,6 +70,7 @@ export class Experiment {
 
     const first = candles[0]
     const last = candles[candles.length - 1]
+    // Inalcanzable (findConfigProblem ya descartó las velas vacías): lo pide noUncheckedIndexedAccess.
     if (first === undefined || last === undefined) {
       throw new ExperimentError('se necesita al menos una vela', candles.length)
     }
@@ -78,16 +80,8 @@ export class Experiment {
       timeframe,
       period: { from: first.time, to: last.time },
       initialCapital,
-      execution: {
-        slippageBps: execution?.slippageBps ?? 0,
-        feeBps: execution?.feeBps ?? 0,
-      },
-      risk: {
-        maxPositionFraction: risk?.maxPositionFraction ?? 1,
-        minCashReserve: risk?.minCashReserve ?? 0,
-        feeBps: risk?.feeBps ?? 0,
-        slippageBps: risk?.slippageBps ?? 0,
-      },
+      execution: result.execution,
+      risk: result.risk,
       result,
     })
   }

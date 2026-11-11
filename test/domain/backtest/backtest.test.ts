@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BacktestError, runBacktest } from '@/domain/backtest/backtest'
+import { BacktestError, findConfigProblem, runBacktest } from '@/domain/backtest/backtest'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
@@ -197,5 +197,79 @@ describe('runBacktest — validación de la config', () => {
     expect(() =>
       runBacktest({ ...base, candles: CANDLES, timeframe: '1h' as unknown as Timeframe }),
     ).toThrow(BacktestError)
+  })
+
+  it('rechaza capital inválido con BacktestError (validación compartida)', () => {
+    const base = { strategy: crossStrategy(), candles: CANDLES, timeframe: Timeframe.HOUR }
+    expect(() => runBacktest({ ...base, initialCapital: 0 })).toThrow(BacktestError)
+    expect(() => runBacktest({ ...base, initialCapital: Number.NaN })).toThrow(BacktestError)
+  })
+})
+
+describe('findConfigProblem — validación compartida (fuente única)', () => {
+  it('devuelve null con una config válida', () => {
+    expect(
+      findConfigProblem({
+        strategy: crossStrategy(),
+        candles: CANDLES,
+        timeframe: Timeframe.HOUR,
+        initialCapital: 1_000,
+      }),
+    ).toBeNull()
+  })
+
+  it.each([
+    ['velas vacías', { candles: [] }, 'se necesita al menos una vela'],
+    [
+      'timeframe inválido',
+      { timeframe: '1h' as unknown as Timeframe },
+      'timeframe debe ser un Timeframe',
+    ],
+    ['capital inválido', { initialCapital: 0 }, 'initialCapital debe ser un número finito > 0'],
+  ] as const)('describe %s sin lanzar', (_label, override, reason) => {
+    const problem = findConfigProblem({
+      strategy: crossStrategy(),
+      candles: CANDLES,
+      timeframe: Timeframe.HOUR,
+      initialCapital: 1_000,
+      ...override,
+    })
+    expect(problem?.reason).toBe(reason)
+  })
+})
+
+describe('runBacktest — config efectiva en el resultado (§12C)', () => {
+  it('registra execution/risk con los defaults ya resueltos', () => {
+    const result = runBacktest({
+      strategy: crossStrategy(),
+      candles: CANDLES,
+      timeframe: Timeframe.HOUR,
+      initialCapital: 1_000,
+    })
+    expect(result.execution).toEqual({ slippageBps: 0, feeBps: 0 })
+    expect(result.risk).toEqual({
+      maxPositionFraction: 1,
+      minCashReserve: 0,
+      feeBps: 0,
+      slippageBps: 0,
+    })
+  })
+
+  it('registra la config explícita pasada (parcial + defaults)', () => {
+    const result = runBacktest({
+      strategy: crossStrategy(),
+      candles: CANDLES,
+      timeframe: Timeframe.HOUR,
+      initialCapital: 1_000,
+      execution: { feeBps: 25 },
+      risk: { maxPositionFraction: 0.5 },
+    })
+    expect(result.execution).toEqual({ slippageBps: 0, feeBps: 25 })
+    expect(result.risk).toEqual({
+      maxPositionFraction: 0.5,
+      minCashReserve: 0,
+      feeBps: 0,
+      slippageBps: 0,
+    })
   })
 })

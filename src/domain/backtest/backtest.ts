@@ -1,6 +1,6 @@
 import { Trade } from '@/domain/backtest/trade'
 import { RecordingBroker } from '@/domain/backtest/recordingBroker'
-import { computeMetrics, EquityPoint, Metrics, MetricsInput } from '@/domain/backtest/metrics'
+import { computeMetrics, EquityPoint, Metrics } from '@/domain/backtest/metrics'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { DomainError, invalidMessage } from '@/domain/errors'
@@ -36,12 +36,44 @@ export interface BacktestResult {
   orders: readonly Order[]
   /** Secuencia aplanada de eventos de ejecución (§12D), en orden. */
   events: readonly ExecutionEvent[]
+  /** Config efectiva de ejecución (defaults resueltos) con la que corrió (§12C). */
+  execution: Required<ExecutionModelConfig>
+  /** Config efectiva de riesgo (defaults resueltos) con la que corrió (§12C). */
+  risk: Required<RiskConfig>
 }
 
 export class BacktestError extends DomainError {
   constructor(reason: string, raw?: unknown) {
     super('BacktestError', invalidMessage('Backtest inválido', reason, raw))
   }
+}
+
+/** Problema de configuración detectado antes de ejecutar. */
+export interface ConfigProblem {
+  reason: string
+  raw: unknown
+}
+
+/**
+ * Reglas de validación de `BacktestConfig`: **fuente única** compartida por
+ * `runBacktest` (que la traduce a `BacktestError`) y `Experiment.run` (a
+ * `ExperimentError`), para no duplicar los checks en dos módulos.
+ */
+export function findConfigProblem(config: BacktestConfig): ConfigProblem | null {
+  if (config.candles.length === 0) {
+    return { reason: 'se necesita al menos una vela', raw: config.candles.length }
+  }
+  if (!(config.timeframe instanceof Timeframe)) {
+    return { reason: 'timeframe debe ser un Timeframe', raw: config.timeframe }
+  }
+  if (
+    typeof config.initialCapital !== 'number' ||
+    !Number.isFinite(config.initialCapital) ||
+    config.initialCapital <= 0
+  ) {
+    return { reason: 'initialCapital debe ser un número finito > 0', raw: config.initialCapital }
+  }
+  return null
 }
 
 /**
@@ -52,21 +84,22 @@ export class BacktestError extends DomainError {
  *
  * Orden anti look-ahead (heredado del runner): por vela, avance de mercado →
  * decisión → envío; la orden de la vela N rellena en N+1.
+ *
+ * El resultado incluye la config **efectiva** (defaults resueltos) leída de los
+ * objetos construidos, no una segunda copia de los defaults.
  */
 export function runBacktest(config: BacktestConfig): BacktestResult {
   const { strategy, candles, timeframe, initialCapital, execution, risk } = config
 
-  if (candles.length === 0) {
-    throw new BacktestError('se necesita al menos una vela', candles.length)
-  }
-  if (!(timeframe instanceof Timeframe)) {
-    throw new BacktestError('timeframe debe ser un Timeframe', timeframe)
+  const problem = findConfigProblem(config)
+  if (problem !== null) {
+    throw new BacktestError(problem.reason, problem.raw)
   }
 
   const portfolio = new Portfolio(initialCapital)
   const riskManager = new RiskManager(risk)
-  const inner = new HistoricalBroker(portfolio, new NextOpenExecutionModel(execution))
-  const broker = new RecordingBroker(inner, portfolio)
+  const executionModel = new NextOpenExecutionModel(execution)
+  const broker = new RecordingBroker(new HistoricalBroker(portfolio, executionModel), portfolio)
   const runner = new StrategyRunner(strategy, broker, portfolio, riskManager)
   const clock = new MarketClock()
 
@@ -84,19 +117,14 @@ export function runBacktest(config: BacktestConfig): BacktestResult {
     throw new BacktestError('la curva de equity quedó vacía', equityCurve.length)
   }
 
-  const metricsInput: MetricsInput = {
-    trades: broker.trades,
-    equityCurve,
-    initialCapital,
-    timeframe,
-  }
-
   return {
     trades: broker.trades,
     equityCurve,
-    metrics: computeMetrics(metricsInput),
+    metrics: computeMetrics({ trades: broker.trades, equityCurve, initialCapital, timeframe }),
     finalEquity: last.equity,
     orders: broker.orders,
     events,
+    execution: executionModel.config,
+    risk: riskManager.config,
   }
 }

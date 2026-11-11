@@ -100,9 +100,24 @@ export class Position {
       )
     }
 
-    this.realized += (fill.price - this.entryPrice) * fill.qty - fill.fee
+    this.realized += this.realizedPnlFor(fill)
     this.fees += fill.fee
     this.qtyValue -= fill.qty
+  }
+
+  /**
+   * P&L realizado neto que produce un relleno de venta (parcial o total):
+   * `(price − avgEntry) × qty − fee`. Fórmula única compartida con
+   * `applyFill` y con `RecordingBroker`, que así registra cada `Trade` con el
+   * mismo cálculo que acumula `realizedPnl` (invariante Σ `trades.pnl`).
+   * Solo para rellenos de venta; no exige posición abierta (el cierre ya
+   * aplicado sigue siendo consultable).
+   */
+  realizedPnlFor(fill: Fill): number {
+    if (fill.side !== OrderSide.Sell) {
+      throw new InvalidPositionError('realizedPnlFor solo admite rellenos de venta', fill.side)
+    }
+    return (fill.price - this.entryPrice) * fill.qty - fill.fee
   }
 
   /** Valor de mercado de la posición abierta al precio dado. */

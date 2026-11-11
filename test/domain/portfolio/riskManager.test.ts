@@ -36,6 +36,21 @@ describe('RiskManager — configuración', () => {
   ] as const)('rechaza %s', (_label, config) => {
     expect(() => new RiskManager(config as unknown as RiskConfig)).toThrow(InvalidRiskError)
   })
+
+  it('expone la config efectiva con los defaults ya resueltos', () => {
+    expect(new RiskManager().config).toEqual({
+      maxPositionFraction: 1,
+      minCashReserve: 0,
+      feeBps: 0,
+      slippageBps: 0,
+    })
+    expect(new RiskManager({ maxPositionFraction: 0.5, feeBps: 25 }).config).toEqual({
+      maxPositionFraction: 0.5,
+      minCashReserve: 0,
+      feeBps: 25,
+      slippageBps: 0,
+    })
+  })
 })
 
 describe('RiskManager — entryQty (tamaño de la entrada)', () => {

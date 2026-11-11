@@ -112,3 +112,27 @@ describe('Position — consultas de mercado', () => {
     expect(position.unrealizedPnl(90)).toBeCloseTo(-21, 10)
   })
 })
+
+describe('Position — realizedPnlFor (fórmula única del P&L de venta)', () => {
+  it('coincide con el incremento de realizedPnl al aplicar la venta', () => {
+    const position = Position.from(buy(4, 100, t0, 2)) // avgEntry 100.5
+    const fill = sell(2, 110, t1, 1)
+    const pnl = position.realizedPnlFor(fill)
+    expect(pnl).toBeCloseTo((110 - 100.5) * 2 - 1, 10) // 18
+
+    position.applyFill(fill)
+    expect(position.realizedPnl).toBeCloseTo(pnl, 10)
+  })
+
+  it('rechaza un relleno de compra', () => {
+    const position = Position.from(buy(2, 100))
+    expect(() => position.realizedPnlFor(buy(1, 110))).toThrow(InvalidPositionError)
+  })
+
+  it('sigue siendo válida tras cerrar la posición (la usa RecordingBroker)', () => {
+    const position = Position.from(buy(2, 100))
+    position.applyFill(sell(2, 90, t1))
+    expect(position.isEmpty).toBe(true)
+    expect(position.realizedPnlFor(sell(1, 95, t2))).toBeCloseTo((95 - 100) * 1, 10)
+  })
+})
