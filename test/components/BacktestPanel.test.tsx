@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { BacktestPanel } from '@/components/BacktestPanel'
+import { BacktestPanel, BacktestPanelProps } from '@/components/BacktestPanel'
+import { Experiment } from '@/domain/backtest/experiment'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
+import { Instrument } from '@/domain/instruments/instrument'
 
 const { chartMock, seriesMock } = vi.hoisted(() => {
   const makeSeries = () => ({
@@ -53,8 +55,11 @@ const CANDLES = PRICES.map((price, index) =>
   }),
 )
 
-function renderPanel(candles: readonly Candle[] = CANDLES) {
-  return render(<BacktestPanel candles={candles} timeframe={Timeframe.HOUR} />)
+function renderPanel(
+  candles: readonly Candle[] = CANDLES,
+  props: Partial<BacktestPanelProps> = {},
+) {
+  return render(<BacktestPanel candles={candles} timeframe={Timeframe.HOUR} {...props} />)
 }
 
 function setCrossoverPeriods() {
@@ -168,5 +173,43 @@ describe('BacktestPanel — resultados', () => {
 
     expect(screen.getByTestId('backtest-metrics')).toHaveTextContent('-461.53846154')
     expect(screen.getByTestId('backtest-metrics')).not.toHaveTextContent('-230.76923077')
+  })
+})
+
+describe('BacktestPanel — registro (Fase 6)', () => {
+  it('el checkbox "Cerrar posición al final" empieza desmarcado y alterna', () => {
+    renderPanel()
+
+    const checkbox = screen.getByLabelText('Cerrar posición al final')
+    expect(checkbox).not.toBeChecked()
+
+    fireEvent.click(checkbox)
+    expect(checkbox).toBeChecked()
+
+    fireEvent.click(checkbox)
+    expect(checkbox).not.toBeChecked()
+  })
+
+  it('onExperiment recibe el experimento ejecutado, con el instrumento registrado', () => {
+    const onExperiment = vi.fn()
+    renderPanel(CANDLES, { onExperiment, instrument: Instrument.of('BTC', 'USDT') })
+    setCrossoverPeriods()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
+
+    expect(onExperiment).toHaveBeenCalledTimes(1)
+    const experiment = onExperiment.mock.calls[0]?.[0] as Experiment
+    expect(experiment).toBeInstanceOf(Experiment)
+    expect(experiment.instrument?.toString()).toBe('BTC/USDT')
+    expect(experiment.strategyId).toBe('sma-cross@1')
+  })
+
+  it('sin onExperiment el panel funciona igual (prop opcional)', () => {
+    renderPanel()
+    setCrossoverPeriods()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
+
+    expect(screen.getByTestId('backtest-metrics')).toBeInTheDocument()
   })
 })

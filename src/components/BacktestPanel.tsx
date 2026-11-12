@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { Experiment } from '@/domain/backtest/experiment'
-import { Metrics } from '@/domain/backtest/metrics'
 import { Trade } from '@/domain/backtest/trade'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
+import { Instrument } from '@/domain/instruments/instrument'
 import { Sma } from '@/domain/indicators/sma'
 import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { EquityChart } from './EquityChart'
+import { DEFAULT_PARAMS, formatMetric, METRIC_ROWS, Params, validate } from './backtestForm'
 import { formatChartPrice, formatChartTime } from './chartData'
 
 export interface BacktestPanelProps {
@@ -15,81 +16,10 @@ export interface BacktestPanelProps {
   candles: readonly Candle[]
   /** Para la anualización del Sharpe y el registro del experimento. */
   timeframe: Timeframe
-}
-
-interface Params {
-  capital: string
-  feeBps: string
-  slippageBps: string
-  fast: string
-  slow: string
-}
-
-const DEFAULT_PARAMS: Params = {
-  capital: '1000',
-  feeBps: '0',
-  slippageBps: '0',
-  fast: '10',
-  slow: '30',
-}
-
-type ValidationResult =
-  | { ok: true; capital: number; feeBps: number; slippageBps: number; fast: number; slow: number }
-  | { ok: false; error: string }
-
-function validate(params: Params): ValidationResult {
-  const capital = Number(params.capital)
-  if (params.capital.trim() === '' || !Number.isFinite(capital) || capital <= 0) {
-    return { ok: false, error: 'Capital inicial: debe ser un número mayor que 0' }
-  }
-
-  const feeBps = Number(params.feeBps)
-  if (params.feeBps.trim() === '' || !Number.isFinite(feeBps) || feeBps < 0) {
-    return { ok: false, error: 'Comisión (bps): debe ser un número >= 0' }
-  }
-
-  const slippageBps = Number(params.slippageBps)
-  if (params.slippageBps.trim() === '' || !Number.isFinite(slippageBps) || slippageBps < 0) {
-    return { ok: false, error: 'Slippage (bps): debe ser un número >= 0' }
-  }
-
-  const fast = Number(params.fast)
-  if (!Number.isInteger(fast) || fast < 1) {
-    return { ok: false, error: 'SMA rápida: debe ser un entero >= 1' }
-  }
-
-  const slow = Number(params.slow)
-  if (!Number.isInteger(slow) || slow < 1) {
-    return { ok: false, error: 'SMA lenta: debe ser un entero >= 1' }
-  }
-
-  return { ok: true, capital, feeBps, slippageBps, fast, slow }
-}
-
-interface MetricRow {
-  key: keyof Metrics
-  label: string
-  format: 'money' | 'percent' | 'ratio'
-}
-
-const METRIC_ROWS: readonly MetricRow[] = [
-  { key: 'netProfit', label: 'Beneficio neto', format: 'money' },
-  { key: 'roi', label: 'ROI', format: 'percent' },
-  { key: 'maxDrawdown', label: 'Drawdown máximo', format: 'percent' },
-  { key: 'sharpe', label: 'Sharpe', format: 'ratio' },
-  { key: 'profitFactor', label: 'Profit factor', format: 'ratio' },
-  { key: 'winRate', label: 'Win rate', format: 'percent' },
-  { key: 'avgTrade', label: 'Trade medio', format: 'money' },
-  { key: 'expectancy', label: 'Expectancy', format: 'money' },
-]
-
-function formatMetric(value: number | null, format: MetricRow['format']): string {
-  if (value === null) return '—'
-  if (format === 'percent') return `${(value * 100).toFixed(2)}%`
-  if (format === 'ratio') {
-    return Number.isFinite(value) ? value.toFixed(2) : value > 0 ? '∞' : '-∞'
-  }
-  return formatChartPrice(value)
+  /** Instrumento registrado en el experimento (§12C). */
+  instrument?: Instrument
+  /** Auto-guardo (Fase 6): App lo guarda como snapshot en el historial. */
+  onExperiment?: (experiment: Experiment) => void
 }
 
 function tradesSummary(trades: readonly Trade[]): string {
@@ -108,9 +38,15 @@ function tradesSummary(trades: readonly Trade[]): string {
  * cruce de SMA, botón de ejecución, tabla de métricas, equity curve y
  * resumen de trades. Toda la lógica vive en el dominio (`Experiment.run`).
  */
-export function BacktestPanel({ candles, timeframe }: BacktestPanelProps) {
+export function BacktestPanel({
+  candles,
+  timeframe,
+  instrument,
+  onExperiment,
+}: BacktestPanelProps) {
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS)
   const [experiment, setExperiment] = useState<Experiment | null>(null)
+  const [closePositionAtEnd, setClosePositionAtEnd] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const update = (key: keyof Params, value: string) =>
@@ -139,9 +75,12 @@ export function BacktestPanel({ candles, timeframe }: BacktestPanelProps) {
         timeframe,
         initialCapital: parsed.capital,
         execution: { slippageBps: parsed.slippageBps, feeBps: parsed.feeBps },
+        instrument,
+        closePositionAtEnd,
       })
       setError(null)
       setExperiment(next)
+      onExperiment?.(next)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
       setExperiment(null)
@@ -210,6 +149,17 @@ export function BacktestPanel({ candles, timeframe }: BacktestPanelProps) {
             value={params.slow}
             onChange={(event) => update('slow', event.target.value)}
           />
+        </label>
+      </div>
+
+      <div className="field field--check">
+        <label>
+          <input
+            type="checkbox"
+            checked={closePositionAtEnd}
+            onChange={(event) => setClosePositionAtEnd(event.target.checked)}
+          />
+          Cerrar posición al final
         </label>
       </div>
 

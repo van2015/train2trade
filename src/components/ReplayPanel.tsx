@@ -7,6 +7,7 @@ import { REPLAY_SPEEDS, replayIntervalMs } from '@/domain/replay/speed'
 import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { StrategyState } from '@/domain/strategies/strategyInstance'
+import { DEFAULT_PARAMS, Params, validate } from './backtestForm'
 import { formatChartPrice, formatChartTime } from './chartData'
 
 export interface ReplayPanelProps {
@@ -16,56 +17,6 @@ export interface ReplayPanelProps {
   timeframe: Timeframe
   /** Cursor tras cada avance (o null al descartar la sesión): App recorta el gráfico. */
   onProgress: (cursor: number | null) => void
-}
-
-interface Params {
-  capital: string
-  feeBps: string
-  slippageBps: string
-  fast: string
-  slow: string
-}
-
-const DEFAULT_PARAMS: Params = {
-  capital: '1000',
-  feeBps: '0',
-  slippageBps: '0',
-  fast: '10',
-  slow: '30',
-}
-
-type ValidationResult =
-  | { ok: true; capital: number; feeBps: number; slippageBps: number; fast: number; slow: number }
-  | { ok: false; error: string }
-
-/** Mismas reglas que `BacktestPanel` (el formulario compartido queda para Fase 6, T8). */
-function validate(params: Params): ValidationResult {
-  const capital = Number(params.capital)
-  if (params.capital.trim() === '' || !Number.isFinite(capital) || capital <= 0) {
-    return { ok: false, error: 'Capital inicial: debe ser un número mayor que 0' }
-  }
-
-  const feeBps = Number(params.feeBps)
-  if (params.feeBps.trim() === '' || !Number.isFinite(feeBps) || feeBps < 0) {
-    return { ok: false, error: 'Comisión (bps): debe ser un número >= 0' }
-  }
-
-  const slippageBps = Number(params.slippageBps)
-  if (params.slippageBps.trim() === '' || !Number.isFinite(slippageBps) || slippageBps < 0) {
-    return { ok: false, error: 'Slippage (bps): debe ser un número >= 0' }
-  }
-
-  const fast = Number(params.fast)
-  if (!Number.isInteger(fast) || fast < 1) {
-    return { ok: false, error: 'SMA rápida: debe ser un entero >= 1' }
-  }
-
-  const slow = Number(params.slow)
-  if (!Number.isInteger(slow) || slow < 1) {
-    return { ok: false, error: 'SMA lenta: debe ser un entero >= 1' }
-  }
-
-  return { ok: true, capital, feeBps, slippageBps, fast, slow }
 }
 
 const STRATEGY_LABELS: Record<StrategyState, string> = {

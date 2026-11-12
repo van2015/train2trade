@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BinanceProvider } from '@/api/binanceProvider'
 import { CandleRepository } from '@/storage/candleRepository'
+import { ExperimentRepository } from '@/storage/experimentRepository'
 import { App } from '@/components/App'
 import '@/styles.css'
 
@@ -12,6 +13,10 @@ if (container === null) {
 
 createRoot(container).render(
   <StrictMode>
-    <App repository={new CandleRepository(window.localStorage)} provider={new BinanceProvider()} />
+    <App
+      repository={new CandleRepository(window.localStorage)}
+      provider={new BinanceProvider()}
+      experiments={new ExperimentRepository(window.localStorage)}
+    />
   </StrictMode>,
 )

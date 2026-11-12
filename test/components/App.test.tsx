@@ -7,6 +7,7 @@ import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
 import { CandleRepository } from '@/storage/candleRepository'
+import { ExperimentRepository } from '@/storage/experimentRepository'
 
 const { chartMock, seriesMock } = vi.hoisted(() => {
   const makeSeries = () => ({
@@ -100,6 +101,7 @@ function kline(openTime: number, close = '105') {
 }
 
 let repository: CandleRepository
+let experiments: ExperimentRepository
 
 function renderApp(provider?: MarketDataProvider) {
   const fetchImpl = vi.fn<(url: string) => Promise<Response>>(async () =>
@@ -107,7 +109,7 @@ function renderApp(provider?: MarketDataProvider) {
   )
   const marketProvider =
     provider ?? new BinanceProvider({ fetch: fetchImpl as unknown as FetchLike })
-  render(<App repository={repository} provider={marketProvider} />)
+  render(<App repository={repository} provider={marketProvider} experiments={experiments} />)
   return { fetchImpl }
 }
 
@@ -120,6 +122,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   seriesMock.created.length = 0
   repository = new CandleRepository(new MemoryStorage())
+  experiments = new ExperimentRepository(new MemoryStorage())
 })
 
 describe('App', () => {
@@ -144,7 +147,38 @@ describe('App', () => {
 
     expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeDisabled()
     expect(screen.getByTestId('replay-empty')).toHaveTextContent('descarga o importa')
-    expect(screen.getByText(/Fase 5/)).toBeInTheDocument()
+    expect(screen.getByText(/Fase 6/)).toBeInTheDocument()
+  })
+
+  it('incluye los paneles de la Fase 6 (historial, test-forward y optimización)', () => {
+    renderApp()
+
+    expect(screen.getByTestId('history-empty')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ejecutar test-forward' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Ejecutar optimización' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Borrar todo' })).toBeDisabled()
+  })
+
+  it('ejecutar un backtest lo auto-guarda en el historial', () => {
+    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
+    repository.save(
+      Instrument.of('BTC', 'USDT'),
+      Timeframe.HOUR,
+      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
+    )
+    renderApp()
+
+    expect(screen.queryByTestId('history-table')).not.toBeInTheDocument()
+    fireEvent.change(backtestPanel().getByLabelText('SMA rápida'), { target: { value: '2' } })
+    fireEvent.change(backtestPanel().getByLabelText('SMA lenta'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
+
+    const history = screen.getByTestId('history-table')
+    expect(history).toHaveTextContent('sma-cross@1')
+    expect(history).toHaveTextContent('BTC/USDT')
+    expect(history).toHaveTextContent('1h')
+    // y el snapshot quedó en el repositorio inyectado
+    expect(experiments.list()).toHaveLength(1)
   })
 
   it('ejecuta un backtest desde la UI con las velas del repositorio', () => {

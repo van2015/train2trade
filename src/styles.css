@@ -552,3 +552,90 @@ input[aria-invalid='true'] {
   color: var(--text);
   font-variant-numeric: tabular-nums;
 }
+
+/* Fase 6: paneles de historial, test-forward y optimización */
+
+.history-panel,
+.testforward-panel,
+.optimization-panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.panel-hint {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.panel-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 8px;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.panel-warning {
+  margin: 8px 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.panel-summary {
+  margin: 10px 0 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+.panel-scroll {
+  overflow-x: auto;
+}
+
+.lab-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.lab-table th,
+.lab-table td {
+  padding: 3px 8px 3px 0;
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.lab-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-block {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.panel-subtitle {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.panel-list {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--text-muted);
+}
+
+.panel-list li {
+  margin: 2px 0;
+}

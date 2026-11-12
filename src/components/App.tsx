@@ -2,11 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MarketDataProvider, TimeRange } from '@/api/marketDataProvider'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
+import { Experiment, ExperimentSnapshot } from '@/domain/backtest/experiment'
 import { Instrument } from '@/domain/instruments/instrument'
 import { CandleRepository } from '@/storage/candleRepository'
+import { ExperimentRepository } from '@/storage/experimentRepository'
 import { CandleChart } from './CandleChart'
 import { BacktestPanel } from './BacktestPanel'
 import { ReplayPanel } from './ReplayPanel'
+import { ExperimentHistoryPanel } from './ExperimentHistoryPanel'
+import { TestForwardPanel } from './TestForwardPanel'
+import { OptimizationPanel } from './OptimizationPanel'
 import { CsvImportPanel } from './CsvImportPanel'
 import { DataControls } from './DataControls'
 import { IndicatorPanel } from './IndicatorPanel'
@@ -20,6 +25,8 @@ import {
 export interface AppProps {
   repository: CandleRepository
   provider: MarketDataProvider
+  /** Experimentos persistidos en localStorage (Fase 6, §9). */
+  experiments: ExperimentRepository
 }
 
 type Status = { kind: 'success' | 'error'; text: string } | null
@@ -32,7 +39,7 @@ function describeError(error: unknown): string {
  * Pantalla principal (Fase 1): descargar o importar velas y visualizarlas con
  * indicadores. La lógica vive fuera de React; este componente solo coordina.
  */
-export function App({ repository, provider }: AppProps) {
+export function App({ repository, provider, experiments }: AppProps) {
   const [instrument, setInstrument] = useState<Instrument>(() => Instrument.of('BTC', 'USDT'))
   const [timeframe, setTimeframe] = useState<Timeframe>(Timeframe.HOUR)
   const [candles, setCandles] = useState<readonly Candle[]>([])
@@ -42,6 +49,29 @@ export function App({ repository, provider }: AppProps) {
   const [busy, setBusy] = useState(false)
   // Cursor del replay activo (null = sin sesión): el gráfico solo ve lo consumido.
   const [replayCursor, setReplayCursor] = useState<number | null>(null)
+  const [snapshots, setSnapshots] = useState<readonly ExperimentSnapshot[]>(() =>
+    experiments.list(),
+  )
+
+  const reloadExperiments = useCallback(() => {
+    setSnapshots(experiments.list())
+  }, [experiments])
+
+  /** Auto-guardo (§9/§12C): id determinístico → re-ejecutar sobrescribe, sin duplicados. */
+  const handleExperiment = (experiment: Experiment) => {
+    experiments.save(experiment.toSnapshot())
+    reloadExperiments()
+  }
+
+  const handleRemoveExperiments = (ids: readonly string[]) => {
+    for (const id of ids) experiments.remove(id)
+    reloadExperiments()
+  }
+
+  const handleClearExperiments = () => {
+    experiments.clear()
+    reloadExperiments()
+  }
 
   const reload = useCallback(() => {
     setInstruments(repository.listInstruments())
@@ -109,7 +139,7 @@ export function App({ repository, provider }: AppProps) {
     <div className="app">
       <header className="app__header">
         <h1 className="app__title">train2trade</h1>
-        <p className="app__subtitle">Laboratorio de estrategias · Fase 5</p>
+        <p className="app__subtitle">Laboratorio de estrategias · Fase 6</p>
       </header>
 
       <div className="app__body">
@@ -133,9 +163,28 @@ export function App({ repository, provider }: AppProps) {
 
           <IndicatorPanel settings={settings} onChange={setSettings} />
 
-          <BacktestPanel candles={candles} timeframe={timeframe} />
+          <BacktestPanel
+            candles={candles}
+            timeframe={timeframe}
+            instrument={instrument}
+            onExperiment={handleExperiment}
+          />
 
           <ReplayPanel candles={candles} timeframe={timeframe} onProgress={setReplayCursor} />
+
+          <ExperimentHistoryPanel
+            snapshots={snapshots}
+            onRemove={handleRemoveExperiments}
+            onClear={handleClearExperiments}
+          />
+
+          <TestForwardPanel
+            candles={candles}
+            timeframe={timeframe}
+            onExperiment={handleExperiment}
+          />
+
+          <OptimizationPanel candles={candles} timeframe={timeframe} />
 
           {status !== null && (
             <p className={`status status--${status.kind}`} role="status" data-testid="status">
