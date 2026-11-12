@@ -1,8 +1,8 @@
 # Diagrama de clases del dominio (Fase 3)
 
-> Diagramas Mermaid de `src/domain/` tras completar las **Fases 3 (Ejecución simulada), 4
-> (Backtesting) y 5 (Simulación interactiva)** (2026-11-12). Fuente de verdad del código: los
-> propios archivos; requisitos: [`AGENTS.md`](../AGENTS.md).
+> Diagramas Mermaid de `src/` tras completar las **Fases 3 (Ejecución simulada), 4 (Backtesting),
+> 5 (Simulación interactiva) y 6 (Experimentación avanzada)** (2026-11-12). Fuente de verdad del
+> código: los propios archivos; requisitos: [`AGENTS.md`](../AGENTS.md).
 >
 > **Todos los diagramas están organizados de arriba abajo como árboles jerárquicos** (`direction TB` /
 > `flowchart TB`): raíz arriba, subsistemas debajo, tipos hoja al final. El diagrama de paquetes
@@ -12,7 +12,8 @@
 ## 1. Diagrama de paquetes
 
 Mermaid no incluye `packageDiagram` (es de PlantUML); se representa con `flowchart TB` + `subgraph`:
-raíz `src/domain/` → 10 paquetes → tipos de cada paquete.
+raíces `src/domain/` (10 paquetes) y `src/storage/` (adaptador de persistencia) → tipos de cada
+paquete.
 
 ```mermaid
 flowchart TB
@@ -20,7 +21,7 @@ flowchart TB
 
     subgraph errors["errors/"]
         DomainError["DomainError (abstracto)"]
-        DomainErrors["15 Invalid*Error / *Error"]
+        DomainErrors["27 errores (Invalid*Error / *Error)"]
     end
 
     subgraph candles["candles/"]
@@ -93,7 +94,14 @@ flowchart TB
         Metrics["Metrics"]
         BacktestResult["BacktestResult"]
         Experiment["Experiment"]
+        ExperimentSnapshot["ExperimentSnapshot"]
         RunBacktest["runBacktest()"]
+        SplitError["SplitError / CandleSplit"]
+        SplitFns["splitCandles() / runTestForward()"]
+        CompareTypes["ComparisonRow / ComparisonTable"]
+        CompareFns["compareExperiments() / rankBy()"]
+        OptimizeTypes["OptimizationConfig / OptimizationResult / RobustnessReport"]
+        OptimizeFns["runOptimization() / analyzeRobustness()"]
     end
 
     subgraph replay["replay/"]
@@ -104,6 +112,14 @@ flowchart TB
         ReplayError["ReplayError"]
         ReplaySpeed["replayIntervalMs()"]
     end
+
+    subgraph storage["storage/"]
+        CandleRepository["CandleRepository"]
+        ExperimentRepository["ExperimentRepository"]
+        CorruptedStorage["CorruptedStorageError"]
+    end
+
+    Storage["src/storage/"]
 
     Domain --> errors
     Domain --> candles
@@ -116,6 +132,7 @@ flowchart TB
     Domain --> time
     Domain --> backtest
     Domain --> replay
+    Storage --> storage
 
     %% dependencias entre paquetes (quién importa de quién): discontinua
     candles -.-> errors
@@ -148,13 +165,18 @@ flowchart TB
     replay -.-> execution
     replay -.-> candles
     replay -.-> errors
+    storage -.-> candles
+    storage -.-> instruments
+    storage -.-> backtest
+    storage -.-> errors
 ```
 
-- **Sólida** `──►` = pertenencia (`src/domain/` → paquete).
+- **Sólida** `──►` = pertenencia (raíz `src/domain/` o `src/storage/` → paquete).
 - **Discontinua** `- -►` = dependencia de importación (paquete → paquete del que importa).
 - Capas que emergen de arriba abajo: `replay` → `backtest`/`trading` → `strategies`/`portfolio` →
   `execution`/`indicators` → `candles`/`instruments`/`time` → `errors` (raíz de errores, abajo del
-  todo).
+  todo); `storage` es la capa de adaptadores (Fase 6) por encima de `candles`/`instruments`/
+  `backtest`.
 - **Sin ciclos**: `execution` **no** importa de `portfolio` gracias al puerto
   `Account` (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y
   `Portfolio` la implementa (`portfolio → execution`, un solo sentido). Tampoco hay ciclo
@@ -164,19 +186,20 @@ flowchart TB
 
 ### Detalle de las dependencias (las mismas flechas discontinuas del diagrama)
 
-| Paquete       | Importa de                                                                     | Nota                                                                      |
-| ------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| `errors`      | —                                                                              | raíz de la jerarquía de errores                                           |
-| `candles`     | `errors`                                                                       |                                                                           |
-| `instruments` | `errors`                                                                       |                                                                           |
-| `indicators`  | `candles`, `errors`                                                            |                                                                           |
-| `strategies`  | `candles`, `indicators`, `errors`                                              |                                                                           |
-| `execution`   | `candles`, `errors`                                                            | usa el puerto `Account` (sin dependencia de `portfolio`)                  |
-| `portfolio`   | `execution`, `errors`                                                          | `Position`/`Fill`/`OrderSide` de `execution`                              |
-| `trading`     | `candles`, `strategies`, `execution`, `portfolio`, `time`, `errors`            | `StrategyRunner` + `TradingSession`, el motor común vela a vela (§7)      |
-| `time`        | `errors`                                                                       | tiempo de simulación (§12A)                                               |
-| `backtest`    | `candles`, `strategies`, `execution`, `portfolio`, `trading`, `time`, `errors` | motor + `Experiment` (§7/§9); consume `TradingSession` en `runBacktest`   |
-| `replay`      | `backtest`, `trading`, `execution`, `candles`, `errors`                        | replay interactivo (§7B): envuelve `TradingSession` con `RecordingBroker` |
+| Paquete       | Importa de                                                                     | Nota                                                                                     |
+| ------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `errors`      | —                                                                              | raíz de la jerarquía de errores                                                          |
+| `candles`     | `errors`                                                                       |                                                                                          |
+| `instruments` | `errors`                                                                       |                                                                                          |
+| `indicators`  | `candles`, `errors`                                                            |                                                                                          |
+| `strategies`  | `candles`, `indicators`, `errors`                                              |                                                                                          |
+| `execution`   | `candles`, `errors`                                                            | usa el puerto `Account` (sin dependencia de `portfolio`)                                 |
+| `portfolio`   | `execution`, `errors`                                                          | `Position`/`Fill`/`OrderSide` de `execution`                                             |
+| `trading`     | `candles`, `strategies`, `execution`, `portfolio`, `time`, `errors`            | `StrategyRunner` + `TradingSession`, el motor común vela a vela (§7)                     |
+| `time`        | `errors`                                                                       | tiempo de simulación (§12A)                                                              |
+| `backtest`    | `candles`, `strategies`, `execution`, `portfolio`, `trading`, `time`, `errors` | motor + `Experiment` (§7/§9); consume `TradingSession` en `runBacktest`                  |
+| `replay`      | `backtest`, `trading`, `execution`, `candles`, `errors`                        | replay interactivo (§7B): envuelve `TradingSession` con `RecordingBroker`                |
+| `storage`     | `candles`, `instruments`, `backtest`, `errors`                                 | adaptadores con `Storage` inyectado (Fase 6): `CandleRepository`, `ExperimentRepository` |
 
 > El ciclo histórico `execution ↔ portfolio` se resolvió con el puerto `Account`
 > (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y `Portfolio` la
@@ -571,6 +594,8 @@ classDiagram
             +fees: number
             +win: boolean
             +durationMs: number
+            +toJSON() TradeData
+            +from(data) Trade
         }
         class RecordingBroker {
             +account: Account
@@ -609,6 +634,8 @@ classDiagram
         }
         class Experiment {
             +strategyId: string
+            +fingerprint: string
+            +instrument: Instrument
             +timeframe: Timeframe
             +period: object
             +initialCapital: number
@@ -616,10 +643,126 @@ classDiagram
             +risk: object
             +result: BacktestResult
             +run(config) Experiment
+            +toSnapshot() ExperimentSnapshot
+        }
+        class ExperimentSnapshot {
+            <<interface>>
+            +id: string
+            +strategyId: string
+            +fingerprint: string
+            +instrument: string
+            +timeframe: string
+            +period: object
+            +initialCapital: number
+            +execution: object
+            +risk: object
+            +metrics: Metrics
+            +finalEquity: number
+            +equityCurve: EquityPoint[]
+            +trades: Trade[]
         }
         class runBacktest {
             <<function>>
             +runBacktest(config) BacktestResult
+        }
+        class SplitError {
+            +name: string
+        }
+        class CandleSplit {
+            <<interface>>
+            +cutTime: number
+            +development: Candle[]
+            +evaluation: Candle[]
+        }
+        class splitCandles {
+            <<function>>
+            +splitCandles(candles, cutTime) CandleSplit
+        }
+        class TestForwardRun {
+            <<interface>>
+            +cutTime: number
+            +development: Experiment
+            +evaluation: Experiment
+            +deltas: object
+        }
+        class runTestForward {
+            <<function>>
+            +runTestForward(config) TestForwardRun
+        }
+        class ComparisonRow {
+            <<interface>>
+            +id: string
+            +strategyId: string
+            +instrument: string
+            +timeframe: string
+            +period: object
+            +initialCapital: number
+            +metrics: Metrics
+            +finalEquity: number
+        }
+        class ComparisonTable {
+            <<interface>>
+            +rows: ComparisonRow[]
+            +differences: ComparisonField[]
+        }
+        class compareExperiments {
+            <<function>>
+            +compareExperiments(snapshots) ComparisonTable
+            +rankBy(rows, metric) ComparisonRow[]
+        }
+        class OptimizationConfig {
+            <<interface>>
+            +buildStrategy: StrategyFactory
+            +grid: object
+            +metric: keyof Metrics
+            +base: object
+        }
+        class OptimizationRun {
+            <<interface>>
+            +params: object
+            +metrics: Metrics
+            +finalEquity: number
+            +tradeCount: number
+        }
+        class OptimizationResult {
+            <<interface>>
+            +grid: object
+            +metric: keyof Metrics
+            +runs: OptimizationRun[]
+            +best: OptimizationRun
+            +worst: OptimizationRun
+        }
+        class runOptimization {
+            <<function>>
+            +MAX_OPTIMIZATION_RUNS: number
+            +runOptimization(config) OptimizationResult
+        }
+        class OptimizationError {
+            +name: string
+        }
+        class RobustnessReport {
+            <<interface>>
+            +metric: keyof Metrics
+            +count: number
+            +best: number
+            +worst: number
+            +mean: number
+            +stdev: number
+            +plateau: object
+            +aboveThreshold: object
+            +sensitivity: SensitivityEntry[]
+        }
+        class SensitivityEntry {
+            <<interface>>
+            +param: string
+            +spread: number
+        }
+        class analyzeRobustness {
+            <<function>>
+            +analyzeRobustness(result, options) RobustnessReport
+        }
+        class RobustnessError {
+            +name: string
         }
     }
 
@@ -663,6 +806,28 @@ classDiagram
         class replayIntervalMs {
             <<function>>
             +replayIntervalMs(timeframe: Timeframe, speed: number) number
+        }
+    }
+
+    namespace storage {
+        class CandleRepository {
+            +save(instrument, timeframe, candles)
+            +find(instrument, timeframe, range) Candle[]
+            +count(instrument, timeframe) number
+            +remove(instrument, timeframe) boolean
+            +listInstruments() Instrument[]
+            +listTimeframes(instrument) Timeframe[]
+            +clear()
+        }
+        class ExperimentRepository {
+            +save(snapshot)
+            +find(id) ExperimentSnapshot
+            +list() ExperimentSnapshot[]
+            +remove(id) boolean
+            +clear()
+        }
+        class CorruptedStorageError {
+            +name: string
         }
     }
 
@@ -724,6 +889,17 @@ classDiagram
     MarketReplayEngine ..> ReplayStep : devuelve por vela
     MarketReplayEngine ..> ReplayLogEntry : log (§12D)
     replayIntervalMs ..> Timeframe : intervalo en tiempo real (§7B)
+    Experiment ..> ExperimentSnapshot : toSnapshot (Fase 6)
+    ExperimentSnapshot ..> Trade : roundtrip toJSON / from
+    splitCandles ..> Candle : partición por tiempo (§7C)
+    runTestForward ..> splitCandles : divide
+    runTestForward ..> Experiment : dos ejecuciones independientes
+    compareExperiments ..> ExperimentSnapshot : filas comparadas (§9)
+    runOptimization ..> runBacktest : un backtest por combinación (§13)
+    analyzeRobustness ..> OptimizationResult : informe de robustez (§13)
+    ExperimentRepository ..> ExperimentSnapshot : persiste (Storage)
+    ExperimentRepository ..> Trade : reconstruye con Trade.from
+    CandleRepository ..> Candle : persiste (Storage)
 ```
 
 ## 3. Jerarquía de errores
@@ -756,6 +932,16 @@ classDiagram
     class InvalidRiskError
     class TradingSessionError
     class ReplayError
+    class MarketClockError
+    class InvalidTradeError
+    class BacktestError
+    class ExperimentError
+    class MetricsError
+    class MarketDataError
+    class SplitError
+    class OptimizationError
+    class RobustnessError
+    class CorruptedStorageError
 
     DomainError <|-- InvalidCandlesError
     DomainError <|-- InvalidTimeframeError
@@ -774,6 +960,16 @@ classDiagram
     DomainError <|-- InvalidRiskError
     DomainError <|-- TradingSessionError
     DomainError <|-- ReplayError
+    DomainError <|-- MarketClockError
+    DomainError <|-- InvalidTradeError
+    DomainError <|-- BacktestError
+    DomainError <|-- ExperimentError
+    DomainError <|-- MetricsError
+    DomainError <|-- MarketDataError
+    DomainError <|-- SplitError
+    DomainError <|-- OptimizationError
+    DomainError <|-- RobustnessError
+    DomainError <|-- CorruptedStorageError
 ```
 
 ## 4. Flujo de ejecución (árbol de arriba abajo)
@@ -819,23 +1015,32 @@ y nunca ve más allá de la vela procesada.
 
 No son clases, pero viven en `src/domain/`:
 
-| Archivo                     | Exporta                                                     |
-| --------------------------- | ----------------------------------------------------------- |
-| `errors.ts`                 | `formatValue(value)`, `invalidMessage(prefix, reason, raw)` |
-| `candles/aggregate.ts`      | `aggregateCandles(candles, timeframe)`                      |
-| `candles/normalize.ts`      | `normalizeCandles(raw)` — deduplica y ordena                |
-| `candles/pricePosition.ts`  | `assertFinitePrice(price)`                                  |
-| `indicators/indicator.ts`   | `assertPeriod(period)`, `sortedByTime(candles)`             |
-| `strategies/rules.ts`       | `resolveRef(context, ref, back)` — alias o constante        |
-| `trading/tradingSession.ts` | `findConfigProblem(config)` — validación compartida (§7)    |
-| `replay/speed.ts`           | `replayIntervalMs(timeframe, speed)`, `REPLAY_SPEEDS`       |
+| Archivo                     | Exporta                                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------- |
+| `errors.ts`                 | `formatValue(value)`, `invalidMessage(prefix, reason, raw)`                            |
+| `candles/aggregate.ts`      | `aggregateCandles(candles, timeframe)`                                                 |
+| `candles/normalize.ts`      | `normalizeCandles(raw)` — deduplica y ordena                                           |
+| `candles/pricePosition.ts`  | `assertFinitePrice(price)`                                                             |
+| `indicators/indicator.ts`   | `assertPeriod(period)`, `sortedByTime(candles)`                                        |
+| `strategies/rules.ts`       | `resolveRef(context, ref, back)` — alias o constante                                   |
+| `strategies/fingerprint.ts` | `canonicalJson(value)`, `strategyFingerprint(strategy)`, `canonicalHash(value)` (§12C) |
+| `trading/tradingSession.ts` | `findConfigProblem(config)` — validación compartida (§7)                               |
+| `replay/speed.ts`           | `replayIntervalMs(timeframe, speed)`, `REPLAY_SPEEDS`                                  |
+| `backtest/split.ts`         | `splitCandles(candles, cutTime)` — corte estricto (§7C)                                |
+| `backtest/testForward.ts`   | `runTestForward(config)` — deltas eval − dev (§7C)                                     |
+| `backtest/compare.ts`       | `compareExperiments(snapshots)`, `rankBy(rows, metric)` (§9)                           |
+| `backtest/metrics.ts`       | además `sortByMetricDesc(items, metric)` — ordenación única                            |
+| `backtest/optimization.ts`  | `runOptimization(config)`, `MAX_OPTIMIZATION_RUNS` (§13)                               |
+| `backtest/robustness.ts`    | `analyzeRobustness(result, options)` (§13)                                             |
 
 Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimiter`,
 `CsvTimestampFormat`, `CsvColumnRef`, `CsvCandlesImporterOptions`, `SeriesRef`, `SignalAction`,
 `MarketContextData`, `StrategyDefinition`, `OrderData`, `FillData`, `ExecutionModelConfig`,
 `TradingSessionConfig`, `SessionRiskConfig`, `ConfigProblem`, `BrokerDecorator`, `CandleStep`,
 `BacktestConfig`, `BacktestRiskConfig`, `ReplayStatus`, `ReplayLogKind`, `ReplayLogEntry`,
-`ReplayStep`.
+`ReplayStep`, `ExperimentSnapshot`, `TestForwardConfig`, `TestForwardRun`, `ComparisonField`,
+`ComparisonRow`, `ComparisonTable`, `OptimizationConfig`, `OptimizationRun`, `OptimizationResult`,
+`StrategyFactory`, `RobustnessReport`, `SensitivityEntry`.
 
 ## 6. Convenciones del diagrama
 
@@ -851,9 +1056,10 @@ Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimit
   avance) y todos los campos `null`-ables de `Metrics` (`sharpe`, `profitFactor`, `winRate`,
   `avgTrade`, `expectancy` → se muestran como "—").
 - `<<union>>` marca tipos de unión (`StrategyEvent`, `ExecutionEvent`, `ReplayStatus`,
-  `ReplayLogKind`); `<<enumeration>>` enums; `<<interned>>` value objects con caché (`Instrument`,
-  `Timeframe`); `<<valueObject>>` VO inmutable; `<<function>>` funciones de caso de uso
-  (`runBacktest`, `replayIntervalMs`).
+  `ReplayLogKind`, `ComparisonField`); `<<enumeration>>` enums; `<<interned>>` value objects con
+  caché (`Instrument`, `Timeframe`); `<<valueObject>>` VO inmutable; `<<function>>` funciones de
+  caso de uso (`runBacktest`, `splitCandles`, `runTestForward`, `compareExperiments`/`rankBy`,
+  `runOptimization`, `analyzeRobustness`, `replayIntervalMs`).
 - El diagrama de paquetes distingue **pertenencia** (sólida, raíz → paquete) de **dependencia de
   importación** (discontinua, paquete → paquete); no hay ciclos (el `execution ↔ portfolio` quedó
   eliminado con el puerto `Account`). La jerarquía de errores va aparte (sección 3).

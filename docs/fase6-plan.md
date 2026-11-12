@@ -4,8 +4,10 @@
 > de datos divididos, §7C Test-forward, §9 Results & Analytics, §12C Reproducibilidad, §13 Fase 6):
 > _"un laboratorio para desarrollar y validar sistemas de trading"_.
 >
-> **Estado: en implementación (2026-11-12)** — rama `phase6` creada desde `main` (`dd1ce77`);
-> T0…T8 completadas con TDD (762 tests en verde). Pendiente: T9.
+> **Estado: completado (2026-11-12)** — T0…T9 implementados con TDD; `pnpm test && pnpm typecheck
+&& pnpm format:check` en verde (**767 tests**, `pnpm build` OK) y `proyectstate.md` actualizado.
+> Rama `phase6` creada desde `main` (`dd1ce77`); baseline de la fase: 647 tests. Pendiente: aplicar
+> los mensajes de commit sugeridos por tarea (AGENTS.md §Git: el agente no hace commits).
 > Requisitos: AGENTS.md §7/§9/§12/§13. La **Fase 5 (replay interactivo) sigue pendiente y no
 > bloquea esta fase**: solo comparten `MarketClock`, que ya existe desde la Fase 4.
 
@@ -360,4 +362,23 @@ commit** para quien gestione el repo.
 
 ### Resueltos durante la implementación
 
-- _(pendiente)_
+- **T4 — `CorruptedStorageError` a `storage/errors.ts`**: la clase vivía en `candleRepository.ts`
+  y se movió a un módulo propio con **re-export** (API pública intacta) para compartirla con
+  `ExperimentRepository`. El roundtrip añadió `Trade.toJSON`/`Trade.from`, y el `id` del snapshot
+  usa el nuevo `canonicalHash` de `fingerprint.ts` (misma fuente FNV-1a que `strategyFingerprint`).
+- **T6/T7 — valores duplicados en la rejilla**: la aceptación "combinaciones sin duplicados" de T6
+  se cerró en T7 (al construir el vecindario, que busca por `params`): `buildCombos` rechaza
+  valores repetidos en una dimensión → `OptimizationError` (+tests).
+- **T7 — ordenación única**: `sortByMetricDesc` se extrajo a `metrics.ts`; `rankBy` (T5) y
+  `best`/`worst` (T6) lo delegan, con lo que la coherencia entre ranking y optimización es
+  literal (testeada en T6 y en el E2E de T9).
+- **T8 — decisiones de UI**: `METRIC_ROWS`/`formatMetric` se movieron a `backtestForm.ts` (fuente
+  única; `ReplayPanel` también dejó de duplicar `validate`, promesa de la Fase 5). El corte del
+  test-forward usa `datetime-local` (UTC) en vez de solo fecha porque la medianoche no cae dentro
+  de rangos de menos de un día. La optimización usa la config base por defecto (capital 1 000, sin
+  costes), como pedía el plan (solo rangos + métrica). Cambiar la métrica del select requiere
+  re-ejecutar: la tabla y el informe se congelan en la métrica de la ejecución.
+- **T9 — E2E de laboratorio**: `test/domain/backtest/laboratorioE2E.test.ts` encadena backtest →
+  snapshot → repositorio → split/test-forward → optimización 2×2 → robustez → comparación, con
+  deltas, plateau y sensibilidad **verificados a mano** sobre la serie de 9 velas y un último test
+  que repite el pipeline completo y lo compara `toEqual` (determinismo extremo a extremo, §12C).

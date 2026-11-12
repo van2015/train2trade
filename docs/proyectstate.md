@@ -4,7 +4,7 @@
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
 > Última actualización: 2026-11-12 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**647 tests**, 47 archivos). `pnpm build` compila sin errores.
+> (**767 tests**, 59 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
@@ -13,9 +13,10 @@ una API pública de exchange (Binance) y persistencia local. Existe el **dominio
 instrumentos, indicadores, estrategias), el **repositorio de velas**, la **capa de API**, la UI de la
 Fase 1 (gráfica de velas con indicadores e importación), la **ejecución simulada de la Fase 3**
 (órdenes, posiciones, portfolio, riesgo, broker y runner), el **backtesting de la Fase 4** (motor,
-métricas, experimentos y panel de UI) y la **simulación interactiva de la Fase 5** (motor de
-reproducción compartido, replay con estados, operaciones manuales y panel con gráfico recortado).
-La Fase 6 (experimentación avanzada) sigue pendiente.
+métricas, experimentos y panel de UI), la **simulación interactiva de la Fase 5** (motor de
+reproducción compartido, replay con estados, operaciones manuales y panel con gráfico recortado) y
+la **experimentación avanzada de la Fase 6** (test-forward, comparación, optimización por rejilla,
+robustez y persistencia de experimentos).
 
 ## Implementado
 
@@ -144,6 +145,33 @@ vela N rellena en N+1); **motor único** — una sesión paso a paso produce los
 `trades`/`equityCurve`/`events`/`finalEquity` que `runBacktest`; orden única en vuelo preserva
 `Σ trades.pnl = realizedPnl` (≤ 1 fill por vela); `reset()` → mismo recorrido (§12C).
 
+### Fase 6 — Experimentación avanzada (completa)
+
+Plan detallado: [`fase6-plan.md`](./fase6-plan.md). Decisiones de alcance: **T0** corrige
+`AGENTS.md` (el modelo real es _un experimento = una estrategia + su propio capital_, sin capital
+compartido), UI mínima (3 paneles), **grid search determinista** (sin walk-forward), persistencia
+en localStorage con **id determinístico** (re-ejecutar = overwrite) y optimización **sin** guardar
+runs individuales.
+
+| Módulo                                                                                                                         | Archivos                                           | Tests |
+| ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- | ----- |
+| `canonicalJson`/`strategyFingerprint`/`canonicalHash` — huella reproducible de definición y de contenido (§12C)                | `src/domain/strategies/fingerprint.ts`             | 11    |
+| Cierre opcional `closePositionAtEnd` + `instrument` en la config del backtest (pendiente de Fase 4)                            | `src/domain/backtest/backtest.ts`, `experiment.ts` | +6    |
+| `Trade.toJSON/from` — roundtrip de persistencia validado                                                                       | `src/domain/backtest/trade.ts`                     | +3    |
+| `ExperimentSnapshot` + `toSnapshot()` — id = hash del contenido **sin** id, sin orders/events                                  | `src/domain/backtest/experiment.ts`                | +4    |
+| `ExperimentRepository` — `Storage` inyectado, clave `experiments:<id>`, orden determinista; `CorruptedStorageError` compartido | `src/storage/experimentRepository.ts`, `errors.ts` | 9     |
+| `splitCandles` + `runTestForward` — test-forward con deltas `eval − dev` (§7C)                                                 | `src/domain/backtest/split.ts`, `testForward.ts`   | 12    |
+| `compareExperiments`/`rankBy` + `sortByMetricDesc` como semántica única de ordenación (§9)                                     | `src/domain/backtest/compare.ts`, `metrics.ts`     | 10    |
+| `runOptimization` — producto cartesiano lexicográfico, cap 1000, `best`/`worst` (§13)                                          | `src/domain/backtest/optimization.ts`              | 11    |
+| `analyzeRobustness` — estadísticas, `plateau`, umbral y `sensitivity` (§13)                                                    | `src/domain/backtest/robustness.ts`                | 11    |
+| UI: `backtestForm` compartido + `ExperimentHistoryPanel` + `TestForwardPanel` + `OptimizationPanel` + auto-guardo en `App`     | `src/components/*.tsx`, `backtestForm.ts`          | 36    |
+| E2E de laboratorio: backtest → snapshot → test-forward → optimización → robustez → comparación, deltas verificados a mano      | `test/domain/backtest/laboratorioE2E.test.ts`      | 5     |
+
+**Invariantes de fase:** determinismo **extremo a extremo** (el pipeline completo del E2E se repite
+idéntico, §12C); `id` estable → mismo experimento = una sola entrada; deltas con `null` **ausentes**
+(no se inventa `0`); cap de rejilla avisado **antes** de ejecutar; cada experimento opera con su
+propio capital (corrección T0) y la comparación es entre experimentos.
+
 ## Pendiente
 
 ### Inmediato (siguiente paso natural)
@@ -154,21 +182,16 @@ vela N rellena en N+1); **motor único** — una sesión paso a paso produce los
 - **Indicadores restantes**: MACD, ATR, Bollinger, VWAP (el contrato `Indicator` ya los admite;
   `buildLines` y `IndicatorPanel` solo hay que ampliarlos).
 
-### Fase 6 — Experimentación avanzada
-
-- Test-forward (separación datos de desarrollo/evaluación), comparación de estrategias, optimización
-  de parámetros y análisis de robustez. Modelo: un experimento = una estrategia + su propio capital;
-  la comparación es entre experimentos (sin capital compartido).
-
 ### Transversales pendientes
 
-- **Persistencia de estrategias**: solo hay `CandleRepository`; falta guardar definiciones (con su
-  versión) y resultados.
+- **Persistencia de estrategias**: los **resultados** de experimentos ya se guardan
+  (`ExperimentRepository`, Fase 6); falta guardar las **definiciones** (con su versión) para
+  re-ejecutarlas desde cero.
 - **Eventos y observabilidad (§12D)**: los eventos se devuelven en las transiciones pero no hay
   despacho/suscripción; el log del replay los consume por diff del `RecordingBroker` (Fase 5).
 - **Indicadores restantes**: MACD, ATR, Bollinger, VWAP (el contrato `Indicator` ya los admite).
-- **Versionado automático**: hoy `version` es manual en `StrategyDefinition`; un fingerprint
-  reproducible queda para `Experiment` (Fase 6).
+- **Versionado automático**: hoy `version` es manual en `StrategyDefinition`; el fingerprint
+  reproducible de `Experiment` ya existe (Fase 6), falta derivar `version` de la definición.
 - **Market Data completo (§2)**: detección de huecos/duplicados a nivel de serie, agregación desde
   menor granularidad (la fusión existe), importación de más formatos, paginación de rangos largos.
 - **Serie temporal de la UI**: no hay paginación ni "cargar más"; el gráfico muestra hasta
