@@ -1,0 +1,13 @@
+# Build en Dokploy/Nixpacks (2026-11): el shim CJS de pnpm 11 (`bin/pnpm.cjs`)
+# hace un `import()` dinámico de nivel superior, y corepack 0.24.1 — la versión
+# que fija el build de Dokploy — lo evalúa en un contexto sin callback de import
+# dinámico, lo que falla con `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` (da igual
+# la versión de Node: el fallo se reproduce igual en Node 18 y 24). Se instala
+# pnpm directamente con npm, con la misma versión que `packageManager`, y el bin
+# real sustituye al shim de corepack en el mismo directorio: ni esta fase ni la
+# de build pasan por corepack.
+[phases.install]
+cmds = [
+  'npm install -g pnpm@11.25.0',
+  'pnpm i --frozen-lockfile',
+]
