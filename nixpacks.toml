@@ -1,13 +1,23 @@
-# Build en Dokploy/Nixpacks (2026-11): el shim CJS de pnpm 11 (`bin/pnpm.cjs`)
-# hace un `import()` dinámico de nivel superior, y corepack 0.24.1 — la versión
-# que fija el build de Dokploy — lo evalúa en un contexto sin callback de import
-# dinámico, lo que falla con `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING` (da igual
-# la versión de Node: el fallo se reproduce igual en Node 18 y 24). Se instala
-# pnpm directamente con npm, con la misma versión que `packageManager`, y el bin
-# real sustituye al shim de corepack en el mismo directorio: ni esta fase ni la
-# de build pasan por corepack.
+# Build en Dokploy/Nixpacks: dos problemas encadenados, resueltos invocando
+# pnpm por ruta absoluta (instalado con npm) en las fases install y build.
+#
+# 1) El provider de Node instala corepack 0.24.1 cuando hay `packageManager`;
+#    corepack evalúa el shim de pnpm 11 (`bin/pnpm.cjs` hace un `import()`
+#    dinámico) en un contexto sin callback de import → ERR_VM_DYNAMIC_IMPORT_
+#    CALLBACK_MISSING (en Node 18 y 24 por igual).
+# 2) Sin corepack, Nixpacks sigue instalando `pnpm-9_x` de nixpkgs: su match de
+#    `packageManager` solo cubre los majors 6-10 y "pnpm@11" cae en la
+#    detección por lockfile ('9.0' → pnpm 9). Ese bin primaba en el PATH y
+#    pnpm 9 exige el campo `packages` en pnpm-workspace.yaml (la configuración
+#    sin workspace es de pnpm >= 10) → "packages field missing or empty".
+#
+# `$(npm prefix -g)/bin/pnpm` es el pnpm 11.25.0 recién instalado (misma
+# versión que `packageManager`), independientemente del orden del PATH.
 [phases.install]
 cmds = [
   'npm install -g pnpm@11.25.0',
-  'pnpm i --frozen-lockfile',
+  '"$(npm prefix -g)/bin/pnpm" i --frozen-lockfile',
 ]
+
+[phases.build]
+cmds = ['"$(npm prefix -g)/bin/pnpm" run build']
