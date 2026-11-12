@@ -4,13 +4,14 @@
 > §13 Fase 5): _"investigar el comportamiento de una estrategia observando cómo evoluciona el
 > mercado"_.
 >
-> **Estado: en planificación (2026-11-12)** — rama `phase5` creada desde `main` (`c35cb45`).
-> Requisitos: AGENTS.md §7/§12/§13. La Fase 4 (backtesting) está cerrada (baseline de esta fase:
-> 587 tests en verde);
-> esta fase **reutiliza su stack** y lo convierte en un motor compartido con el backtest, tal como
-> pide §7: _"Backtesting y Historical Replay deberían compartir el mismo mecanismo fundamental de
-> reproducción de datos. La diferencia estaría en cómo se controla el tiempo y cómo se presenta la
-> ejecución"_.
+> **Estado: completado (2026-11-12)** — T1…T5 implementados con TDD; `pnpm test && pnpm typecheck
+&& pnpm format:check` en verde (**647 tests**, `pnpm build` OK) y `proyectstate.md` actualizado.
+> Pendiente: aplicar los mensajes de commit sugeridos por tarea (AGENTS.md §Git: el agente no hace
+> commits). Rama `phase5` creada desde `main` (`c35cb45`); baseline de la fase: 587 tests. Requisitos:
+> AGENTS.md §7/§12/§13. La fase **reutilizó el stack de la Fase 4** y lo convirtió en un motor
+> compartido con el backtest, tal como pide §7: _"Backtesting y Historical Replay deberían compartir
+> el mismo mecanismo fundamental de reproducción de datos. La diferencia estaría en cómo se controla
+> el tiempo y cómo se presenta la ejecución"_.
 
 ## Contexto: qué exige §7B y cómo se cumple
 

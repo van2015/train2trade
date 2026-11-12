@@ -1,8 +1,8 @@
 # Diagrama de clases del dominio (Fase 3)
 
-> Diagramas Mermaid de `src/domain/` tras completar las **Fases 3 (Ejecución simulada) y 4
-> (Backtesting)** (2026-11-11). Fuente de verdad del código: los propios archivos; requisitos:
-> [`AGENTS.md`](../AGENTS.md).
+> Diagramas Mermaid de `src/domain/` tras completar las **Fases 3 (Ejecución simulada), 4
+> (Backtesting) y 5 (Simulación interactiva)** (2026-11-12). Fuente de verdad del código: los
+> propios archivos; requisitos: [`AGENTS.md`](../AGENTS.md).
 >
 > **Todos los diagramas están organizados de arriba abajo como árboles jerárquicos** (`direction TB` /
 > `flowchart TB`): raíz arriba, subsistemas debajo, tipos hoja al final. El diagrama de paquetes
@@ -79,6 +79,8 @@ flowchart TB
     subgraph trading["trading/"]
         StrategyRunner["StrategyRunner"]
         ExecutionEvent["ExecutionEvent"]
+        TradingSession["TradingSession (motor compartido §7)"]
+        CandleStep["CandleStep"]
     end
 
     subgraph time["time/"]
@@ -94,6 +96,15 @@ flowchart TB
         RunBacktest["runBacktest()"]
     end
 
+    subgraph replay["replay/"]
+        MarketReplayEngine["MarketReplayEngine"]
+        ReplayStep["ReplayStep"]
+        ReplayLogEntry["ReplayLogEntry"]
+        ReplayStatus["ReplayStatus"]
+        ReplayError["ReplayError"]
+        ReplaySpeed["replayIntervalMs()"]
+    end
+
     Domain --> errors
     Domain --> candles
     Domain --> instruments
@@ -104,6 +115,7 @@ flowchart TB
     Domain --> trading
     Domain --> time
     Domain --> backtest
+    Domain --> replay
 
     %% dependencias entre paquetes (quién importa de quién): discontinua
     candles -.-> errors
@@ -117,9 +129,11 @@ flowchart TB
     execution -.-> errors
     portfolio -.-> execution
     portfolio -.-> errors
+    trading -.-> candles
     trading -.-> strategies
     trading -.-> execution
     trading -.-> portfolio
+    trading -.-> time
     trading -.-> errors
     time -.-> errors
     backtest -.-> candles
@@ -129,31 +143,40 @@ flowchart TB
     backtest -.-> portfolio
     backtest -.-> trading
     backtest -.-> errors
+    replay -.-> backtest
+    replay -.-> trading
+    replay -.-> execution
+    replay -.-> candles
+    replay -.-> errors
 ```
 
 - **Sólida** `──►` = pertenencia (`src/domain/` → paquete).
 - **Discontinua** `- -►` = dependencia de importación (paquete → paquete del que importa).
-- Capas que emergen de arriba abajo: `backtest` → `trading` → `strategies`/`portfolio` →
+- Capas que emergen de arriba abajo: `replay` → `backtest`/`trading` → `strategies`/`portfolio` →
   `execution`/`indicators` → `candles`/`instruments`/`time` → `errors` (raíz de errores, abajo del
   todo).
 - **Sin ciclos**: `execution` **no** importa de `portfolio` gracias al puerto
   `Account` (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y
-  `Portfolio` la implementa (`portfolio → execution`, un solo sentido).
+  `Portfolio` la implementa (`portfolio → execution`, un solo sentido). Tampoco hay ciclo
+  `backtest ↔ trading`: `TradingSession` recibe el broker como **decorador inyectado**
+  (`decorateBroker`, Fase 5) en vez de construir `RecordingBroker`, de modo que `trading` nunca
+  importa de `backtest`.
 
 ### Detalle de las dependencias (las mismas flechas discontinuas del diagrama)
 
-| Paquete       | Importa de                                                                     | Nota                                                     |
-| ------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| `errors`      | —                                                                              | raíz de la jerarquía de errores                          |
-| `candles`     | `errors`                                                                       |                                                          |
-| `instruments` | `errors`                                                                       |                                                          |
-| `indicators`  | `candles`, `errors`                                                            |                                                          |
-| `strategies`  | `candles`, `indicators`, `errors`                                              |                                                          |
-| `execution`   | `candles`, `errors`                                                            | usa el puerto `Account` (sin dependencia de `portfolio`) |
-| `portfolio`   | `execution`, `errors`                                                          | `Position`/`Fill`/`OrderSide` de `execution`             |
-| `trading`     | `strategies`, `execution`, `portfolio`, `errors`                               | orquestador del runner                                   |
-| `time`        | `errors`                                                                       | tiempo de simulación (§12A)                              |
-| `backtest`    | `candles`, `strategies`, `execution`, `portfolio`, `trading`, `time`, `errors` | motor + `Experiment` (§7/§9)                             |
+| Paquete       | Importa de                                                                     | Nota                                                                      |
+| ------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `errors`      | —                                                                              | raíz de la jerarquía de errores                                           |
+| `candles`     | `errors`                                                                       |                                                                           |
+| `instruments` | `errors`                                                                       |                                                                           |
+| `indicators`  | `candles`, `errors`                                                            |                                                                           |
+| `strategies`  | `candles`, `indicators`, `errors`                                              |                                                                           |
+| `execution`   | `candles`, `errors`                                                            | usa el puerto `Account` (sin dependencia de `portfolio`)                  |
+| `portfolio`   | `execution`, `errors`                                                          | `Position`/`Fill`/`OrderSide` de `execution`                              |
+| `trading`     | `candles`, `strategies`, `execution`, `portfolio`, `time`, `errors`            | `StrategyRunner` + `TradingSession`, el motor común vela a vela (§7)      |
+| `time`        | `errors`                                                                       | tiempo de simulación (§12A)                                               |
+| `backtest`    | `candles`, `strategies`, `execution`, `portfolio`, `trading`, `time`, `errors` | motor + `Experiment` (§7/§9); consume `TradingSession` en `runBacktest`   |
+| `replay`      | `backtest`, `trading`, `execution`, `candles`, `errors`                        | replay interactivo (§7B): envuelve `TradingSession` con `RecordingBroker` |
 
 > El ciclo histórico `execution ↔ portfolio` se resolvió con el puerto `Account`
 > (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y `Portfolio` la
@@ -505,6 +528,28 @@ classDiagram
             OrderRejected
             OrderCancelled
         }
+        class TradingSession {
+            +candles: Candle[]
+            +timeframe: Timeframe
+            +portfolio: Portfolio
+            +riskManager: RiskManager
+            +clock: MarketClock
+            +instance: StrategyInstance
+            +broker: Broker
+            +executionConfig: object
+            +riskConfig: object
+            +cursor: number
+            +finished: boolean
+            +events: ExecutionEvent[]
+            +advance() CandleStep
+        }
+        class CandleStep {
+            <<interface>>
+            +index: number
+            +candle: Candle
+            +events: ExecutionEvent[]
+            +equity: number
+        }
     }
 
     namespace time {
@@ -531,8 +576,10 @@ classDiagram
             +account: Account
             -tradeLog: Trade[]
             -orderLog: Order[]
+            -fillLog: Fill[]
             +trades: Trade[]
             +orders: Order[]
+            +fills: Fill[]
             +advance(candle: Candle) Fill[]
         }
         class Metrics {
@@ -573,6 +620,49 @@ classDiagram
         class runBacktest {
             <<function>>
             +runBacktest(config) BacktestResult
+        }
+    }
+
+    namespace replay {
+        class MarketReplayEngine {
+            +session: TradingSession
+            +status: ReplayStatus
+            +cursor: number
+            +log: ReplayLogEntry[]
+            +play()
+            +pause()
+            +step() ReplayStep
+            +reset()
+            +manualBuy(fraction: number) Order
+            +manualSell(fraction: number) Order
+        }
+        class ReplayStatus {
+            <<union>>
+            ready
+            playing
+            finished
+        }
+        class ReplayStep {
+            <<interface>>
+            +index: number
+            +time: number
+            +status: ReplayStatus
+            +events: ExecutionEvent[]
+            +log: ReplayLogEntry[]
+        }
+        class ReplayLogEntry {
+            <<interface>>
+            +time: number
+            +kind: ReplayLogKind
+            +text: string
+            +orderId: string
+        }
+        class ReplayError {
+            +name: string
+        }
+        class replayIntervalMs {
+            <<function>>
+            +replayIntervalMs(timeframe: Timeframe, speed: number) number
         }
     }
 
@@ -624,8 +714,16 @@ classDiagram
     StrategyRunner --> Broker
     StrategyRunner --> Portfolio
     StrategyRunner --> RiskManager
-    runBacktest ..> StrategyRunner : ensambla el stack
-    runBacktest ..> MarketClock : tiempo de simulación (§12A)
+    TradingSession --> StrategyRunner : onCandle por vela
+    TradingSession --> Portfolio
+    TradingSession --> RiskManager
+    TradingSession --> MarketClock : tiempo de simulación (§12A)
+    TradingSession ..> Broker : decorado (decorateBroker, sin ciclo)
+    runBacktest ..> TradingSession : motor compartido (§7)
+    MarketReplayEngine --> TradingSession : motor compartido (§7)
+    MarketReplayEngine ..> ReplayStep : devuelve por vela
+    MarketReplayEngine ..> ReplayLogEntry : log (§12D)
+    replayIntervalMs ..> Timeframe : intervalo en tiempo real (§7B)
 ```
 
 ## 3. Jerarquía de errores
@@ -656,6 +754,8 @@ classDiagram
     class InvalidExecutionModelError
     class InvalidPortfolioError
     class InvalidRiskError
+    class TradingSessionError
+    class ReplayError
 
     DomainError <|-- InvalidCandlesError
     DomainError <|-- InvalidTimeframeError
@@ -672,6 +772,8 @@ classDiagram
     DomainError <|-- InvalidExecutionModelError
     DomainError <|-- InvalidPortfolioError
     DomainError <|-- InvalidRiskError
+    DomainError <|-- TradingSessionError
+    DomainError <|-- ReplayError
 ```
 
 ## 4. Flujo de ejecución (árbol de arriba abajo)
@@ -695,22 +797,45 @@ flowchart TB
 ocurre antes de la **2. decisión** (cierre de la vela actual) y el envío después; una orden decidida
 en la vela N solo puede rellenar en N+1 o después.
 
+### Ciclo del replay interactivo (Fase 5, §7B)
+
+```mermaid
+flowchart TB
+    User["Usuario (UI)"] -->|Reproducir / Paso| Engine["MarketReplayEngine.step"]
+    Engine -->|una vela| Session["TradingSession.advance"]
+    Session --> Runner["StrategyRunner.onCandle (mismo stack que el backtest)"]
+    Runner -->|eventos| Engine
+    Engine -->|ReplayStep con events y log| UI["Log + progreso + lectura"]
+    User -->|Comprar / Vender (fracción)| Manual["manualBuy / manualSell"]
+    Manual -->|RiskManager + orden market| Session
+    Session -->|cursor| Chart["App recorta CandleChart e indicadores"]
+```
+
+El motor de reproducción es **uno** (§7): `runBacktest` lo recorre entero de golpe y
+`MarketReplayEngine` vela a vela bajo control del usuario; la estrategia no distingue ambos casos
+y nunca ve más allá de la vela procesada.
+
 ## 5. Funciones libres y tipos no dibujados
 
 No son clases, pero viven en `src/domain/`:
 
-| Archivo                    | Exporta                                                     |
-| -------------------------- | ----------------------------------------------------------- |
-| `errors.ts`                | `formatValue(value)`, `invalidMessage(prefix, reason, raw)` |
-| `candles/aggregate.ts`     | `aggregateCandles(candles, timeframe)`                      |
-| `candles/normalize.ts`     | `normalizeCandles(raw)` — deduplica y ordena                |
-| `candles/pricePosition.ts` | `assertFinitePrice(price)`                                  |
-| `indicators/indicator.ts`  | `assertPeriod(period)`, `sortedByTime(candles)`             |
-| `strategies/rules.ts`      | `resolveRef(context, ref, back)` — alias o constante        |
+| Archivo                     | Exporta                                                     |
+| --------------------------- | ----------------------------------------------------------- |
+| `errors.ts`                 | `formatValue(value)`, `invalidMessage(prefix, reason, raw)` |
+| `candles/aggregate.ts`      | `aggregateCandles(candles, timeframe)`                      |
+| `candles/normalize.ts`      | `normalizeCandles(raw)` — deduplica y ordena                |
+| `candles/pricePosition.ts`  | `assertFinitePrice(price)`                                  |
+| `indicators/indicator.ts`   | `assertPeriod(period)`, `sortedByTime(candles)`             |
+| `strategies/rules.ts`       | `resolveRef(context, ref, back)` — alias o constante        |
+| `trading/tradingSession.ts` | `findConfigProblem(config)` — validación compartida (§7)    |
+| `replay/speed.ts`           | `replayIntervalMs(timeframe, speed)`, `REPLAY_SPEEDS`       |
 
 Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimiter`,
 `CsvTimestampFormat`, `CsvColumnRef`, `CsvCandlesImporterOptions`, `SeriesRef`, `SignalAction`,
-`MarketContextData`, `StrategyDefinition`, `OrderData`, `FillData`, `ExecutionModelConfig`.
+`MarketContextData`, `StrategyDefinition`, `OrderData`, `FillData`, `ExecutionModelConfig`,
+`TradingSessionConfig`, `SessionRiskConfig`, `ConfigProblem`, `BrokerDecorator`, `CandleStep`,
+`BacktestConfig`, `BacktestRiskConfig`, `ReplayStatus`, `ReplayLogKind`, `ReplayLogEntry`,
+`ReplayStep`.
 
 ## 6. Convenciones del diagrama
 
@@ -725,9 +850,10 @@ Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimit
   `RiskManager.entryQty/addQty` (devuelven `number | null`), `MarketClock.now` (antes del primer
   avance) y todos los campos `null`-ables de `Metrics` (`sharpe`, `profitFactor`, `winRate`,
   `avgTrade`, `expectancy` → se muestran como "—").
-- `<<union>>` marca tipos de unión (`StrategyEvent`, `ExecutionEvent`); `<<enumeration>>` enums;
-  `<<interned>>` value objects con caché (`Instrument`, `Timeframe`); `<<valueObject>>` VO inmutable;
-  `<<function>>` funciones de caso de uso (`runBacktest`).
+- `<<union>>` marca tipos de unión (`StrategyEvent`, `ExecutionEvent`, `ReplayStatus`,
+  `ReplayLogKind`); `<<enumeration>>` enums; `<<interned>>` value objects con caché (`Instrument`,
+  `Timeframe`); `<<valueObject>>` VO inmutable; `<<function>>` funciones de caso de uso
+  (`runBacktest`, `replayIntervalMs`).
 - El diagrama de paquetes distingue **pertenencia** (sólida, raíz → paquete) de **dependencia de
   importación** (discontinua, paquete → paquete); no hay ciclos (el `execution ↔ portfolio` quedó
   eliminado con el puerto `Account`). La jerarquía de errores va aparte (sección 3).

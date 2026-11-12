@@ -3,8 +3,8 @@
 > Resumen de implementado y lo pendiente. Fuente de verdad de requisitos: [`AGENTS.md`](../AGENTS.md)
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
-> Última actualización: 2026-11-11 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**565 tests**, 41 archivos). `pnpm build` compila sin errores.
+> Última actualización: 2026-11-12 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
+> (**647 tests**, 47 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
@@ -12,8 +12,10 @@ App de estrategias de trading de criptomonedas: React + TypeScript, lógica en e
 una API pública de exchange (Binance) y persistencia local. Existe el **dominio puro** (velas,
 instrumentos, indicadores, estrategias), el **repositorio de velas**, la **capa de API**, la UI de la
 Fase 1 (gráfica de velas con indicadores e importación), la **ejecución simulada de la Fase 3**
-(órdenes, posiciones, portfolio, riesgo, broker y runner) y el **backtesting de la Fase 4**
-(motor, métricas, experimentos y panel de UI). Falta el replay interactivo (Fase 5).
+(órdenes, posiciones, portfolio, riesgo, broker y runner), el **backtesting de la Fase 4** (motor,
+métricas, experimentos y panel de UI) y la **simulación interactiva de la Fase 5** (motor de
+reproducción compartido, replay con estados, operaciones manuales y panel con gráfico recortado).
+La Fase 6 (experimentación avanzada) sigue pendiente.
 
 ## Implementado
 
@@ -118,6 +120,30 @@ memoria (persistencia → Fase 6) y ≤ 1000 velas (sin paginación).
 El Sharpe es `media/desv de retornos por vela × √(año/timeframe)` sin riesgo libre (±∞ con varianza
 0; `null` con < 2 retornos o equity plano).
 
+### Fase 5 — Simulación interactiva (completa)
+
+Plan detallado: [`fase5-plan.md`](./fase5-plan.md). Decisiones de alcance: velocidad en **tiempo
+real** (1× = `timeframe.ms`, presets 0.5×–3600×, clamp `[16 ms, 1 h]`), operaciones manuales por
+fracción con sizing de `RiskManager` (**orden única en vuelo** global), log en panel (últimas 100
+entradas) + `CandleChart` **recortado** a las velas consumidas (velas e indicadores), sin métricas
+ni equity en vivo (sigue siendo trabajo del backtest) y con la demo `sma-cross` (sin editor de
+estrategias).
+
+| Módulo                                                                                                                                               | Archivos                                    | Tests |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----- |
+| `TradingSession` — motor de reproducción compartido (§7): stack de Fase 3 vela a vela; `findConfigProblem` se muda aquí (re-export en `backtest.ts`) | `src/domain/trading/tradingSession.ts`      | 11    |
+| `MarketReplayEngine` — estados `ready/playing/finished`, `step`/`reset`, manuales por fracción, log por paso (§7B/§12D)                              | `src/domain/replay/replayEngine.ts`         | 21    |
+| Velocidad `replayIntervalMs` — multiplicador en tiempo real, acotada (§7B)                                                                           | `src/domain/replay/speed.ts`                | 5     |
+| `RecordingBroker.fills` — payload de rellenos para el log (§12D)                                                                                     | `src/domain/backtest/recordingBroker.ts`    | +3    |
+| `runBacktest` — refactor a bucle sobre `TradingSession` (mismo comportamiento, sin tocar sus tests)                                                  | `src/domain/backtest/backtest.ts`           | —     |
+| UI: `ReplayPanel` (transporte, velocidad, manuales, log) + `App` con `replayCursor` y gráfico recortado                                              | `src/components/ReplayPanel.tsx`, `App.tsx` | 16    |
+| E2E: replay paso a paso ≡ backtest, manuales con invariantes, reset §12C, cierre manual                                                              | `test/domain/replay/replayE2E.test.ts`      | 4     |
+
+**Invariantes de fase:** anti look-ahead heredado del runner (también para manuales: orden de la
+vela N rellena en N+1); **motor único** — una sesión paso a paso produce los mismos
+`trades`/`equityCurve`/`events`/`finalEquity` que `runBacktest`; orden única en vuelo preserva
+`Σ trades.pnl = realizedPnl` (≤ 1 fill por vela); `reset()` → mismo recorrido (§12C).
+
 ## Pendiente
 
 ### Inmediato (siguiente paso natural)
@@ -127,11 +153,6 @@ El Sharpe es `media/desv de retornos por vela × √(año/timeframe)` sin riesgo
   1000 velas por petición, sin paginar).
 - **Indicadores restantes**: MACD, ATR, Bollinger, VWAP (el contrato `Indicator` ya los admite;
   `buildLines` y `IndicatorPanel` solo hay que ampliarlos).
-
-### Fase 5 — Simulación interactiva
-
-- Reproducción controlada por usuario: velocidad, pausa, paso a vela a vela; visualización de
-  decisiones y eventos; operaciones manuales.
 
 ### Fase 6 — Experimentación avanzada
 
@@ -143,7 +164,7 @@ El Sharpe es `media/desv de retornos por vela × √(año/timeframe)` sin riesgo
 - **Persistencia de estrategias**: solo hay `CandleRepository`; falta guardar definiciones (con su
   versión) y resultados.
 - **Eventos y observabilidad (§12D)**: los eventos se devuelven en las transiciones pero no hay
-  despacho/suscripción (gráfico, log).
+  despacho/suscripción; el log del replay los consume por diff del `RecordingBroker` (Fase 5).
 - **Indicadores restantes**: MACD, ATR, Bollinger, VWAP (el contrato `Indicator` ya los admite).
 - **Versionado automático**: hoy `version` es manual en `StrategyDefinition`; un fingerprint
   reproducible queda para `Experiment` (Fase 6).
