@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { App } from '@/components/App'
 import { BinanceProvider, type FetchLike } from '@/api/binanceProvider'
 import type { MarketDataProvider } from '@/api/marketDataProvider'
@@ -111,6 +111,11 @@ function renderApp(provider?: MarketDataProvider) {
   return { fetchImpl }
 }
 
+/** Panel de backtest (hay dos formularios con los mismos labels en la pantalla). */
+function backtestPanel() {
+  return within(screen.getByRole('region', { name: 'Backtest' }))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   seriesMock.created.length = 0
@@ -130,8 +135,16 @@ describe('App', () => {
   it('incluye el panel de backtest (deshabilitado sin datos)', () => {
     renderApp()
 
-    expect(screen.getByLabelText('Capital inicial')).toHaveValue(1_000)
+    expect(backtestPanel().getByLabelText('Capital inicial')).toHaveValue(1_000)
     expect(screen.getByRole('button', { name: 'Ejecutar backtest' })).toBeDisabled()
+  })
+
+  it('incluye el panel de replay (deshabilitado sin datos) y el subtítulo de la fase', () => {
+    renderApp()
+
+    expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeDisabled()
+    expect(screen.getByTestId('replay-empty')).toHaveTextContent('descarga o importa')
+    expect(screen.getByText(/Fase 5/)).toBeInTheDocument()
   })
 
   it('ejecuta un backtest desde la UI con las velas del repositorio', () => {
@@ -144,13 +157,37 @@ describe('App', () => {
     )
 
     renderApp()
-    fireEvent.change(screen.getByLabelText('SMA rápida'), { target: { value: '2' } })
-    fireEvent.change(screen.getByLabelText('SMA lenta'), { target: { value: '3' } })
+    fireEvent.change(backtestPanel().getByLabelText('SMA rápida'), { target: { value: '2' } })
+    fireEvent.change(backtestPanel().getByLabelText('SMA lenta'), { target: { value: '3' } })
     fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
 
     expect(screen.getByTestId('backtest-summary')).toHaveTextContent('sma-cross@1')
     expect(screen.getByTestId('backtest-metrics')).toHaveTextContent('Beneficio neto')
     expect(screen.getByTestId('backtest-trades')).toBeInTheDocument()
+  })
+
+  it('recorta el gráfico a las velas consumidas durante el replay', () => {
+    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
+    repository.save(
+      Instrument.of('BTC', 'USDT'),
+      Timeframe.HOUR,
+      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
+    )
+    renderApp()
+
+    expect(screen.getByText('9 velas')).toBeInTheDocument()
+    expect(screen.queryByTestId('chart-empty')).not.toBeInTheDocument()
+
+    // Sesión iniciada: cursor 0 → el gráfico (y sus líneas) no ven nada aún.
+    fireEvent.click(screen.getByRole('button', { name: 'Iniciar sesión' }))
+    expect(screen.getByText('0/9 velas')).toBeInTheDocument()
+    expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
+
+    // Un paso → exactamente una vela visible (sin look-ahead en la UI).
+    fireEvent.click(screen.getByRole('button', { name: 'Paso' }))
+    expect(screen.getByText('1/9 velas')).toBeInTheDocument()
+    expect(screen.queryByTestId('chart-empty')).not.toBeInTheDocument()
+    expect(screen.queryByText('9 velas')).not.toBeInTheDocument()
   })
 
   it('carga las velas existentes del repositorio al montar', () => {

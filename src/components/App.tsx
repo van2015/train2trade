@@ -6,6 +6,7 @@ import { Instrument } from '@/domain/instruments/instrument'
 import { CandleRepository } from '@/storage/candleRepository'
 import { CandleChart } from './CandleChart'
 import { BacktestPanel } from './BacktestPanel'
+import { ReplayPanel } from './ReplayPanel'
 import { CsvImportPanel } from './CsvImportPanel'
 import { DataControls } from './DataControls'
 import { IndicatorPanel } from './IndicatorPanel'
@@ -39,6 +40,8 @@ export function App({ repository, provider }: AppProps) {
   const [settings, setSettings] = useState<IndicatorSettings>(DEFAULT_INDICATOR_SETTINGS)
   const [status, setStatus] = useState<Status>(null)
   const [busy, setBusy] = useState(false)
+  // Cursor del replay activo (null = sin sesión): el gráfico solo ve lo consumido.
+  const [replayCursor, setReplayCursor] = useState<number | null>(null)
 
   const reload = useCallback(() => {
     setInstruments(repository.listInstruments())
@@ -55,9 +58,13 @@ export function App({ repository, provider }: AppProps) {
     reload()
   }, [reload])
 
+  // Con replay activo, el gráfico (velas e indicadores) solo ve lo consumido:
+  // ni la UI ni la estrategia miran al futuro (§7B, anti look-ahead).
+  const visible = replayCursor === null ? candles : candles.slice(0, replayCursor)
+
   const lines: readonly ChartLine[] = useMemo(
-    () => buildLines(candles, settings),
-    [candles, settings],
+    () => buildLines(visible, settings),
+    [visible, settings],
   )
 
   const handleFetch = async (range: TimeRange | undefined) => {
@@ -91,13 +98,18 @@ export function App({ repository, provider }: AppProps) {
     }
   }
 
-  const range = candles.length > 0 ? `${candles.length} velas` : 'sin datos'
+  const range =
+    candles.length === 0
+      ? 'sin datos'
+      : replayCursor === null
+        ? `${candles.length} velas`
+        : `${visible.length}/${candles.length} velas`
 
   return (
     <div className="app">
       <header className="app__header">
         <h1 className="app__title">train2trade</h1>
-        <p className="app__subtitle">Laboratorio de estrategias · Fase 4</p>
+        <p className="app__subtitle">Laboratorio de estrategias · Fase 5</p>
       </header>
 
       <div className="app__body">
@@ -123,6 +135,8 @@ export function App({ repository, provider }: AppProps) {
 
           <BacktestPanel candles={candles} timeframe={timeframe} />
 
+          <ReplayPanel candles={candles} timeframe={timeframe} onProgress={setReplayCursor} />
+
           {status !== null && (
             <p className={`status status--${status.kind}`} role="status" data-testid="status">
               {status.text}
@@ -137,7 +151,7 @@ export function App({ repository, provider }: AppProps) {
             </span>
             <span className="app__chart-range">{range}</span>
           </div>
-          <CandleChart candles={candles} lines={lines} />
+          <CandleChart candles={visible} lines={lines} />
         </main>
       </div>
     </div>

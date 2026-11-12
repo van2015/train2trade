@@ -231,7 +231,8 @@ session.advance()` → `computeMetrics` sobre los datos de la sesión (la curva 
   descarta la sesión y notifica `onProgress(null)`.
 - **Aceptación:** flujo iniciar → Paso → exactamente 1 vela visible (y sus líneas); reproducir
   con fake timers avanza; pausa detiene; al terminar, gráfico completo; validaciones del
-  formulario; smoke en `App.test.tsx` (mock de `CandleChart` con el nº de velas recibidas).
+  formulario; smoke en `App.test.tsx` (recorte verificado con `chart-empty` + contador
+  `0/9 velas → 1/9 velas`, sin mock adicional de `CandleChart`).
 
 ### T5 — E2E, docs y cierre de fase
 
@@ -313,6 +314,12 @@ Mensajes sugeridos por tarea:
 - **T2 — Log con barrido de estado para las resoluciones**: los eventos `OrderRejected`/
   `OrderCancelled` solo cubren las órdenes de la estrategia (el runner no ve las manuales), así
   que el motor registra rechazos/cancelaciones recorriendo `broker.orders` por estado (append-only
-  - `Set` de ya registradas), **antes** de los eventos del paso — con una sola orden en vuelo, esa
-    posición en el flujo es siempre correcta. `ReplayStep.log` recoge lo añadido **desde el paso
-    anterior** (incluye manuales enviados entre medias, que viajan en el siguiente paso).
+  y `Set` de ya registradas), **antes** de los eventos del paso — con una sola orden en vuelo, esa
+  posición en el flujo es siempre correcta. `ReplayStep.log` recoge lo añadido **desde el paso
+  anterior** (incluye manuales enviados entre medias, que viajan en el siguiente paso).
+- **T4 — Dos formularios con los mismos labels**: `BacktestPanel` y `ReplayPanel` comparten
+  etiquetas ("Capital inicial", "SMA rápida", …), así que las queries de `App.test.tsx` se
+  **alcanczan con `within(region 'Backtest')`** en vez de renombrar los campos para el usuario.
+  El panel descarta la sesión (y notifica `onProgress(null)`) cuando cambian las velas, guardando
+  en estado el array con el que se creó (sin refs). El recorte del gráfico se verificó con
+  `chart-empty` + el contador `N/M velas`, sin mock adicional.
