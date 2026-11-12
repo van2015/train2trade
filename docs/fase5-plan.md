@@ -116,12 +116,12 @@ export interface ReplayStep {
   time: number
   status: ReplayStatus // estado tras el paso ('finished' al procesar la última vela)
   events: readonly ExecutionEvent[]
-  log: readonly ReplayLogEntry[] // entradas nuevas de este paso
+  log: readonly ReplayLogEntry[] // entradas nuevas desde el paso anterior (incluye manuales de entre medias)
 }
 
 export class MarketReplayEngine {
   constructor(config: TradingSessionConfig)
-  readonly session: TradingSession
+  readonly session: TradingSession<RecordingBroker> // getter; el decorador tipa el broker
   get status(): ReplayStatus
   get cursor(): number
   get log(): readonly ReplayLogEntry[]
@@ -136,7 +136,9 @@ export class MarketReplayEngine {
 }
 // Regla: manual* → ReplayError si broker.pendingOrders().length > 0 (orden única en vuelo).
 // Órdenes manuales con id `m<n>` (las de estrategia siguen siendo `o<n>`): distinción en el log.
-// createdAt = clock.now ?? candles[0].time (admitido antes del primer paso).
+// Envío vía session.broker.submitOrder (sin ampliar la sesión); createdAt = clock.now ?? candles[0].time.
+// Log: eventos del paso (envíos/rellenos con payload del decorador + nombres de estrategia) y
+// barrido de estado para rechazos/cancelaciones (las manuales no emiten evento).
 
 // T3 — velocidad (§7B)
 // src/domain/replay/speed.ts
@@ -182,17 +184,18 @@ session.advance()` → `computeMetrics` sobre los datos de la sesión (la curva 
 ### T2 — `MarketReplayEngine`: estados, manuales y log (§7B)
 
 - **Archivos:** `src/domain/replay/replayEngine.ts` ↔ `test/domain/replay/replayEngine.test.ts`;
-  `src/domain/backtest/recordingBroker.ts` (+ `fills`, test ampliado) y
-  `src/domain/trading/tradingSession.ts` (+ `submitOrder`, + `fills`).
+  `src/domain/backtest/recordingBroker.ts` (+ `fills`, test ampliado). La sesión **no** crece: el
+  motor usa `session.broker` directamente (el genérico lo tipa como `RecordingBroker`).
 - Estados y transiciones (`play`/`pause`/`step`/`reset`) según contrato; `reset` reconstruye el
   stack con la config guardada (la `Strategy` es reutilizable, es estadoless).
 - **Manuales:** `manualBuy(fraction)` → `risk.addQty(portfolio, price, fraction)`; `manualSell` →
   `position.qty * fraction` (reduce nunca se bloquea); qty `null` → devuelve `null` sin enviar
-  nada; orden market con id `m<n>` enviada vía `session.submitOrder`. **Regla de orden única en
-  vuelo** (`pendingOrders().length > 0` → `ReplayError`).
+  nada; orden market con id `m<n>` enviada vía `session.broker.submitOrder`. **Regla de orden
+  única en vuelo** (`pendingOrders().length > 0` → `ReplayError`).
 - **Log por paso:** entradas derivadas de `events` (nombres de dominio), rellenos con
-  precio/cantidad (cruzando `session.broker.fills`), resoluciones de orden con `rejectReason`, y
-  entradas `manual` propias (envío y relleno). Solo se registran pasos con algo que contar.
+  precio/cantidad (cruzando `session.broker.fills`), y **barrido de estado** para
+  rechazos/cancelaciones con `rejectReason` (las órdenes manuales no emiten evento: el runner
+  solo conoce las suyas). Solo se registran pasos con algo que contar.
 - **Aceptación:** transiciones inválidas y `step` en finished → `ReplayError`; manual antes del
   primer paso y entre pasos rellena en la **siguiente** vela (anti look-ahead); regla de orden
   única testeada; con manuales de por medio se mantiene `Σ trades.pnl = realizedPnl`; `reset` →
@@ -305,5 +308,11 @@ Mensajes sugeridos por tarea:
   modo que `trading` **no** importa `backtest` y no se crea el ciclo `backtest ↔ trading` (§14;
   `RecordingBroker` ya está cubierto por sus tests de Fase 4). Por el mismo motivo la curva de
   equity **no** se acumula en la sesión: cada `CandleStep` lleva su `equity` y la acumula el
-  consumidor (`runBacktest` ya lo hacía así; comportamiento idéntico). `submitOrder` queda para
-  T2, con sus tests.
+  consumidor (`runBacktest` ya lo hacía así; comportamiento idéntico). El replay usa
+  `session.broker.submitOrder` directamente: la sesión no se amplía en T2.
+- **T2 — Log con barrido de estado para las resoluciones**: los eventos `OrderRejected`/
+  `OrderCancelled` solo cubren las órdenes de la estrategia (el runner no ve las manuales), así
+  que el motor registra rechazos/cancelaciones recorriendo `broker.orders` por estado (append-only
+  - `Set` de ya registradas), **antes** de los eventos del paso — con una sola orden en vuelo, esa
+    posición en el flujo es siempre correcta. `ReplayStep.log` recoge lo añadido **desde el paso
+    anterior** (incluye manuales enviados entre medias, que viajan en el siguiente paso).

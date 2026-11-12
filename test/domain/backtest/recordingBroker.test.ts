@@ -103,6 +103,41 @@ describe('RecordingBroker — registro de órdenes', () => {
   })
 })
 
+describe('RecordingBroker — registro de fills', () => {
+  it('registra todos los fills en orden (compras y ventas), con precio y cantidad', () => {
+    const { broker } = setup()
+    broker.submitOrder(order('entry', { qty: 2 }))
+    broker.advance(candleAt(0, { open: 100 }))
+    broker.submitOrder(order('exit', { side: OrderSide.Sell, qty: 2 }))
+    broker.advance(candleAt(1, { open: 110 }))
+
+    expect(broker.fills).toHaveLength(2)
+    expect(broker.fills[0]?.orderId).toBe('entry')
+    expect(broker.fills[0]?.side).toBe(OrderSide.Buy)
+    expect(broker.fills[0]?.price).toBe(100)
+    expect(broker.fills[0]?.qty).toBe(2)
+    expect(broker.fills[1]?.orderId).toBe('exit')
+    expect(broker.fills[1]?.side).toBe(OrderSide.Sell)
+    expect(broker.fills[1]?.price).toBe(110)
+    expect(broker.fills[1]?.time).toBe(candleAt(1).time)
+  })
+
+  it('un rechazo no genera fill', () => {
+    const { broker } = setup()
+    broker.submitOrder(order('sell', { side: OrderSide.Sell })) // sin posición
+    broker.advance(candleAt(0, { open: 100 }))
+
+    expect(broker.fills).toEqual([])
+  })
+
+  it('devuelve copias: mutar el array devuelto no afecta al registro', () => {
+    const { broker } = setup()
+    const fills = broker.fills
+    expect(fills).not.toBe(broker.fills)
+    expect(fills).toEqual(broker.fills)
+  })
+})
+
 describe('RecordingBroker — registro de trades', () => {
   it('una compra no registra trade; la venta registra uno con el estado PREVIO', () => {
     const { broker, portfolio } = setup(100) // fee 1%
