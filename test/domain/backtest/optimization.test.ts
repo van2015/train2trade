@@ -119,6 +119,15 @@ describe('runOptimization — validación y errores', () => {
     ).toThrow(OptimizationError)
   })
 
+  it('values duplicadas en una dimensión → OptimizationError (sin combinaciones repetidas)', () => {
+    expect(() => runOptimization(config({ grid: { fast: [2, 2], slow: [3] } }))).toThrow(
+      OptimizationError,
+    )
+    expect(() => runOptimization(config({ grid: { fast: [2, 3], slow: [3, 3] } }))).toThrow(
+      OptimizationError,
+    )
+  })
+
   it('la rejilla que supera MAX_OPTIMIZATION_RUNS se rechaza antes de ejecutar', () => {
     const many = Array.from({ length: 32 }, (_, index) => index + 1) // 32 × 32 = 1024
 

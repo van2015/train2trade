@@ -112,6 +112,9 @@ function buildCombos(grid: Readonly<Record<string, readonly number[]>>): Record<
     if (!Array.isArray(keyValues) || keyValues.length === 0) {
       throw new OptimizationError(`grid["${key}"] debe ser un array con al menos un valor`, key)
     }
+    if (new Set(keyValues).size !== keyValues.length) {
+      throw new OptimizationError(`grid["${key}"] no puede repetir valores`, key)
+    }
     total *= keyValues.length
     if (total > MAX_OPTIMIZATION_RUNS) {
       throw new OptimizationError(
