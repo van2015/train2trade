@@ -1,5 +1,5 @@
 import { ExperimentSnapshot } from '@/domain/backtest/experiment'
-import { Metrics } from '@/domain/backtest/metrics'
+import { Metrics, sortByMetricDesc } from '@/domain/backtest/metrics'
 import { canonicalJson } from '@/domain/strategies/fingerprint'
 
 /**
@@ -55,25 +55,14 @@ export function compareExperiments(snapshots: readonly ExperimentSnapshot[]): Co
 /**
  * Ranking descendente por métrica (§9): `null` al final (sin inventar orden
  * entre ellos más allá del de entrada) y **empates estables** — conservan el
- * orden de la lista original. No muta la entrada.
+ * orden de la lista original. No muta la entrada. Semántica única en
+ * `sortByMetricDesc` (compartida con la optimización).
  */
 export function rankBy(
   rows: readonly ComparisonRow[],
   metric: keyof Metrics,
 ): readonly ComparisonRow[] {
-  return rows
-    .map((row, index) => ({ row, index }))
-    .sort((a, b) => {
-      const before = a.row.metrics[metric]
-      const after = b.row.metrics[metric]
-
-      if (before === null && after === null) return a.index - b.index
-      if (before === null) return 1 // nulls al final
-      if (after === null) return -1
-      if (before === after) return a.index - b.index // empate → orden de entrada
-      return after - before // descendente
-    })
-    .map(({ row }) => row)
+  return sortByMetricDesc(rows, metric)
 }
 
 /** Proyecta un snapshot a su fila de comparación (copia defensiva del periodo). */

@@ -186,3 +186,28 @@ function lastPoint(curve: readonly EquityPoint[]): EquityPoint {
   if (last === undefined) throw new MetricsError('el equityCurve no puede estar vacío', 0)
   return last
 }
+
+/**
+ * Ordena descendente por `metric`: `null` al final y **empates estables**
+ * (conservan el orden de entrada). No muta la entrada. Es la semántica única
+ * del ranking: la usan `rankBy` (comparación) y los `best`/`worst` de la
+ * optimización, con lo que ambos quedan coherentes por construcción.
+ */
+export function sortByMetricDesc<T extends { metrics: Metrics }>(
+  items: readonly T[],
+  metric: keyof Metrics,
+): readonly T[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const before = a.item.metrics[metric]
+      const after = b.item.metrics[metric]
+
+      if (before === null && after === null) return a.index - b.index
+      if (before === null) return 1 // nulls al final
+      if (after === null) return -1
+      if (before === after) return a.index - b.index // empate → orden de entrada
+      return after - before // descendente
+    })
+    .map(({ item }) => item)
+}

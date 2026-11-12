@@ -5,7 +5,7 @@
 > _"un laboratorio para desarrollar y validar sistemas de trading"_.
 >
 > **Estado: en implementación (2026-11-12)** — rama `phase6` creada desde `main` (`dd1ce77`);
-> T0…T5 completadas con TDD (705 tests en verde). Pendiente: T6…T9.
+> T0…T6 completadas con TDD (715 tests en verde). Pendiente: T7…T9.
 > Requisitos: AGENTS.md §7/§9/§12/§13. La **Fase 5 (replay interactivo) sigue pendiente y no
 > bloquea esta fase**: solo comparten `MarketClock`, que ya existe desde la Fase 4.
 
