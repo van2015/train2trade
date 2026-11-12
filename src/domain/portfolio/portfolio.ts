@@ -85,24 +85,33 @@ export class Portfolio implements Account {
    */
   applyFill(fill: Fill): void {
     if (fill.side === OrderSide.Buy) {
-      const cost = fill.cost
-      if (cost > this.cashValue) {
-        throw new InvalidPortfolioError(
-          `efectivo insuficiente: se necesitan ${cost} y hay ${this.cashValue}`,
-          cost,
-        )
-      }
-      this.cashValue -= cost
-      this.fees += fill.fee
-      const position = this.positionValue
-      if (position !== null && position.isOpen) {
-        position.applyFill(fill)
-      } else {
-        this.positionValue = Position.from(fill)
-      }
+      this.applyBuyFill(fill)
       return
     }
+    this.applySellFill(fill)
+  }
 
+  /** Compra: descuenta el coste total y abre o promedia la posición. */
+  private applyBuyFill(fill: Fill): void {
+    const cost = fill.cost
+    if (cost > this.cashValue) {
+      throw new InvalidPortfolioError(
+        `efectivo insuficiente: se necesitan ${cost} y hay ${this.cashValue}`,
+        cost,
+      )
+    }
+    this.cashValue -= cost
+    this.fees += fill.fee
+    const position = this.positionValue
+    if (position !== null && position.isOpen) {
+      position.applyFill(fill)
+    } else {
+      this.positionValue = Position.from(fill)
+    }
+  }
+
+  /** Venta: acredita el efectivo; al cerrar, retira la posición y acumula su realizado. */
+  private applySellFill(fill: Fill): void {
     const position = this.positionValue
     if (position === null || position.isEmpty) {
       throw new InvalidPortfolioError('no hay posición abierta que reducir', fill.orderId)

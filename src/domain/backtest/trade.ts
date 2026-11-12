@@ -39,28 +39,8 @@ export class Trade {
   readonly fees: number
 
   constructor(data: TradeData) {
+    validateTradeData(data)
     const { entryTime, entryPrice, exitTime, exitPrice, qty, pnl, fees } = data
-
-    assertTimestamp(entryTime, 'entryTime')
-    assertTimestamp(exitTime, 'exitTime')
-    if (exitTime < entryTime) {
-      throw new InvalidTradeError('exitTime no puede ser anterior a entryTime', exitTime)
-    }
-    if (typeof entryPrice !== 'number' || !Number.isFinite(entryPrice) || entryPrice <= 0) {
-      throw new InvalidTradeError('entryPrice debe ser un número finito > 0', entryPrice)
-    }
-    if (typeof exitPrice !== 'number' || !Number.isFinite(exitPrice) || exitPrice <= 0) {
-      throw new InvalidTradeError('exitPrice debe ser un número finito > 0', exitPrice)
-    }
-    if (typeof qty !== 'number' || !Number.isFinite(qty) || qty <= 0) {
-      throw new InvalidTradeError('qty debe ser un número finito > 0', qty)
-    }
-    if (typeof pnl !== 'number' || !Number.isFinite(pnl)) {
-      throw new InvalidTradeError('pnl debe ser un número finito', pnl)
-    }
-    if (typeof fees !== 'number' || !Number.isFinite(fees) || fees < 0) {
-      throw new InvalidTradeError('fees debe ser un número finito >= 0', fees)
-    }
 
     this.entryTime = entryTime
     this.entryPrice = entryPrice
@@ -85,5 +65,31 @@ export class Trade {
 function assertTimestamp(value: number, label: string): void {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw new InvalidTradeError(`${label} debe ser un timestamp finito >= 0 (ms)`, value)
+  }
+}
+
+/** Valida el payload del trade; lanza `InvalidTradeError` en el primer campo inválido. */
+function validateTradeData(data: TradeData): void {
+  const { entryTime, entryPrice, exitTime, exitPrice, qty, pnl, fees } = data
+
+  assertTimestamp(entryTime, 'entryTime')
+  assertTimestamp(exitTime, 'exitTime')
+  if (exitTime < entryTime) {
+    throw new InvalidTradeError('exitTime no puede ser anterior a entryTime', exitTime)
+  }
+  if (typeof entryPrice !== 'number' || !Number.isFinite(entryPrice) || entryPrice <= 0) {
+    throw new InvalidTradeError('entryPrice debe ser un número finito > 0', entryPrice)
+  }
+  if (typeof exitPrice !== 'number' || !Number.isFinite(exitPrice) || exitPrice <= 0) {
+    throw new InvalidTradeError('exitPrice debe ser un número finito > 0', exitPrice)
+  }
+  if (typeof qty !== 'number' || !Number.isFinite(qty) || qty <= 0) {
+    throw new InvalidTradeError('qty debe ser un número finito > 0', qty)
+  }
+  if (typeof pnl !== 'number' || !Number.isFinite(pnl)) {
+    throw new InvalidTradeError('pnl debe ser un número finito', pnl)
+  }
+  if (typeof fees !== 'number' || !Number.isFinite(fees) || fees < 0) {
+    throw new InvalidTradeError('fees debe ser un número finito >= 0', fees)
   }
 }

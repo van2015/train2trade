@@ -59,31 +59,8 @@ export class Order {
   private reason: string | null
 
   constructor(data: OrderData) {
+    validateOrderData(data)
     const { id, side, type, qty, price, createdAt } = data
-
-    if (typeof id !== 'string' || id.trim() === '') {
-      throw new InvalidOrderError('el id no puede estar vacío', id)
-    }
-    if (!Object.values(OrderSide).includes(side)) {
-      throw new InvalidOrderError('side debe ser "buy" o "sell"', side)
-    }
-    if (!Object.values(OrderType).includes(type)) {
-      throw new InvalidOrderError('type debe ser "market" o "limit"', type)
-    }
-    if (typeof qty !== 'number' || !Number.isFinite(qty) || qty <= 0) {
-      throw new InvalidOrderError('qty debe ser un número finito > 0', qty)
-    }
-    if (typeof createdAt !== 'number' || !Number.isFinite(createdAt)) {
-      throw new InvalidOrderError('createdAt debe ser un timestamp finito (ms)', createdAt)
-    }
-
-    if (type === OrderType.Limit) {
-      if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
-        throw new InvalidOrderError('una orden limit requiere un price finito > 0', price ?? null)
-      }
-    } else if (price !== undefined) {
-      throw new InvalidOrderError('una orden de mercado no admite price', price)
-    }
 
     this.id = id
     this.side = side
@@ -133,5 +110,34 @@ export class Order {
     }
     this.current = to
     if (rejectReason !== undefined) this.reason = rejectReason
+  }
+}
+
+/** Valida el payload de la orden; lanza `InvalidOrderError` en el primer campo inválido. */
+function validateOrderData(data: OrderData): void {
+  const { id, side, type, qty, price, createdAt } = data
+
+  if (typeof id !== 'string' || id.trim() === '') {
+    throw new InvalidOrderError('el id no puede estar vacío', id)
+  }
+  if (!Object.values(OrderSide).includes(side)) {
+    throw new InvalidOrderError('side debe ser "buy" o "sell"', side)
+  }
+  if (!Object.values(OrderType).includes(type)) {
+    throw new InvalidOrderError('type debe ser "market" o "limit"', type)
+  }
+  if (typeof qty !== 'number' || !Number.isFinite(qty) || qty <= 0) {
+    throw new InvalidOrderError('qty debe ser un número finito > 0', qty)
+  }
+  if (typeof createdAt !== 'number' || !Number.isFinite(createdAt)) {
+    throw new InvalidOrderError('createdAt debe ser un timestamp finito (ms)', createdAt)
+  }
+
+  if (type === OrderType.Limit) {
+    if (typeof price !== 'number' || !Number.isFinite(price) || price <= 0) {
+      throw new InvalidOrderError('una orden limit requiere un price finito > 0', price ?? null)
+    }
+  } else if (price !== undefined) {
+    throw new InvalidOrderError('una orden de mercado no admite price', price)
   }
 }

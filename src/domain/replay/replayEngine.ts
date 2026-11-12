@@ -47,6 +47,165 @@ function formatAmount(value: number): string {
 }
 
 /**
+ * Log de reproducción (§12D): entradas append-only construidas a partir de los
+ * `ExecutionEvent[]` y de los arrays de órdenes/`fills` del decorador — sin bus
+ * de eventos. Las rechazos/cancelaciones se detectan por barrido de estado
+ * porque las órdenes manuales no emiten evento (el runner solo conoce las
+ * suyas); los índices de orden/fill recorren los arrays en el mismo orden en
+ * que se registran.
+ */
+class ReplayLog {
+  private entries: ReplayLogEntry[] = []
+  private readonly manualIds = new Set<string>()
+  private readonly resolvedLogged = new Set<string>()
+  private ordersLogged = 0
+  private fillsLogged = 0
+
+  /** Log completo, en orden; copia estable para la UI. */
+  snapshot(): readonly ReplayLogEntry[] {
+    return [...this.entries]
+  }
+
+  /** Longitud actual; sirve de referencia para acotar los logs por paso. */
+  get length(): number {
+    return this.entries.length
+  }
+
+  /** Entradas desde `fromIndex` (append-only: cortes estables). */
+  slice(fromIndex: number): readonly ReplayLogEntry[] {
+    return this.entries.slice(fromIndex)
+  }
+
+  /** Vuelve a vacío (reset del replay). */
+  reset(): void {
+    this.entries = []
+    this.manualIds.clear()
+    this.resolvedLogged.clear()
+    this.ordersLogged = 0
+    this.fillsLogged = 0
+  }
+
+  /**
+   * Orden manual enviada: sin evento `OrderSubmitted` (el runner no envía
+   * estas órdenes), así que el registro se consume aquí para que los índices
+   * del log sigan alineados con `broker.orders`.
+   */
+  noteManualOrder(order: Order, time: number): void {
+    this.ordersLogged += 1
+    this.manualIds.add(order.id)
+
+    const verb = order.side === OrderSide.Buy ? 'comprar' : 'vender'
+    this.entries.push({
+      time,
+      kind: 'manual',
+      text: `Orden manual enviada: ${verb} ${formatAmount(order.qty)} (${order.id})`,
+      orderId: order.id,
+    })
+  }
+
+  /**
+   * Entradas de log de un paso, en orden:
+   * 1. resoluciones por barrido (rechazo/cancelación) — las manuales no
+   *    emiten evento y ocurren en el avance, antes de decidir;
+   * 2. eventos del paso: envíos y rellenos (con payload del decorador) y
+   *    eventos de estrategia (nombres de dominio).
+   */
+  appendStep(
+    orders: readonly Order[],
+    fills: readonly Fill[],
+    events: readonly ExecutionEvent[],
+    time: number,
+  ): void {
+    this.appendResolvedOrders(orders, time)
+    this.appendEventEntries(orders, fills, events, time)
+  }
+
+  /** Resoluciones por barrido (rechazo/cancelación): registradas una sola vez. */
+  private appendResolvedOrders(orders: readonly Order[], time: number): void {
+    for (const order of orders) {
+      if (order.status === OrderStatus.Pending || order.status === OrderStatus.Filled) continue
+      if (this.resolvedLogged.has(order.id)) continue
+      this.resolvedLogged.add(order.id)
+
+      const manual = this.manualIds.has(order.id)
+      if (order.status === OrderStatus.Rejected) {
+        const reason = order.rejectReason ?? 'sin motivo'
+        this.entries.push({
+          time,
+          kind: manual ? 'manual' : 'rejection',
+          text: manual
+            ? `Orden manual rechazada (${order.id}): ${reason}`
+            : `Orden rechazada (${order.id}): ${reason}`,
+          orderId: order.id,
+        })
+      } else {
+        this.entries.push({
+          time,
+          kind: 'order',
+          text: `Orden cancelada (${order.id})`,
+          orderId: order.id,
+        })
+      }
+    }
+  }
+
+  /** Eventos del paso: envíos, rellenos y eventos de estrategia. */
+  private appendEventEntries(
+    orders: readonly Order[],
+    fills: readonly Fill[],
+    events: readonly ExecutionEvent[],
+    time: number,
+  ): void {
+    for (const event of events) {
+      switch (event) {
+        case 'OrderSubmitted':
+          this.appendSubmitted(orders, time)
+          break
+        case 'OrderFilled':
+          this.appendFilled(fills, time)
+          break
+        case 'OrderRejected':
+        case 'OrderCancelled':
+          break // ya registradas por el barrido anterior (incluye manuales sin evento)
+        default:
+          this.entries.push({ time, kind: 'strategy', text: event })
+      }
+    }
+  }
+
+  /** Siguiente orden aún no registrada en el log (el registro es append-only). */
+  private appendSubmitted(orders: readonly Order[], time: number): void {
+    const order = orders[this.ordersLogged]
+    if (order === undefined) return
+    this.ordersLogged += 1
+
+    const verb = order.side === OrderSide.Buy ? 'comprar' : 'vender'
+    this.entries.push({
+      time,
+      kind: 'order',
+      text: `Orden enviada: ${verb} ${formatAmount(order.qty)} (${order.id})`,
+      orderId: order.id,
+    })
+  }
+
+  /** Siguiente fill aún no registrado en el log (append-only, en orden). */
+  private appendFilled(fills: readonly Fill[], time: number): void {
+    const fill = fills[this.fillsLogged]
+    if (fill === undefined) return
+    this.fillsLogged += 1
+
+    const manual = this.manualIds.has(fill.orderId)
+    const subject = `${fill.side === OrderSide.Buy ? 'Compra' : 'Venta'}${manual ? ' manual' : ''} rellenada`
+    this.entries.push({
+      time,
+      kind: manual ? 'manual' : 'fill',
+      text: `${subject}: ${formatAmount(fill.qty)} @ ${formatAmount(fill.price)} (${fill.orderId})`,
+      orderId: fill.orderId,
+    })
+  }
+}
+
+/**
  * Reproducción histórica interactiva (§7B): controla el tiempo sobre el motor
  * compartido `TradingSession` (§7 — backtest y replay usan el mismo mecanismo
  * de reproducción; aquí la diferencia es quién lo gobierna). Determinista
@@ -64,11 +223,9 @@ function formatAmount(value: number): string {
  *   pendiente (estrategia o manual). Preserva el supuesto de `RecordingBroker`
  *   (≤ 1 fill por vela → `Σ trades.pnl = realizedPnl`) y evita rechazos
  *   cruzados entre el usuario y la estrategia.
- * - **Log (§12D):** entradas por paso construidas a partir de los
- *   `ExecutionEvent[]` y de los diffs de órdenes/`fills` del decorador — sin
- *   bus de eventos. Las rechazos/cancelaciones se detectan por barrido de
- *   estado porque las órdenes manuales no emiten evento (el runner solo
- *   conoce las suyas).
+ * - **Log (§12D):** delegado en `ReplayLog` — entradas por paso construidas
+ *   a partir de los `ExecutionEvent[]` y de los diffs de órdenes/`fills` del
+ *   decorador, sin bus de eventos.
  */
 export class MarketReplayEngine {
   private readonly config: TradingSessionConfig
@@ -77,12 +234,8 @@ export class MarketReplayEngine {
 
   private sessionValue: TradingSession<RecordingBroker>
   private statusValue: ReplayStatus = 'ready'
-  private logEntries: ReplayLogEntry[] = []
-  private manualIds = new Set<string>()
-  private resolvedLogged = new Set<string>()
+  private readonly replayLog = new ReplayLog()
   private manualSeq = 0
-  private ordersLogged = 0
-  private fillsLogged = 0
   private lastStepLogIndex = 0
 
   constructor(config: TradingSessionConfig) {
@@ -106,7 +259,7 @@ export class MarketReplayEngine {
 
   /** Log completo, en orden; copia estable para la UI. */
   get log(): readonly ReplayLogEntry[] {
-    return [...this.logEntries]
+    return this.replayLog.snapshot()
   }
 
   /** `ready|playing → playing`; `playing` o `finished` → `ReplayError`. */
@@ -147,18 +300,19 @@ export class MarketReplayEngine {
     const candleStep = this.sessionValue.advance()
     const time = candleStep.candle.time
 
-    this.appendStepLog(candleStep.events, time)
+    const { orders, fills } = this.sessionValue.broker
+    this.replayLog.appendStep(orders, fills, candleStep.events, time)
     if (this.sessionValue.finished) {
       this.statusValue = 'finished'
     }
-    this.lastStepLogIndex = this.logEntries.length
+    this.lastStepLogIndex = this.replayLog.length
 
     return {
       index: candleStep.index,
       time,
       status: this.statusValue,
       events: candleStep.events,
-      log: this.logEntries.slice(logStart),
+      log: this.replayLog.slice(logStart),
     }
   }
 
@@ -169,12 +323,8 @@ export class MarketReplayEngine {
   reset(): void {
     this.sessionValue = new TradingSession(this.config, this.decorator)
     this.statusValue = 'ready'
-    this.logEntries = []
-    this.manualIds.clear()
-    this.resolvedLogged.clear()
+    this.replayLog.reset()
     this.manualSeq = 0
-    this.ordersLogged = 0
-    this.fillsLogged = 0
     this.lastStepLogIndex = 0
   }
 
@@ -275,102 +425,7 @@ export class MarketReplayEngine {
     const order = new Order({ id, side, type: OrderType.Market, qty, createdAt: time })
 
     this.sessionValue.broker.submitOrder(order)
-    // Sin evento `OrderSubmitted` (el runner no envía estas órdenes): se consume
-    // el registro aquí para que los índices del log sigan alineados.
-    this.ordersLogged += 1
-    this.manualIds.add(id)
-
-    const verb = side === OrderSide.Buy ? 'comprar' : 'vender'
-    this.logEntries.push({
-      time,
-      kind: 'manual',
-      text: `Orden manual enviada: ${verb} ${formatAmount(qty)} (${id})`,
-      orderId: id,
-    })
+    this.replayLog.noteManualOrder(order, time)
     return order
-  }
-
-  /**
-   * Entradas de log de un paso, en orden:
-   * 1. resoluciones por barrido (rechazo/cancelación) — las manuales no
-   *    emiten evento y ocurren en el avance, antes de decidir;
-   * 2. eventos del paso: envíos y rellenos (con payload del decorador) y
-   *    eventos de estrategia (nombres de dominio).
-   */
-  private appendStepLog(events: readonly ExecutionEvent[], time: number): void {
-    for (const order of this.sessionValue.broker.orders) {
-      if (order.status === OrderStatus.Pending || order.status === OrderStatus.Filled) continue
-      if (this.resolvedLogged.has(order.id)) continue
-      this.resolvedLogged.add(order.id)
-
-      const manual = this.manualIds.has(order.id)
-      if (order.status === OrderStatus.Rejected) {
-        const reason = order.rejectReason ?? 'sin motivo'
-        this.logEntries.push({
-          time,
-          kind: manual ? 'manual' : 'rejection',
-          text: manual
-            ? `Orden manual rechazada (${order.id}): ${reason}`
-            : `Orden rechazada (${order.id}): ${reason}`,
-          orderId: order.id,
-        })
-      } else {
-        this.logEntries.push({
-          time,
-          kind: 'order',
-          text: `Orden cancelada (${order.id})`,
-          orderId: order.id,
-        })
-      }
-    }
-
-    for (const event of events) {
-      switch (event) {
-        case 'OrderSubmitted': {
-          const order = this.nextOrder()
-          if (order === undefined) break
-          const verb = order.side === OrderSide.Buy ? 'comprar' : 'vender'
-          this.logEntries.push({
-            time,
-            kind: 'order',
-            text: `Orden enviada: ${verb} ${formatAmount(order.qty)} (${order.id})`,
-            orderId: order.id,
-          })
-          break
-        }
-        case 'OrderFilled': {
-          const fill = this.nextFill()
-          if (fill === undefined) break
-          const buy = fill.side === OrderSide.Buy
-          const subject = `${buy ? 'Compra' : 'Venta'}${this.manualIds.has(fill.orderId) ? ' manual' : ''} rellenada`
-          this.logEntries.push({
-            time,
-            kind: this.manualIds.has(fill.orderId) ? 'manual' : 'fill',
-            text: `${subject}: ${formatAmount(fill.qty)} @ ${formatAmount(fill.price)} (${fill.orderId})`,
-            orderId: fill.orderId,
-          })
-          break
-        }
-        case 'OrderRejected':
-        case 'OrderCancelled':
-          break // ya registradas por el barrido anterior (incluye manuales sin evento)
-        default:
-          this.logEntries.push({ time, kind: 'strategy', text: event })
-      }
-    }
-  }
-
-  /** Siguiente orden aún no registrada en el log (el registro es append-only). */
-  private nextOrder(): Order | undefined {
-    const order = this.sessionValue.broker.orders[this.ordersLogged]
-    if (order !== undefined) this.ordersLogged += 1
-    return order
-  }
-
-  /** Siguiente fill aún no registrado en el log (append-only, en orden). */
-  private nextFill(): Fill | undefined {
-    const fill = this.sessionValue.broker.fills[this.fillsLogged]
-    if (fill !== undefined) this.fillsLogged += 1
-    return fill
   }
 }

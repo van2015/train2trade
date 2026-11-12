@@ -100,7 +100,17 @@ function parseCandleRow(
   context: RowContext,
 ): Candle {
   const cells = line.split(delimiter)
+  const value = parseRowValues(cells, layout, timestampFormat, context)
+  return toCandle(value, context)
+}
 
+/** Celdas → campos OHLCV (el tiempo según `timestampFormat`); celda vacía → error. */
+function parseRowValues(
+  cells: readonly string[],
+  layout: RowLayout,
+  timestampFormat: CsvTimestampFormat,
+  context: RowContext,
+): Record<string, unknown> {
   const cellOf = (key: keyof CandleFields): string => {
     const cell = cells[layout[key]]
     if (cell === undefined || cell.trim() === '') {
@@ -109,7 +119,7 @@ function parseCandleRow(
     return cell.trim()
   }
 
-  const value = {
+  return {
     time: parseTimestamp(cellOf('time'), timestampFormat, context),
     open: cellOf('open'),
     high: cellOf('high'),
@@ -117,7 +127,10 @@ function parseCandleRow(
     close: cellOf('close'),
     volume: cellOf('volume'),
   }
+}
 
+/** Vela validada (`Candle.from`); `InvalidCandlesError` → `InvalidCsvError` con su línea. */
+function toCandle(value: Record<string, unknown>, context: RowContext): Candle {
   try {
     return Candle.from(value)
   } catch (error) {

@@ -51,32 +51,7 @@ export class RiskManager {
 
   constructor(config: RiskConfig = {}) {
     const { maxPositionFraction = 1, minCashReserve = 0, feeBps = 0, slippageBps = 0 } = config
-
-    if (
-      typeof maxPositionFraction !== 'number' ||
-      !Number.isFinite(maxPositionFraction) ||
-      maxPositionFraction <= 0 ||
-      maxPositionFraction > 1
-    ) {
-      throw new InvalidRiskError(
-        'maxPositionFraction debe ser un número en (0, 1]',
-        maxPositionFraction,
-      )
-    }
-    if (
-      typeof minCashReserve !== 'number' ||
-      !Number.isFinite(minCashReserve) ||
-      minCashReserve < 0 ||
-      minCashReserve >= 1
-    ) {
-      throw new InvalidRiskError('minCashReserve debe ser un número en [0, 1)', minCashReserve)
-    }
-    if (typeof feeBps !== 'number' || !Number.isFinite(feeBps) || feeBps < 0) {
-      throw new InvalidRiskError('feeBps debe ser un número finito >= 0', feeBps)
-    }
-    if (typeof slippageBps !== 'number' || !Number.isFinite(slippageBps) || slippageBps < 0) {
-      throw new InvalidRiskError('slippageBps debe ser un número finito >= 0', slippageBps)
-    }
+    assertRiskConfig({ maxPositionFraction, minCashReserve, feeBps, slippageBps })
 
     this.maxPositionFraction = maxPositionFraction
     this.minCashReserve = minCashReserve
@@ -157,6 +132,37 @@ export class RiskManager {
 
     const exposureAfter = portfolio.exposure(price) + price * qty
     return exposureAfter <= equity * this.maxPositionFraction + EXPOSURE_EPSILON
+  }
+}
+
+/** Valida la config con defaults ya resueltos; lanza `InvalidRiskError`. */
+function assertRiskConfig(config: Required<RiskConfig>): void {
+  const { maxPositionFraction, minCashReserve, feeBps, slippageBps } = config
+
+  if (
+    typeof maxPositionFraction !== 'number' ||
+    !Number.isFinite(maxPositionFraction) ||
+    maxPositionFraction <= 0 ||
+    maxPositionFraction > 1
+  ) {
+    throw new InvalidRiskError(
+      'maxPositionFraction debe ser un número en (0, 1]',
+      maxPositionFraction,
+    )
+  }
+  if (
+    typeof minCashReserve !== 'number' ||
+    !Number.isFinite(minCashReserve) ||
+    minCashReserve < 0 ||
+    minCashReserve >= 1
+  ) {
+    throw new InvalidRiskError('minCashReserve debe ser un número en [0, 1)', minCashReserve)
+  }
+  if (typeof feeBps !== 'number' || !Number.isFinite(feeBps) || feeBps < 0) {
+    throw new InvalidRiskError('feeBps debe ser un número finito >= 0', feeBps)
+  }
+  if (typeof slippageBps !== 'number' || !Number.isFinite(slippageBps) || slippageBps < 0) {
+    throw new InvalidRiskError('slippageBps debe ser un número finito >= 0', slippageBps)
   }
 }
 

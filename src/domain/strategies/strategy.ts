@@ -69,40 +69,47 @@ export class Signal {
     readonly rule: Rule,
     readonly config: SignalConfig = {},
   ) {
-    const { fraction, limitPrice } = config
-    const needsFraction =
-      action === StrategyAction.RequestAdd || action === StrategyAction.RequestReduce
-
-    if (needsFraction) {
-      if (
-        typeof fraction !== 'number' ||
-        !Number.isFinite(fraction) ||
-        fraction <= 0 ||
-        fraction > 1
-      ) {
-        throw new InvalidStrategyDefinitionError(
-          `la señal "${action}" requiere una fraction en (0, 1]`,
-          fraction,
-        )
-      }
-    } else if (fraction !== undefined) {
-      throw new InvalidStrategyDefinitionError(`la señal "${action}" no admite fraction`, fraction)
-    }
-
-    if (limitPrice !== undefined) {
-      if (typeof limitPrice !== 'number' && typeof limitPrice !== 'string') {
-        throw new InvalidStrategyDefinitionError(
-          'limitPrice debe ser un alias de serie o un número',
-          limitPrice,
-        )
-      }
-      if (typeof limitPrice === 'number' && !Number.isFinite(limitPrice)) {
-        throw new InvalidStrategyDefinitionError('limitPrice numérico debe ser finito', limitPrice)
-      }
-    }
-
-    this.name = `${action}: ${rule.name}${limitPrice !== undefined ? ` @ ${limitPrice}` : ''}`
+    assertSignalConfig(action, config)
+    this.name = `${action}: ${rule.name}${config.limitPrice !== undefined ? ` @ ${config.limitPrice}` : ''}`
   }
+}
+
+/**
+ * Valida `config` según la acción: `fraction` obligatoria en add/reduce
+ * (0 < f <= 1) y prohibida en el resto; `limitPrice` alias de serie o número
+ * finito. Lanza `InvalidStrategyDefinitionError` en el primer campo inválido.
+ */
+function assertSignalConfig(action: SignalAction, config: SignalConfig): void {
+  const { fraction, limitPrice } = config
+  const needsFraction =
+    action === StrategyAction.RequestAdd || action === StrategyAction.RequestReduce
+
+  if (needsFraction && !isUnitFraction(fraction)) {
+    throw new InvalidStrategyDefinitionError(
+      `la señal "${action}" requiere una fraction en (0, 1]`,
+      fraction,
+    )
+  }
+  if (!needsFraction && fraction !== undefined) {
+    throw new InvalidStrategyDefinitionError(`la señal "${action}" no admite fraction`, fraction)
+  }
+
+  if (limitPrice !== undefined) {
+    if (typeof limitPrice !== 'number' && typeof limitPrice !== 'string') {
+      throw new InvalidStrategyDefinitionError(
+        'limitPrice debe ser un alias de serie o un número',
+        limitPrice,
+      )
+    }
+    if (typeof limitPrice === 'number' && !Number.isFinite(limitPrice)) {
+      throw new InvalidStrategyDefinitionError('limitPrice numérico debe ser finito', limitPrice)
+    }
+  }
+}
+
+/** `true` si `fraction` es un número finito en (0, 1]. */
+function isUnitFraction(fraction: unknown): fraction is number {
+  return typeof fraction === 'number' && Number.isFinite(fraction) && fraction > 0 && fraction <= 1
 }
 
 /** Definición sin estado ni ejecución: no conoce órdenes ni brokers (§14). */
@@ -152,11 +159,32 @@ export class Strategy {
         ? this.invalidationRule.name
         : null
 
-    if (vetoReason !== null && !open) {
-      return { action: StrategyAction.Invalidate, fraction: null, price: null, reason: vetoReason }
-    }
+    if (vetoReason !== null && !open) return invalidated(vetoReason)
 
     const vetoed = vetoReason !== null
+    const fired = this.firstFiringSignal(context, open, vetoed)
+    if (fired !== null) {
+      return {
+        action: fired.signal.action,
+        fraction: fired.signal.config.fraction ?? null,
+        price: fired.price,
+        reason: fired.signal.name,
+      }
+    }
+
+    if (vetoReason !== null) return invalidated(vetoReason)
+    return { action: StrategyAction.None, fraction: null, price: null, reason: null }
+  }
+
+  /**
+   * Primera señal aplicable que dispara; `null` si ninguna. Un `limitPrice`
+   * sin resolver descarta la señal: nunca caemos a market en silencio.
+   */
+  private firstFiringSignal(
+    context: MarketContext,
+    open: boolean,
+    vetoed: boolean,
+  ): { signal: Signal; price: number | null } | null {
     for (const signal of this.signals) {
       if (!isApplicable(signal.action, open, vetoed)) continue
       if (!signal.rule.evaluate(context)) continue
@@ -164,23 +192,13 @@ export class Strategy {
       let price: number | null = null
       if (signal.config.limitPrice !== undefined) {
         const resolved = resolveRef(context, signal.config.limitPrice)
-        // Sin precio resuelto no dispara: nunca caemos a market en silencio.
         if (resolved === null) continue
         price = resolved
       }
 
-      return {
-        action: signal.action,
-        fraction: signal.config.fraction ?? null,
-        price,
-        reason: signal.name,
-      }
+      return { signal, price }
     }
-
-    if (vetoReason !== null) {
-      return { action: StrategyAction.Invalidate, fraction: null, price: null, reason: vetoReason }
-    }
-    return { action: StrategyAction.None, fraction: null, price: null, reason: null }
+    return null
   }
 
   /** Identidad reproducible (`name@version`) para registrar resultados. */
@@ -193,4 +211,9 @@ function isApplicable(action: SignalAction, open: boolean, vetoed: boolean): boo
   if (action === StrategyAction.RequestEntry) return !open
   if (action === StrategyAction.RequestAdd) return open && !vetoed // el veto nunca bloquea cerrar
   return open
+}
+
+/** Decisión de veto: la invalidación anula la señal (y retira la orden de entrada). */
+function invalidated(reason: string): StrategyDecision {
+  return { action: StrategyAction.Invalidate, fraction: null, price: null, reason }
 }

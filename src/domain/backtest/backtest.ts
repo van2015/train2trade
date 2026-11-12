@@ -68,8 +68,6 @@ export class BacktestError extends DomainError {
  * objetos construidos, no una segunda copia de los defaults.
  */
 export function runBacktest(config: BacktestConfig): BacktestResult {
-  const { timeframe, initialCapital } = config
-
   const problem = findConfigProblem(config)
   if (problem !== null) {
     throw new BacktestError(problem.reason, problem.raw)
@@ -79,27 +77,37 @@ export function runBacktest(config: BacktestConfig): BacktestResult {
     config,
     (inner, account) => new RecordingBroker(inner, account),
   )
+  return buildResult(session, config)
+}
 
+/** Bucle automático (§7A): todas las velas de golpe; un punto de equity por cierre. */
+function collectEquityCurve(session: TradingSession<RecordingBroker>): EquityPoint[] {
   const equityCurve: EquityPoint[] = []
   while (!session.finished) {
     const step = session.advance()
     equityCurve.push({ time: step.candle.time, equity: step.equity })
   }
+  return equityCurve
+}
+
+/** Presenta el resultado de la sesión: trades, curva, métricas y config efectiva. */
+function buildResult(
+  session: TradingSession<RecordingBroker>,
+  config: BacktestConfig,
+): BacktestResult {
+  const { timeframe, initialCapital } = config
+  const equityCurve = collectEquityCurve(session)
 
   const last = equityCurve[equityCurve.length - 1]
   if (last === undefined) {
     throw new BacktestError('la curva de equity quedó vacía', equityCurve.length)
   }
 
+  const trades = session.broker.trades
   return {
-    trades: session.broker.trades,
+    trades,
     equityCurve,
-    metrics: computeMetrics({
-      trades: session.broker.trades,
-      equityCurve,
-      initialCapital,
-      timeframe,
-    }),
+    metrics: computeMetrics({ trades, equityCurve, initialCapital, timeframe }),
     finalEquity: last.equity,
     orders: session.broker.orders,
     events: session.events,

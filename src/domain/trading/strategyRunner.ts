@@ -1,5 +1,6 @@
 import { Candle } from '@/domain/candles/candle'
 import { Broker } from '@/domain/execution/broker'
+import { Fill } from '@/domain/execution/fill'
 import { Order, OrderSide, OrderType } from '@/domain/execution/order'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 import { RiskManager } from '@/domain/portfolio/riskManager'
@@ -84,18 +85,7 @@ export class StrategyRunner {
     const events: ExecutionEvent[] = []
 
     // 3. Avance de mercado: rellena órdenes decididas antes de esta vela.
-    for (const fill of this.broker.advance(candle)) {
-      if (this.pendingOrder !== null && fill.orderId === this.pendingOrder.id) {
-        const kind = this.pendingKind
-        this.pendingOrder = null
-        this.pendingKind = null
-        if (kind === 'entry' || kind === 'exit') {
-          const transition = this.instance.onFill()
-          if (transition.event !== null) events.push(transition.event)
-        }
-      }
-      events.push('OrderFilled')
-    }
+    this.consumeFills(this.broker.advance(candle), events)
 
     // Orden pendiente resuelta sin relleno → rechazo del broker (única salida).
     if (this.pendingOrder !== null && !this.pendingOrder.isPending) {
@@ -108,6 +98,22 @@ export class StrategyRunner {
     const decision = this.strategy.evaluate(context, this.instance.open)
     events.push(...this.applyDecision(decision, context, candle.time))
     return events
+  }
+
+  /** Rellenos de la vela: resuelven la orden pendiente y transicionan la instancia. */
+  private consumeFills(fills: readonly Fill[], events: ExecutionEvent[]): void {
+    for (const fill of fills) {
+      if (this.pendingOrder !== null && fill.orderId === this.pendingOrder.id) {
+        const kind = this.pendingKind
+        this.pendingOrder = null
+        this.pendingKind = null
+        if (kind === 'entry' || kind === 'exit') {
+          const transition = this.instance.onFill()
+          if (transition.event !== null) events.push(transition.event)
+        }
+      }
+      events.push('OrderFilled')
+    }
   }
 
   private applyDecision(
@@ -123,10 +129,7 @@ export class StrategyRunner {
         const events: ExecutionEvent[] = []
         // Cancela la orden de entrada o de ajuste; la de salida sigue su curso.
         if (this.pendingOrder !== null && this.pendingKind !== 'exit') {
-          this.broker.cancelOrder(this.pendingOrder.id)
-          this.pendingOrder = null
-          this.pendingKind = null
-          events.push('OrderCancelled')
+          events.push(...this.cancelPending())
         }
         const transition = this.instance.apply(decision)
         if (transition.event !== null) events.push(transition.event)
@@ -184,10 +187,7 @@ export class StrategyRunner {
     if (this.pendingOrder !== null) {
       if (this.pendingKind === 'adjust') {
         // La salida anula el ajuste en vuelo: cerrar manda.
-        this.broker.cancelOrder(this.pendingOrder.id)
-        this.pendingOrder = null
-        this.pendingKind = null
-        events.push('OrderCancelled')
+        events.push(...this.cancelPending())
       } else {
         // Refresh de la salida pendiente: se conserva, sin duplicar.
         this.instance.apply(decision)
@@ -233,6 +233,15 @@ export class StrategyRunner {
     this.pendingOrder = order
     this.pendingKind = 'adjust'
     return ['OrderSubmitted']
+  }
+
+  /** Cancela la orden en vuelo (de cualquier tipo); sin orden pendiente → sin eventos. */
+  private cancelPending(): ExecutionEvent[] {
+    if (this.pendingOrder === null) return []
+    this.broker.cancelOrder(this.pendingOrder.id)
+    this.pendingOrder = null
+    this.pendingKind = null
+    return ['OrderCancelled']
   }
 
   private createOrder(side: OrderSide, price: number | null, qty: number, time: number): Order {

@@ -56,7 +56,11 @@ export class Candle {
     if (value === null || typeof value !== 'object') {
       throw new InvalidCandlesError('se esperaba un objeto de velas', value)
     }
+    return new Candle(Candle.toCandleFields(value))
+  }
 
+  /** Campos extraídos y validados de un objeto crudo: números finitos y `high >= low`. */
+  private static toCandleFields(value: object): CandleFields {
     const record = value as Record<string, unknown>
     const fields = {
       time: toFiniteNumber(record.time),
@@ -81,7 +85,7 @@ export class Candle {
       )
     }
 
-    return new Candle(candles)
+    return candles
   }
 
   /** Vela del bucket: open de la primera, close de la última, extremos y volumen agregados. */
@@ -94,7 +98,11 @@ export class Candle {
     }
 
     const sorted = group.length > 1 ? [...group].sort((a, b) => a.time - b.time) : group
+    return Candle.aggregateSorted(sorted, timeframe)
+  }
 
+  /** Agrega el grupo ya ordenado por `time` en la vela de su bucket. */
+  private static aggregateSorted(sorted: readonly Candle[], timeframe: Timeframe): Candle {
     let bucketTime = 0
     let open = 0
     let close = 0
