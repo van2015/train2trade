@@ -3,8 +3,15 @@ import { RecordingBroker } from '@/domain/backtest/recordingBroker'
 import { Candle } from '@/domain/candles/candle'
 import { Broker } from '@/domain/execution/broker'
 import { NextOpenExecutionModel } from '@/domain/execution/executionModel'
+import { Fill } from '@/domain/execution/fill'
 import { HistoricalBroker } from '@/domain/execution/historicalBroker'
-import { Order, OrderSide, OrderStatus, OrderType } from '@/domain/execution/order'
+import {
+  InvalidOrderError,
+  Order,
+  OrderSide,
+  OrderStatus,
+  OrderType,
+} from '@/domain/execution/order'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 
 const t0 = 1_700_000_000_000
@@ -135,6 +142,62 @@ describe('RecordingBroker — registro de fills', () => {
     const fills = broker.fills
     expect(fills).not.toBe(broker.fills)
     expect(fills).toEqual(broker.fills)
+  })
+})
+
+describe('RecordingBroker — relleno fuera del ciclo de velas', () => {
+  it('submitExternalFill registra orden, fill y trade con el snapshot previo', () => {
+    const { broker, portfolio } = setup()
+    broker.submitOrder(order('entry', { qty: 2 }))
+    broker.advance(candleAt(0, { open: 100 })) // posición abierta: 2 @ 100
+
+    const exit = broker.submitOrder(order('exit', { side: OrderSide.Sell, qty: 2 }))
+    broker.submitExternalFill(
+      exit,
+      new Fill({
+        orderId: 'exit',
+        side: OrderSide.Sell,
+        price: 105,
+        qty: 2,
+        fee: 1,
+        time: candleAt(5).time,
+      }),
+    )
+
+    expect(exit.status).toBe(OrderStatus.Filled)
+    expect(broker.orders).toHaveLength(2)
+    expect(broker.fills).toHaveLength(2)
+    expect(broker.fills[1]?.price).toBe(105)
+    expect(broker.trades).toHaveLength(1)
+    expect(broker.trades[0]?.exitPrice).toBe(105)
+    expect(portfolio.position).toBeNull() // cierre total
+  })
+
+  it('valida la integración: fill ajeno u orden no pendiente → InvalidOrderError', () => {
+    const { broker } = setup()
+    const entry = broker.submitOrder(order('e1', { qty: 1 }))
+    const alien = new Fill({
+      orderId: 'otro',
+      side: OrderSide.Buy,
+      price: 100,
+      qty: 1,
+      fee: 0,
+      time: candleAt(0).time,
+    })
+
+    expect(() => broker.submitExternalFill(entry, alien)).toThrow(InvalidOrderError)
+    expect(entry.isPending).toBe(true) // nada aplicado
+
+    broker.cancelOrder('e1')
+    const own = new Fill({
+      orderId: 'e1',
+      side: OrderSide.Buy,
+      price: 100,
+      qty: 1,
+      fee: 0,
+      time: candleAt(0).time,
+    })
+    expect(() => broker.submitExternalFill(entry, own)).toThrow(InvalidOrderError)
   })
 })
 

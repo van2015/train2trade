@@ -318,7 +318,8 @@ Su responsabilidad es gestionar la lógica de trading.
 Una posible división interna:
 
 - `StrategyRunner`: ciclo de ejecución de una estrategia.
-- `TradingEngine`: coordinación de múltiples estrategias.
+- `TradingEngine`: coordinación de las estrategias en ejecución (cada experimento opera **una**
+  estrategia con su propio capital; la comparación es entre experimentos).
 - `IndicatorRegistry`: indicadores disponibles.
 - `MarketContext`: información disponible para evaluar una estrategia.
 - `StrategyDecision`: decisiones generadas por las estrategias.
@@ -489,12 +490,15 @@ Responsabilidades:
 - Riesgo por operación.
 - Pérdida máxima permitida.
 - Drawdown máximo.
-- Asignación de capital entre estrategias.
 - Restricciones de apalancamiento.
 
-Por ejemplo, dos estrategias pueden generar simultáneamente una señal de compra de BTC.
+Por ejemplo, una estrategia puede solicitar una entrada mientras ya existe una posición abierta
+o una orden pendiente de relleno.
 
-La gestión de riesgo debe poder evaluar ambas decisiones conjuntamente y determinar si existe capital suficiente o una exposición excesiva.
+La gestión de riesgo evalúa esa decisión frente a la cuenta — efectivo disponible, exposición
+total, reserva mínima — y determina si la operación es admisible. Cada experimento tiene su
+propio capital: **no hay capital compartido entre estrategias** (la comparación es entre
+experimentos).
 
 Este subsistema debería ser independiente del mecanismo que ejecuta las órdenes.
 
@@ -756,7 +760,7 @@ No intentaría implementar todos los subsistemas simultáneamente. Los organizar
    - Optimización de parámetros.
    - Análisis de robustez.
    - Comparación de activos y timeframes.
-   - Gestión de múltiples estrategias y capital.
+   - Un experimento = una estrategia + su propio capital; la comparación es entre experimentos.
      Resultado: un laboratorio para desarrollar y validar sistemas de trading.
 
 # 14. Mi propuesta de límites arquitectónicos

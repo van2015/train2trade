@@ -4,7 +4,8 @@
 > de datos divididos, §7C Test-forward, §9 Results & Analytics, §12C Reproducibilidad, §13 Fase 6):
 > _"un laboratorio para desarrollar y validar sistemas de trading"_.
 >
-> **Estado: en planificación (2026-11-12)** — rama `phase6` creada desde `main` (`684aecf`).
+> **Estado: en implementación (2026-11-12)** — rama `phase6` creada desde `main` (`dd1ce77`);
+> T0…T2 completadas con TDD (667 tests en verde). Pendiente: T3…T9.
 > Requisitos: AGENTS.md §7/§9/§12/§13. La **Fase 5 (replay interactivo) sigue pendiente y no
 > bloquea esta fase**: solo comparten `MarketClock`, que ya existe desde la Fase 4.
 

@@ -7,7 +7,9 @@ import {
 import { Timeframe } from '@/domain/candles/timeframe'
 import { DomainError, invalidMessage } from '@/domain/errors'
 import { ExecutionModelConfig } from '@/domain/execution/executionModel'
+import { Instrument } from '@/domain/instruments/instrument'
 import { RiskConfig } from '@/domain/portfolio/riskManager'
+import { strategyFingerprint } from '@/domain/strategies/fingerprint'
 
 export class ExperimentError extends DomainError {
   constructor(reason: string, raw?: unknown) {
@@ -26,6 +28,10 @@ export class ExperimentError extends DomainError {
  */
 export class Experiment {
   readonly strategyId: string
+  /** Huella reproducible de la definición (§12C): detecta cambios de reglas/parámetros. */
+  readonly fingerprint: string
+  /** Instrumento registrado (§12C); `null` si no se indicó. No interviene en la ejecución. */
+  readonly instrument: Instrument | null
   readonly timeframe: Timeframe
   readonly period: { from: number; to: number }
   readonly initialCapital: number
@@ -35,6 +41,8 @@ export class Experiment {
 
   private constructor(data: {
     strategyId: string
+    fingerprint: string
+    instrument: Instrument | null
     timeframe: Timeframe
     period: { from: number; to: number }
     initialCapital: number
@@ -43,6 +51,8 @@ export class Experiment {
     result: BacktestResult
   }) {
     this.strategyId = data.strategyId
+    this.fingerprint = data.fingerprint
+    this.instrument = data.instrument
     this.timeframe = data.timeframe
     this.period = data.period
     this.initialCapital = data.initialCapital
@@ -77,6 +87,8 @@ export class Experiment {
 
     return new Experiment({
       strategyId: strategy.toString(),
+      fingerprint: strategyFingerprint(strategy),
+      instrument: config.instrument ?? null,
       timeframe,
       period: { from: first.time, to: last.time },
       initialCapital,

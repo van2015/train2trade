@@ -157,7 +157,8 @@ vela N rellena en N+1); **motor único** — una sesión paso a paso produce los
 ### Fase 6 — Experimentación avanzada
 
 - Test-forward (separación datos de desarrollo/evaluación), comparación de estrategias, optimización
-  de parámetros, análisis de robustez, múltiples estrategias y capital.
+  de parámetros y análisis de robustez. Modelo: un experimento = una estrategia + su propio capital;
+  la comparación es entre experimentos (sin capital compartido).
 
 ### Transversales pendientes
 

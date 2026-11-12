@@ -3,7 +3,9 @@ import { Experiment, ExperimentError } from '@/domain/backtest/experiment'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
-import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
+import { Instrument } from '@/domain/instruments/instrument'
+import { CrossesAbove, CrossesBelow, Rule } from '@/domain/strategies/rules'
+import { strategyFingerprint } from '@/domain/strategies/fingerprint'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 
 const t0 = 1_700_000_000_000
@@ -30,6 +32,23 @@ function crossStrategy(version = 1): Strategy {
       new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
       new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
     ],
+  })
+}
+
+/** Entrada única sin salida: deja la posición abierta al final (para probar el cierre). */
+function enterOnceStrategy(): Strategy {
+  let fired = false
+  const rule: Rule = {
+    name: 'enter once',
+    evaluate: () => {
+      if (fired) return false
+      fired = true
+      return true
+    },
+  }
+  return new Strategy({
+    name: 'enter-once',
+    signals: [new Signal(StrategyAction.RequestEntry, rule)],
   })
 }
 
@@ -93,6 +112,32 @@ describe('Experiment — registro (§12C)', () => {
 
   it('strategyId es name@version', () => {
     expect(Experiment.run(config({ strategy: crossStrategy(3) })).strategyId).toBe('cross-e2e@3')
+  })
+
+  it('registra la huella reproducible de la estrategia (§12C)', () => {
+    const experiment = Experiment.run(config())
+
+    expect(experiment.fingerprint).toBe(strategyFingerprint(crossStrategy()))
+    expect(Experiment.run(config()).fingerprint).toBe(experiment.fingerprint) // estable
+    expect(Experiment.run(config({ strategy: crossStrategy(2) })).fingerprint).not.toBe(
+      experiment.fingerprint,
+    ) // versión distinta → huella distinta
+  })
+
+  it('registra el instrumento cuando se indica (null por defecto)', () => {
+    expect(Experiment.run(config()).instrument).toBeNull()
+
+    const instrument = Instrument.of('BTC', 'USDT')
+    expect(Experiment.run(config({ instrument })).instrument).toBe(instrument)
+  })
+
+  it('closePositionAtEnd llega al resultado del experimento', () => {
+    const experiment = Experiment.run(
+      config({ strategy: enterOnceStrategy(), closePositionAtEnd: true }),
+    )
+
+    expect(experiment.result.trades).toHaveLength(1)
+    expect(experiment.result.orders.some((order) => order.id === 'close')).toBe(true)
   })
 })
 

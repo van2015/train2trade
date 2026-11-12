@@ -1,10 +1,14 @@
 import { computeMetrics, EquityPoint, Metrics } from '@/domain/backtest/metrics'
 import { RecordingBroker } from '@/domain/backtest/recordingBroker'
 import { Trade } from '@/domain/backtest/trade'
+import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { DomainError, invalidMessage } from '@/domain/errors'
+import { feeFor, withSlippage } from '@/domain/execution/costs'
 import { ExecutionModelConfig } from '@/domain/execution/executionModel'
-import { Order } from '@/domain/execution/order'
+import { Fill } from '@/domain/execution/fill'
+import { Instrument } from '@/domain/instruments/instrument'
+import { Order, OrderSide, OrderType } from '@/domain/execution/order'
 import { RiskConfig } from '@/domain/portfolio/riskManager'
 import {
   findConfigProblem,
@@ -23,8 +27,13 @@ export {
   type TradingSessionConfig,
 } from '@/domain/trading/tradingSession'
 
-/** Config de backtest: misma forma que la sesión compartida (§7). */
-export type BacktestConfig = TradingSessionConfig
+/** Config de backtest: la sesión compartida (§7) + registro y cierre (Fase 6). */
+export interface BacktestConfig extends TradingSessionConfig {
+  /** Instrumento registrado en el experimento (§12C); no interviene en la ejecución. */
+  instrument?: Instrument
+  /** Cierra la posición abierta al cierre de la última vela (por defecto `false`). */
+  closePositionAtEnd?: boolean
+}
 
 /** Riesgo de un backtest **sin costes**: la fuente única es `execution`. */
 export type BacktestRiskConfig = SessionRiskConfig
@@ -81,13 +90,60 @@ export function runBacktest(config: BacktestConfig): BacktestResult {
 }
 
 /** Bucle automático (§7A): todas las velas de golpe; un punto de equity por cierre. */
-function collectEquityCurve(session: TradingSession<RecordingBroker>): EquityPoint[] {
+function collectEquityCurve(
+  session: TradingSession<RecordingBroker>,
+  closePositionAtEnd: boolean,
+): EquityPoint[] {
   const equityCurve: EquityPoint[] = []
   while (!session.finished) {
     const step = session.advance()
-    equityCurve.push({ time: step.candle.time, equity: step.equity })
+    // El cierre opcional se resuelve ANTES de muestrear el equity final.
+    const closed = closePositionAtEnd && session.finished && closeOpenPosition(session, step.candle)
+    equityCurve.push({
+      time: step.candle.time,
+      equity: closed ? session.portfolio.equity(step.candle.close) : step.equity,
+    })
   }
   return equityCurve
+}
+
+/**
+ * Cierre opcional (Fase 6, `closePositionAtEnd`): si queda posición abierta
+ * al terminar el bucle, se vende al **cierre de la última vela** con los
+ * mismos costes (slippage/fee) que el `ExecutionModel`. Es una excepción
+ * deliberada al relleno "al siguiente open": no hay vela siguiente y la
+ * decisión se toma después de ese cierre (sin look-ahead). No pasa por el
+ * runner (sin `ExecutionEvent`), pero registra orden, fill y trade. Devuelve
+ * `false` si no había posición abierta.
+ */
+function closeOpenPosition(session: TradingSession<RecordingBroker>, candle: Candle): boolean {
+  const position = session.portfolio.position
+  if (position === null || !position.isOpen) return false
+
+  const { slippageBps, feeBps } = session.executionConfig
+  // Misma fórmula que NextOpenExecutionModel: venta con sesgo contra el usuario.
+  const price = withSlippage(candle.close, -slippageBps)
+  const fee = feeFor(price * position.qty, feeBps)
+
+  const order = new Order({
+    id: 'close',
+    side: OrderSide.Sell,
+    type: OrderType.Market,
+    qty: position.qty,
+    createdAt: candle.time,
+  })
+  const fill = new Fill({
+    orderId: order.id,
+    side: OrderSide.Sell,
+    price,
+    qty: position.qty,
+    fee,
+    time: candle.time,
+  })
+
+  session.broker.submitOrder(order)
+  session.broker.submitExternalFill(order, fill)
+  return true
 }
 
 /** Presenta el resultado de la sesión: trades, curva, métricas y config efectiva. */
@@ -96,7 +152,7 @@ function buildResult(
   config: BacktestConfig,
 ): BacktestResult {
   const { timeframe, initialCapital } = config
-  const equityCurve = collectEquityCurve(session)
+  const equityCurve = collectEquityCurve(session, config.closePositionAtEnd ?? false)
 
   const last = equityCurve[equityCurve.length - 1]
   if (last === undefined) {

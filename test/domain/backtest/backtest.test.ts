@@ -160,6 +160,80 @@ describe('runBacktest — sin look-ahead', () => {
   })
 })
 
+describe('runBacktest — cierre opcional de posición (closePositionAtEnd, Fase 6)', () => {
+  it('por defecto no cierra: sin trade de cierre ni orden extra', () => {
+    const result = runBacktest({
+      strategy: enterOnceStrategy(),
+      candles: CANDLES,
+      timeframe: Timeframe.HOUR,
+      initialCapital: 1_000,
+    })
+
+    expect(result.trades).toEqual([]) // posición abierta al final, marcada a mercado
+    expect(result.orders).toHaveLength(1)
+    expect(result.finalEquity).toBeGreaterThan(0)
+  })
+
+  it('con true cierra al cierre de la última vela con los costes del modelo', () => {
+    const result = runBacktest({
+      strategy: enterOnceStrategy(),
+      candles: CANDLES,
+      timeframe: Timeframe.HOUR,
+      initialCapital: 1_000,
+      execution: { feeBps: 10, slippageBps: 10 },
+      closePositionAtEnd: true,
+    })
+
+    expect(result.trades).toHaveLength(1)
+    const trade = result.trades[0]
+    expect(trade?.exitTime).toBe(CANDLES[CANDLES.length - 1]?.time)
+    expect(trade?.exitPrice).toBeCloseTo(99.9, 10) // venta con slippage 10 bps sobre 100
+    expect(trade?.fees).toBeGreaterThan(0)
+
+    expect(result.orders).toHaveLength(2)
+    const closeOrder = result.orders[1]
+    expect(closeOrder?.id).toBe('close')
+    expect(closeOrder?.side).toBe('sell')
+    expect(closeOrder?.status).toBe('filled')
+
+    // Invariante de Fase 4 con la opción activa: Σ pnl = finalEquity − inicial.
+    const total = result.trades.reduce((sum, item) => sum + item.pnl, 0)
+    expect(result.finalEquity).toBeCloseTo(1_000 + total, 6)
+    expect(result.finalEquity).toBeLessThan(1_000) // costes de entrada + cierre
+    expect(result.equityCurve[result.equityCurve.length - 1]?.equity).toBeCloseTo(
+      result.finalEquity,
+      10,
+    )
+  })
+
+  it('sin costes el cierre es exactamente al cierre de la última vela', () => {
+    const result = runBacktest({
+      strategy: enterOnceStrategy(),
+      candles: CANDLES,
+      timeframe: Timeframe.HOUR,
+      initialCapital: 1_000,
+      closePositionAtEnd: true,
+    })
+
+    expect(result.trades[0]?.exitPrice).toBe(100)
+    expect(result.trades[0]?.exitTime).toBe(CANDLES[CANDLES.length - 1]?.time)
+  })
+
+  it('con true y la estrategia ya cerrada no añade nada', () => {
+    const result = runBacktest({
+      strategy: crossStrategy(),
+      candles: CANDLES,
+      timeframe: Timeframe.HOUR,
+      initialCapital: 1_000,
+      closePositionAtEnd: true,
+    })
+
+    expect(result.trades).toHaveLength(1)
+    expect(result.orders).toHaveLength(2)
+    expect(result.orders.some((order) => order.id === 'close')).toBe(false)
+  })
+})
+
 describe('runBacktest — determinismo y configuración (§12C)', () => {
   it('dos ejecuciones idénticas producen resultados idénticos', () => {
     const config = {

@@ -3,7 +3,7 @@ import { Candle } from '@/domain/candles/candle'
 import { Account } from '@/domain/execution/account'
 import { Broker } from '@/domain/execution/broker'
 import { Fill } from '@/domain/execution/fill'
-import { Order, OrderSide } from '@/domain/execution/order'
+import { InvalidOrderError, Order, OrderSide } from '@/domain/execution/order'
 import { Position } from '@/domain/execution/position'
 
 /**
@@ -63,15 +63,53 @@ export class RecordingBroker implements Broker {
     const fills = this.inner.advance(candle)
 
     for (const fill of fills) {
-      this.fillLog.push(fill)
-      // Un relleno de venta sin posición previa es imposible: el broker la
-      // rechaza antes (long-only), así que no hay registro que construir.
-      if (fill.side === OrderSide.Sell && positionBefore !== null) {
-        this.tradeLog.push(buildTrade(fill, positionBefore))
-      }
+      this.recordFill(fill, positionBefore)
     }
 
     return fills
+  }
+
+  /**
+   * Resuelve una orden **fuera** del ciclo de velas: aplica el relleno a la
+   * cuenta y, si es venta, construye el `Trade` con el snapshot de posición
+   * previo — misma semántica que `advance`. Uso previsto: el cierre opcional
+   * al final de un backtest (Fase 6), donde no hay vela siguiente.
+   *
+   * La orden debe haberse enviado antes con `submitOrder` (misma vida que las
+   * del runner) y estar pendiente; `fill.orderId` debe coincidir. Cualquier
+   * incumplimiento → `InvalidOrderError` sin mutar nada.
+   */
+  submitExternalFill(order: Order, fill: Fill): void {
+    if (fill.orderId !== order.id) {
+      throw new InvalidOrderError('el fill no corresponde a la orden', fill.orderId)
+    }
+    if (!this.orderLog.includes(order)) {
+      throw new InvalidOrderError(
+        'la orden debe enviarse con submitOrder antes de resolverla',
+        order.id,
+      )
+    }
+    if (!order.isPending) {
+      throw new InvalidOrderError(
+        `solo se admite una orden pendiente (está "${order.status}")`,
+        order.status,
+      )
+    }
+
+    const positionBefore = this.account.position
+    this.account.applyFill(fill)
+    order.fill()
+    this.recordFill(fill, positionBefore)
+  }
+
+  /** Registro común de un relleno aplicado (fill + trade de venta con el snapshot previo). */
+  private recordFill(fill: Fill, positionBefore: Position | null): void {
+    this.fillLog.push(fill)
+    // Un relleno de venta sin posición previa es imposible: el broker la
+    // rechaza antes (long-only), así que no hay registro que construir.
+    if (fill.side === OrderSide.Sell && positionBefore !== null) {
+      this.tradeLog.push(buildTrade(fill, positionBefore))
+    }
   }
 
   positions(): readonly Position[] {
