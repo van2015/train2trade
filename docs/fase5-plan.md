@@ -5,7 +5,8 @@
 > mercado"_.
 >
 > **Estado: en planificación (2026-11-12)** — rama `phase5` creada desde `main` (`c35cb45`).
-> Requisitos: AGENTS.md §7/§12/§13. La Fase 4 (backtesting) está cerrada (565 tests en verde);
+> Requisitos: AGENTS.md §7/§12/§13. La Fase 4 (backtesting) está cerrada (baseline de esta fase:
+> 587 tests en verde);
 > esta fase **reutiliza su stack** y lo convierte en un motor compartido con el backtest, tal como
 > pide §7: _"Backtesting y Historical Replay deberían compartir el mismo mecanismo fundamental de
 > reproducción de datos. La diferencia estaría en cómo se controla el tiempo y cómo se presenta la
@@ -29,20 +30,20 @@ La base temporal ya existe desde la Fase 4: `MarketClock` (§12A) es la única f
 
 ## Decisiones cerradas
 
-| Decisión              | Elección                                                                                                                                                                                                                                                                                  |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Motor compartido (§7) | **`TradingSession`** en `src/domain/trading/`: ensambla `Portfolio + RiskManager + RecordingBroker(HistoricalBroker) + StrategyRunner + MarketClock` y avanza **vela a vela**. `runBacktest` y `MarketReplayEngine` lo consumen (§14: Experimentation no implementa otro Trading Engine). |
-| Estados del replay    | `ready → playing → finished` + `reset()`; transiciones/pasos inválidos → `ReplayError`. `ready` cubre el estado inicial y el pausado (ambos admiten `step()` manual).                                                                                                                     |
-| Velocidad             | **Multiplicador en tiempo real**: `interval = clamp(timeframe.ms / speed, 16 ms, 1 h)`; presets `[0.5, 1, 10, 60, 600, 3600]`, por defecto 1× (§7B "velocidad normal"). Timer con **`setTimeout` encadenado** (sin solapes).                                                              |
-| Operaciones manuales  | **Fracción del equity vía `RiskManager`** (compra: `addQty`; venta: fracción de la posición, nunca bloqueada) → orden **market** rellenada en la apertura de la **siguiente** vela (mismo anti look-ahead que la estrategia).                                                             |
-| Orden única en vuelo  | **Regla global**: no se acepta una orden manual si hay alguna pendiente (estrategia o manual). Preserva el supuesto de `RecordingBroker` (≤ 1 fill por vela → `Σ trades.pnl = realizedPnl`) y evita rechazos cruzados.                                                                    |
-| Visualización         | **Log cronológico en el panel** (eventos, órdenes, rellenos con precio, rechazos con motivo) + **`CandleChart` recortado** a las velas consumidas (velas **e** indicadores). Sin marcadores de trades sobre las velas.                                                                    |
-| Estrategia            | Misma **demo `sma-cross`** de `BacktestPanel` (el editor de estrategias sigue siendo pendiente transversal).                                                                                                                                                                              |
-| UI                    | **UI mínima** (patrón Fase 4): un panel `ReplayPanel`. El formulario se **duplica** con `BacktestPanel` por ahora; extraerlo a `backtestForm.ts` queda para Fase 6 (T8), que ya lo prevé.                                                                                                 |
-| Alcance de análisis   | El replay **no calcula métricas** ni equity curve en vivo: sigue siendo trabajo del backtest (Fase 4). `TradingSession` sí acumula `equityCurve`, que consume `runBacktest`.                                                                                                              |
-| Observabilidad (§12D) | Sin bus de eventos: el log se construye a partir de los `ExecutionEvent[]` del paso + diffs de órdenes/`fills` del `RecordingBroker` (ampliado con `fills`, payload vía decorador como decidió Fase 4).                                                                                   |
-| Log en memoria        | El dominio acumula **todas** las entradas (acotadas por el nº de velas); la UI pinta las **últimas 100**.                                                                                                                                                                                 |
-| Errores               | `TradingSessionError` y `ReplayError` (clases de dominio con `this.name`, patrón del repo).                                                                                                                                                                                               |
+| Decisión              | Elección                                                                                                                                                                                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Motor compartido (§7) | **`TradingSession`** en `src/domain/trading/`: ensambla `Portfolio + RiskManager + HistoricalBroker` (decorable con `RecordingBroker`) `+ StrategyRunner + MarketClock` y avanza **vela a vela**. `runBacktest` y `MarketReplayEngine` lo consumen (§14: Experimentation no implementa otro Trading Engine). |
+| Estados del replay    | `ready → playing → finished` + `reset()`; transiciones/pasos inválidos → `ReplayError`. `ready` cubre el estado inicial y el pausado (ambos admiten `step()` manual).                                                                                                                                        |
+| Velocidad             | **Multiplicador en tiempo real**: `interval = clamp(timeframe.ms / speed, 16 ms, 1 h)`; presets `[0.5, 1, 10, 60, 600, 3600]`, por defecto 1× (§7B "velocidad normal"). Timer con **`setTimeout` encadenado** (sin solapes).                                                                                 |
+| Operaciones manuales  | **Fracción del equity vía `RiskManager`** (compra: `addQty`; venta: fracción de la posición, nunca bloqueada) → orden **market** rellenada en la apertura de la **siguiente** vela (mismo anti look-ahead que la estrategia).                                                                                |
+| Orden única en vuelo  | **Regla global**: no se acepta una orden manual si hay alguna pendiente (estrategia o manual). Preserva el supuesto de `RecordingBroker` (≤ 1 fill por vela → `Σ trades.pnl = realizedPnl`) y evita rechazos cruzados.                                                                                       |
+| Visualización         | **Log cronológico en el panel** (eventos, órdenes, rellenos con precio, rechazos con motivo) + **`CandleChart` recortado** a las velas consumidas (velas **e** indicadores). Sin marcadores de trades sobre las velas.                                                                                       |
+| Estrategia            | Misma **demo `sma-cross`** de `BacktestPanel` (el editor de estrategias sigue siendo pendiente transversal).                                                                                                                                                                                                 |
+| UI                    | **UI mínima** (patrón Fase 4): un panel `ReplayPanel`. El formulario se **duplica** con `BacktestPanel` por ahora; extraerlo a `backtestForm.ts` queda para Fase 6 (T8), que ya lo prevé.                                                                                                                    |
+| Alcance de análisis   | El replay **no calcula métricas** ni equity curve en vivo: sigue siendo trabajo del backtest (Fase 4). `TradingSession` sí acumula `equityCurve`, que consume `runBacktest`.                                                                                                                                 |
+| Observabilidad (§12D) | Sin bus de eventos: el log se construye a partir de los `ExecutionEvent[]` del paso + diffs de órdenes/`fills` del `RecordingBroker` (ampliado con `fills`, payload vía decorador como decidió Fase 4).                                                                                                      |
+| Log en memoria        | El dominio acumula **todas** las entradas (acotadas por el nº de velas); la UI pinta las **últimas 100**.                                                                                                                                                                                                    |
+| Errores               | `TradingSessionError` y `ReplayError` (clases de dominio con `this.name`, patrón del repo).                                                                                                                                                                                                                  |
 
 ## Contratos propuestos
 
@@ -72,22 +73,26 @@ export interface CandleStep {
 }
 export class TradingSessionError extends DomainError {}
 
-export class TradingSession {
-  constructor(config: TradingSessionConfig) // findConfigProblem → TradingSessionError
+export class TradingSession<B extends Broker = Broker> {
+  constructor(config: TradingSessionConfig, decorateBroker?: BrokerDecorator<B>)
+  // decorateBroker: (inner: Broker, account: Account) => B — envuelve el broker interno
+  // (p. ej. RecordingBroker) SIN que `trading` importe `backtest` (§14, sin ciclo).
+  // Sin decorador, B = Broker. El consumidor tipa el broker: session.broker.trades, etc.
+  readonly broker: B
+  readonly candles: readonly Candle[]
+  readonly timeframe: Timeframe
+  readonly portfolio: Portfolio
+  readonly riskManager: RiskManager
+  readonly instance: StrategyInstance
+  readonly clock: MarketClock
   get cursor(): number // velas procesadas (0 antes del primer advance)
   get finished(): boolean
-  get portfolio(): Portfolio
-  get instance(): StrategyInstance
-  get clock(): MarketClock
-  get trades(): readonly Trade[]
-  get orders(): readonly Order[]
-  get fills(): readonly Fill[] // amplía RecordingBroker (T2)
   get events(): readonly ExecutionEvent[] // secuencia aplanada acumulada (§12D)
-  get equityCurve(): readonly EquityPoint[] // un punto por cierre de vela
-  get executionConfig(): Required<ExecutionModelConfig>
-  get riskConfig(): Required<RiskConfig>
+  readonly executionConfig: Required<ExecutionModelConfig>
+  readonly riskConfig: Required<RiskConfig>
   advance(): CandleStep // procesa la siguiente vela; finished → TradingSessionError
-  submitOrder(order: Order): Order // delega en el broker (órdenes manuales, T2)
+  // La curva de equity NO se acumula aquí: cada CandleStep lleva su `equity` y la
+  // acumula el consumidor (runBacktest ya lo hacía así en Fase 4).
 }
 
 // backtest.ts queda como fachada: BacktestConfig = TradingSessionConfig (alias),
@@ -159,17 +164,20 @@ export interface ReplayPanelProps {
   refactor de `src/domain/backtest/backtest.ts` (y ajuste de imports en `experiment.ts` si hace
   falta). `BacktestConfig`, `BacktestRiskConfig`, `findConfigProblem` y `ConfigProblem` se mudan a
   `tradingSession.ts` y se **re-exportan** desde `backtest.ts` (API pública intacta).
-- `TradingSession` monta exactamente el stack de `runBacktest` actual (misma construcción de
-  `Portfolio`, `NextOpenExecutionModel`, `RiskManager` con costes únicos, `RecordingBroker`,
-  `StrategyRunner` con su `MarketClock`) y expone `advance()`: `runner.onCandle(candles.slice(0,
-cursor + 1))` → acumula equity y eventos → `CandleStep`.
+- `TradingSession` monta el stack de `runBacktest` (misma construcción de `Portfolio`,
+  `NextOpenExecutionModel`, `RiskManager` con costes únicos, `StrategyRunner` con su
+  `MarketClock`; el `RecordingBroker` se inyecta como `decorateBroker` para no crear el ciclo
+  `backtest ↔ trading`) y expone `advance()`: `runner.onCandle(candles.slice(0, cursor + 1))` →
+  devuelve `CandleStep` con sus eventos y su `equity`; la sesión acumula `events`.
 - `runBacktest` pasa a ser: validar (`findConfigProblem` → `BacktestError`) → `while (!finished)
-session.advance()` → `computeMetrics` sobre los datos de la sesión. **Sin cambio de
-  comportamiento** (los tests existentes son la regresión).
-- **Aceptación:** los 565 tests actuales verdes sin tocarlos (mismos resultados, mismos errores de
-  config); nuevos tests de sesión: cursor/finished, `advance` en finished → `TradingSessionError`,
-  anti look-ahead (orden de la vela N rellena en N+1), determinismo (dos sesiones → mismo
-  recorrido), `equityCurve` con un punto por vela, `Σ trades.pnl` coherente con el realized.
+session.advance()` → `computeMetrics` sobre los datos de la sesión (la curva de equity la
+  acumula el consumidor, como en Fase 4). **Sin cambio de comportamiento** (los tests existentes
+  son la regresión).
+- **Aceptación:** los 587 tests actuales verdes sin tocarlos (mismos resultados, mismos errores
+  de config); nuevos tests de sesión: cursor/finished, `advance` en finished →
+  `TradingSessionError`, anti look-ahead (orden de la vela N rellena en N+1), determinismo (dos
+  sesiones → mismo recorrido), `equity` por paso coherente con el portfolio y `Σ trades.pnl`
+  coherente con el realized.
 
 ### T2 — `MarketReplayEngine`: estados, manuales y log (§7B)
 
@@ -183,8 +191,8 @@ session.advance()` → `computeMetrics` sobre los datos de la sesión. **Sin cam
   nada; orden market con id `m<n>` enviada vía `session.submitOrder`. **Regla de orden única en
   vuelo** (`pendingOrders().length > 0` → `ReplayError`).
 - **Log por paso:** entradas derivadas de `events` (nombres de dominio), rellenos con
-  precio/cantidad (cruzando `session.fills`), resoluciones de orden con `rejectReason`, y entradas
-  `manual` propias (envío y relleno). Solo se registran pasos con algo que contar.
+  precio/cantidad (cruzando `session.broker.fills`), resoluciones de orden con `rejectReason`, y
+  entradas `manual` propias (envío y relleno). Solo se registran pasos con algo que contar.
 - **Aceptación:** transiciones inválidas y `step` en finished → `ReplayError`; manual antes del
   primer paso y entre pasos rellena en la **siguiente** vela (anti look-ahead); regla de orden
   única testeada; con manuales de por medio se mantiene `Σ trades.pnl = realizedPnl`; `reset` →
@@ -292,4 +300,10 @@ Mensajes sugeridos por tarea:
 
 ### Resueltos durante la implementación
 
-- _(pendiente)_
+- **T1 — Decorador de broker en vez de `RecordingBroker` dentro de la sesión**: la sesión
+  construye todo el stack pero recibe `decorateBroker?: (inner, account) => B` (genérico), de
+  modo que `trading` **no** importa `backtest` y no se crea el ciclo `backtest ↔ trading` (§14;
+  `RecordingBroker` ya está cubierto por sus tests de Fase 4). Por el mismo motivo la curva de
+  equity **no** se acumula en la sesión: cada `CandleStep` lleva su `equity` y la acumula el
+  consumidor (`runBacktest` ya lo hacía así; comportamiento idéntico). `submitOrder` queda para
+  T2, con sus tests.

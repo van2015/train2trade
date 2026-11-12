@@ -1,36 +1,33 @@
-import { Trade } from '@/domain/backtest/trade'
-import { RecordingBroker } from '@/domain/backtest/recordingBroker'
 import { computeMetrics, EquityPoint, Metrics } from '@/domain/backtest/metrics'
-import { Candle } from '@/domain/candles/candle'
+import { RecordingBroker } from '@/domain/backtest/recordingBroker'
+import { Trade } from '@/domain/backtest/trade'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { DomainError, invalidMessage } from '@/domain/errors'
-import { ExecutionModelConfig, NextOpenExecutionModel } from '@/domain/execution/executionModel'
-import { HistoricalBroker } from '@/domain/execution/historicalBroker'
+import { ExecutionModelConfig } from '@/domain/execution/executionModel'
 import { Order } from '@/domain/execution/order'
-import { Portfolio } from '@/domain/portfolio/portfolio'
-import { RiskConfig, RiskManager } from '@/domain/portfolio/riskManager'
-import { Strategy } from '@/domain/strategies/strategy'
-import { MarketClock } from '@/domain/time/marketClock'
-import { ExecutionEvent, StrategyRunner } from '@/domain/trading/strategyRunner'
+import { RiskConfig } from '@/domain/portfolio/riskManager'
+import {
+  findConfigProblem,
+  SessionRiskConfig,
+  TradingSession,
+  TradingSessionConfig,
+} from '@/domain/trading/tradingSession'
+import { ExecutionEvent } from '@/domain/trading/strategyRunner'
 
-/**
- * Riesgo de un backtest **sin costes**: `feeBps`/`slippageBps` no se aceptan
- * aquí porque la fuente única es `execution` (§: "debe coincidir con el
- * ExecutionModel"). `runBacktest` los deriva del modelo construido.
- */
-export type BacktestRiskConfig = Omit<RiskConfig, 'feeBps' | 'slippageBps'>
+// La API pública de la Fase 4 sigue residiendo aquí (re-export): la validación
+// compartida vive ahora en el motor común de la Fase 5 (§7).
+export {
+  findConfigProblem,
+  type ConfigProblem,
+  type SessionRiskConfig,
+  type TradingSessionConfig,
+} from '@/domain/trading/tradingSession'
 
-export interface BacktestConfig {
-  strategy: Strategy
-  /** Velas ascendentes y no vacías (se validan de forma incremental al recorrerlas). */
-  candles: readonly Candle[]
-  /** Para la anualización del Sharpe y el registro del experimento (§12C). */
-  timeframe: Timeframe
-  initialCapital: number
-  /** Slippage/fee: fuente única de costes; el `risk` estimado se deriva de aquí. */
-  execution?: ExecutionModelConfig
-  risk?: BacktestRiskConfig
-}
+/** Config de backtest: misma forma que la sesión compartida (§7). */
+export type BacktestConfig = TradingSessionConfig
+
+/** Riesgo de un backtest **sin costes**: la fuente única es `execution`. */
+export type BacktestRiskConfig = SessionRiskConfig
 
 export interface BacktestResult {
   /** Un `Trade` por cierre (parcial o total); `Σ pnl = finalEquity − inicial` sin posición abierta. */
@@ -55,41 +52,14 @@ export class BacktestError extends DomainError {
   }
 }
 
-/** Problema de configuración detectado antes de ejecutar. */
-export interface ConfigProblem {
-  reason: string
-  raw: unknown
-}
-
 /**
- * Reglas de validación de `BacktestConfig`: **fuente única** compartida por
- * `runBacktest` (que la traduce a `BacktestError`) y `Experiment.run` (a
- * `ExperimentError`), para no duplicar los checks en dos módulos.
- */
-export function findConfigProblem(config: BacktestConfig): ConfigProblem | null {
-  if (config.candles.length === 0) {
-    return { reason: 'se necesita al menos una vela', raw: config.candles.length }
-  }
-  if (!(config.timeframe instanceof Timeframe)) {
-    return { reason: 'timeframe debe ser un Timeframe', raw: config.timeframe }
-  }
-  if (
-    typeof config.initialCapital !== 'number' ||
-    !Number.isFinite(config.initialCapital) ||
-    config.initialCapital <= 0
-  ) {
-    return { reason: 'initialCapital debe ser un número finito > 0', raw: config.initialCapital }
-  }
-  return null
-}
-
-/**
- * Ejecución automática sobre datos históricos (§7A): ensambla el stack de la
- * Fase 3 (`Portfolio + RiskManager + HistoricalBroker + RecordingBroker +
- * StrategyRunner`) y recorre las velas cronológicamente. El `MarketClock`
- * (§12A) se inyecta en el runner, que es quien lo avanza — fuente única de la
- * progresión temporal. Determinista (§12C): misma config → mismo resultado,
- * sin `Date.now`.
+ * Ejecución automática sobre datos históricos (§7A): consume el motor
+ * compartido `TradingSession` (Fase 5, §7 "compartir el motor de reproducción")
+ * en un bucle hasta el final. La sesión ensambla el stack de la Fase 3
+ * (`Portfolio + RiskManager + RecordingBroker + StrategyRunner + MarketClock`);
+ * aquí solo se controla el tiempo (todas las velas, de golpe) y se presentan
+ * los resultados. Determinista (§12C): misma config → mismo resultado, sin
+ * `Date.now`.
  *
  * Orden anti look-ahead (heredado del runner): por vela, avance de mercado →
  * decisión → envío; la orden de la vela N rellena en N+1.
@@ -98,27 +68,22 @@ export function findConfigProblem(config: BacktestConfig): ConfigProblem | null 
  * objetos construidos, no una segunda copia de los defaults.
  */
 export function runBacktest(config: BacktestConfig): BacktestResult {
-  const { strategy, candles, timeframe, initialCapital, execution, risk } = config
+  const { timeframe, initialCapital } = config
 
   const problem = findConfigProblem(config)
   if (problem !== null) {
     throw new BacktestError(problem.reason, problem.raw)
   }
 
-  const portfolio = new Portfolio(initialCapital)
-  const executionModel = new NextOpenExecutionModel(execution)
-  // Costes estimados := costes reales (fuente única: `execution`).
-  const riskManager = new RiskManager({ ...risk, ...executionModel.config })
-  const broker = new RecordingBroker(new HistoricalBroker(portfolio, executionModel), portfolio)
-  const runner = new StrategyRunner(strategy, broker, portfolio, riskManager, new MarketClock())
+  const session = new TradingSession(
+    config,
+    (inner, account) => new RecordingBroker(inner, account),
+  )
 
   const equityCurve: EquityPoint[] = []
-  const events: ExecutionEvent[] = []
-
-  for (const [index, candle] of candles.entries()) {
-    // El reloj lo avanza el runner (§12A): el bucle no lo duplica.
-    events.push(...runner.onCandle(candles.slice(0, index + 1)))
-    equityCurve.push({ time: candle.time, equity: portfolio.equity(candle.close) })
+  while (!session.finished) {
+    const step = session.advance()
+    equityCurve.push({ time: step.candle.time, equity: step.equity })
   }
 
   const last = equityCurve[equityCurve.length - 1]
@@ -127,13 +92,18 @@ export function runBacktest(config: BacktestConfig): BacktestResult {
   }
 
   return {
-    trades: broker.trades,
+    trades: session.broker.trades,
     equityCurve,
-    metrics: computeMetrics({ trades: broker.trades, equityCurve, initialCapital, timeframe }),
+    metrics: computeMetrics({
+      trades: session.broker.trades,
+      equityCurve,
+      initialCapital,
+      timeframe,
+    }),
     finalEquity: last.equity,
-    orders: broker.orders,
-    events,
-    execution: executionModel.config,
-    risk: riskManager.config,
+    orders: session.broker.orders,
+    events: session.events,
+    execution: session.executionConfig,
+    risk: session.riskConfig,
   }
 }
