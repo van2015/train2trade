@@ -1,8 +1,12 @@
-import { DomainError } from '@/domain/errors'
 import { Candle } from '@/domain/candles/candle'
 import { normalizeCandles } from '@/domain/candles/normalize'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
+import { CorruptedStorageError } from '@/storage/errors'
+
+// La API pública sigue residiendo aquí; la definición vive en `storage/errors`
+// para compartirla con el repositorio de experimentos (Fase 6).
+export { CorruptedStorageError } from '@/storage/errors'
 
 /** Prefijo de claves (deja espacio para otros repos en el mismo Storage). */
 const KEY_PREFIX = 'candles:'
@@ -11,16 +15,6 @@ const KEY_PREFIX = 'candles:'
 export interface CandleRange {
   from?: number
   to?: number
-}
-
-export class CorruptedStorageError extends DomainError {
-  constructor(reason: string, key: string, cause?: unknown) {
-    super(
-      'CorruptedStorageError',
-      `Datos corruptos en "${key}": ${reason}`,
-      cause !== undefined ? { cause } : undefined,
-    )
-  }
 }
 
 function keyOf(instrument: Instrument, timeframe: Timeframe): string {

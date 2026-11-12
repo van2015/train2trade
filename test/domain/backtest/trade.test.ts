@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { InvalidTradeError, Trade } from '@/domain/backtest/trade'
+import { InvalidTradeError, Trade, TradeData } from '@/domain/backtest/trade'
 
 const entryTime = 1_700_000_000_000
 const exitTime = entryTime + 60_000
@@ -66,5 +66,29 @@ describe('Trade — construcción', () => {
       expect((error as InvalidTradeError).name).toBe('InvalidTradeError')
       expect((error as InvalidTradeError).message).toContain('(recibido: 0)')
     }
+  })
+})
+
+describe('Trade — roundtrip JSON (persistencia, Fase 6)', () => {
+  it('toJSON devuelve solo los datos y JSON.stringify usa toJSON', () => {
+    const trade = new Trade(tradeData)
+
+    expect(trade.toJSON()).toEqual(tradeData)
+    expect(JSON.parse(JSON.stringify(trade))).toEqual(tradeData)
+  })
+
+  it('Trade.from reconstruye un trade equivalente con los getters intactos', () => {
+    const trade = new Trade(tradeData)
+    const restored = Trade.from(trade.toJSON())
+
+    expect(restored).toEqual(trade)
+    expect(restored.win).toBe(true)
+    expect(restored.durationMs).toBe(60_000)
+  })
+
+  it('Trade.from valida: no objeto o campos inválidos → InvalidTradeError', () => {
+    expect(() => Trade.from(null as unknown as TradeData)).toThrow(InvalidTradeError)
+    expect(() => Trade.from({ ...tradeData, qty: -1 })).toThrow(InvalidTradeError)
+    expect(() => Trade.from({ ...tradeData, exitTime: entryTime - 1 })).toThrow(InvalidTradeError)
   })
 })

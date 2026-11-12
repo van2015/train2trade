@@ -5,7 +5,7 @@ import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
 import { Instrument } from '@/domain/instruments/instrument'
 import { CrossesAbove, CrossesBelow, Rule } from '@/domain/strategies/rules'
-import { strategyFingerprint } from '@/domain/strategies/fingerprint'
+import { strategyFingerprint, canonicalHash } from '@/domain/strategies/fingerprint'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 
 const t0 = 1_700_000_000_000
@@ -138,6 +138,60 @@ describe('Experiment — registro (§12C)', () => {
 
     expect(experiment.result.trades).toHaveLength(1)
     expect(experiment.result.orders.some((order) => order.id === 'close')).toBe(true)
+  })
+})
+
+describe('Experiment — snapshot (§9/§12C)', () => {
+  it('toSnapshot registra todo lo que condiciona el resultado (sin orders/events)', () => {
+    const experiment = Experiment.run(
+      config({ instrument: Instrument.of('BTC', 'USDT'), execution: { feeBps: 10 } }),
+    )
+    const snapshot = experiment.toSnapshot()
+
+    expect(snapshot.id).toMatch(/^[0-9a-f]{8}$/)
+    expect(snapshot.strategyId).toBe('cross-e2e@1')
+    expect(snapshot.fingerprint).toBe(experiment.fingerprint)
+    expect(snapshot.instrument).toBe('BTC/USDT')
+    expect(snapshot.timeframe).toBe('1h')
+    expect(Timeframe.from(snapshot.timeframe)).toBe(Timeframe.HOUR)
+    expect(snapshot.period).toEqual(experiment.period)
+    expect(snapshot.initialCapital).toBe(1_000)
+    expect(snapshot.execution).toEqual(experiment.execution)
+    expect(snapshot.risk).toEqual(experiment.risk)
+    expect(snapshot.metrics).toEqual(experiment.result.metrics)
+    expect(snapshot.finalEquity).toBe(experiment.result.finalEquity)
+    expect(snapshot.equityCurve).toEqual(experiment.result.equityCurve)
+    expect(snapshot.trades).toEqual(experiment.result.trades)
+
+    // Decisión cerrada (plan T4): sin orders ni events (pesados) ni el objeto completo.
+    expect(snapshot).not.toHaveProperty('orders')
+    expect(snapshot).not.toHaveProperty('events')
+    expect(snapshot).not.toHaveProperty('result')
+  })
+
+  it('instrumento null por defecto cuando no se registra', () => {
+    expect(Experiment.run(config()).toSnapshot().instrument).toBeNull()
+  })
+
+  it('mismo experimento → mismo id; cualquier cambio → id distinto (§12C)', () => {
+    const base = Experiment.run(config()).toSnapshot()
+    expect(Experiment.run(config()).toSnapshot().id).toBe(base.id)
+
+    const changed = [
+      Experiment.run(config({ initialCapital: 2_000 })).toSnapshot(),
+      Experiment.run(config({ strategy: crossStrategy(2) })).toSnapshot(),
+      Experiment.run(config({ execution: { feeBps: 5 } })).toSnapshot(),
+      Experiment.run(config({ candles: CANDLES.slice(0, 5) })).toSnapshot(),
+    ]
+    for (const snapshot of changed) {
+      expect(snapshot.id).not.toBe(base.id)
+    }
+  })
+
+  it('el id es el hash del contenido sin id (estable al re-guardar)', () => {
+    const snapshot = Experiment.run(config()).toSnapshot()
+    const { id, ...withoutId } = snapshot
+    expect(canonicalHash(withoutId)).toBe(id)
   })
 })
 

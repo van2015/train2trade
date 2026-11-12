@@ -4,12 +4,14 @@ import {
   findConfigProblem,
   runBacktest,
 } from '@/domain/backtest/backtest'
+import { EquityPoint, Metrics } from '@/domain/backtest/metrics'
+import { Trade } from '@/domain/backtest/trade'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { DomainError, invalidMessage } from '@/domain/errors'
 import { ExecutionModelConfig } from '@/domain/execution/executionModel'
 import { Instrument } from '@/domain/instruments/instrument'
 import { RiskConfig } from '@/domain/portfolio/riskManager'
-import { strategyFingerprint } from '@/domain/strategies/fingerprint'
+import { canonicalHash, strategyFingerprint } from '@/domain/strategies/fingerprint'
 
 export class ExperimentError extends DomainError {
   constructor(reason: string, raw?: unknown) {
@@ -17,14 +19,34 @@ export class ExperimentError extends DomainError {
   }
 }
 
+/** Snapshot serializable de un experimento (§9/§12C): puro, sin `orders`/`events`. */
+export interface ExperimentSnapshot {
+  /** Hash determinista del contenido (sin id): misma config + resultado → mismo id. */
+  id: string
+  strategyId: string // "name@version"
+  fingerprint: string
+  /** "BTC/USDT" o `null` si no se registró. */
+  instrument: string | null
+  /** Código del timeframe (p. ej. "1h"); se reconstruye con `Timeframe.from`. */
+  timeframe: string
+  period: { from: number; to: number }
+  initialCapital: number
+  execution: Required<ExecutionModelConfig>
+  risk: Required<RiskConfig>
+  metrics: Metrics
+  finalEquity: number
+  equityCurve: readonly EquityPoint[]
+  trades: readonly Trade[] // roundtrip vía `toJSON` / `Trade.from`
+}
+
 /**
  * Experimento reproducible (§9 + §12C): une la **configuración completa** que
- * condiciona el resultado — estrategia y versión (`name@version`), timeframe,
- * periodo de datos, capital, modelo de ejecución y riesgo — con su
- * `BacktestResult`. Mismo `Experiment.run(config)` → mismos resultados.
- *
- * Sin persistencia en esta fase (decisión de alcance): los experimentos viven
- * en memoria; guardarlos/compararlos queda para Fase 6.
+ * condiciona el resultado — estrategia y versión (`name@version`), huella,
+ * instrumento, timeframe, periodo de datos, capital, modelo de ejecución y
+ * riesgo — con su `BacktestResult`. Mismo `Experiment.run(config)` → mismos
+ * resultados. La persistencia (Fase 6) sale de aquí: `toSnapshot()` +
+ * `ExperimentRepository` (localStorage), con `id` determinístico por
+ * contenido.
  */
 export class Experiment {
   readonly strategyId: string
@@ -96,5 +118,29 @@ export class Experiment {
       risk: result.risk,
       result,
     })
+  }
+
+  /**
+   * Snapshot serializable (§9/§12C): metadata + resultado, **sin** `orders`
+   * ni `events` (pesados y no hacen falta para comparar). El `id` es el hash
+   * del contenido **sin** `id` → misma config + resultado → mismo id, y el
+   * snapshot se puede re-guardar sin duplicarse.
+   */
+  toSnapshot(): ExperimentSnapshot {
+    const data = {
+      strategyId: this.strategyId,
+      fingerprint: this.fingerprint,
+      instrument: this.instrument?.toString() ?? null,
+      timeframe: this.timeframe.code,
+      period: { from: this.period.from, to: this.period.to },
+      initialCapital: this.initialCapital,
+      execution: { ...this.execution },
+      risk: { ...this.risk },
+      metrics: { ...this.result.metrics },
+      finalEquity: this.result.finalEquity,
+      equityCurve: this.result.equityCurve,
+      trades: this.result.trades,
+    }
+    return { id: canonicalHash(data), ...data }
   }
 }

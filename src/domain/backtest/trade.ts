@@ -60,6 +60,27 @@ export class Trade {
   get durationMs(): number {
     return this.exitTime - this.entryTime
   }
+
+  /** Datos serializables (roundtrip JSON); `JSON.stringify` usa este método. */
+  toJSON(): TradeData {
+    return {
+      entryTime: this.entryTime,
+      entryPrice: this.entryPrice,
+      exitTime: this.exitTime,
+      exitPrice: this.exitPrice,
+      qty: this.qty,
+      pnl: this.pnl,
+      fees: this.fees,
+    }
+  }
+
+  /** Reconstruye un trade desde datos serializados (valida como el constructor). */
+  static from(data: TradeData): Trade {
+    if (typeof data !== 'object' || data === null) {
+      throw new InvalidTradeError('los datos deben ser un objeto', data)
+    }
+    return new Trade(data)
+  }
 }
 
 function assertTimestamp(value: number, label: string): void {

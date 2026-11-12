@@ -25,7 +25,16 @@ export function canonicalJson(value: unknown): string {
  * señales, reglas, veto) → huella distinta. Estable entre ejecuciones.
  */
 export function strategyFingerprint(strategy: Strategy): string {
-  return fnv1aHex(canonicalJson(strategy))
+  return canonicalHash(strategy)
+}
+
+/**
+ * Hash FNV-1a del JSON canónico: ids deterministas de **contenido** (p. ej.
+ * el `id` de un `ExperimentSnapshot`, que se calcula sobre el snapshot sin
+ * `id`). Detección de cambios, no seguridad criptográfica.
+ */
+export function canonicalHash(value: unknown): string {
+  return fnv1aHex(canonicalJson(value))
 }
 
 function stringify(value: unknown): string {
