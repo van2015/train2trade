@@ -15,6 +15,11 @@ export class MarketContextError extends DomainError {
   }
 }
 
+/** Campos builtin de la vela actual, resolubles como serie sin declarar indicador. */
+export type BuiltinField = 'open' | 'high' | 'low' | 'close'
+
+const BUILTIN_FIELDS: readonly BuiltinField[] = ['open', 'high', 'low', 'close']
+
 /**
  * Información disponible para evaluar una estrategia: solo velas visibles,
  * nunca futuras (§12B). Invariantes y congelado se garantizan en `from`.
@@ -71,14 +76,23 @@ export class MarketContext {
       throw new RangeError(`back debe ser un entero >= 0 (recibido: ${back})`)
     }
 
+    const index = this.visibleCandles.length - 1 - back
     const series = this.series[id]
-    if (series === undefined) {
-      throw new MarketContextError('el indicador no está registrado', id)
+    // El alias registrado tiene prioridad sobre la serie builtin.
+    if (series !== undefined) {
+      if (index < 0) return null
+      return series[index]?.value ?? null
     }
 
-    const index = this.visibleCandles.length - 1 - back
-    if (index < 0) return null
-    return series[index]?.value ?? null
+    // Series builtin de la vela actual (close/open/high/low): clase `price`.
+    if (BUILTIN_FIELDS.includes(id as BuiltinField)) {
+      if (index < 0) return null
+      const candle = this.visibleCandles[index]
+      if (candle === undefined) return null
+      return candle[id as BuiltinField]
+    }
+
+    throw new MarketContextError('el indicador no está registrado', id)
   }
 }
 

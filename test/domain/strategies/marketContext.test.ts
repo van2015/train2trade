@@ -102,6 +102,41 @@ describe('MarketContext', () => {
     })
   })
 
+  describe('series builtin de la vela actual', () => {
+    const context = MarketContext.from({ candles: CANDLES })
+
+    it('close/open/high/low se resuelven desde la vela actual', () => {
+      expect(context.value('close')).toBe(13)
+      expect(context.value('open')).toBe(13)
+      expect(context.value('high')).toBe(14)
+      expect(context.value('low')).toBe(12)
+    })
+
+    it('con back resuelven la vela anterior', () => {
+      expect(context.value('close', 1)).toBe(12)
+      expect(context.value('high', 1)).toBe(13)
+    })
+
+    it('back más allá del inicio → null (como las series de indicadores)', () => {
+      expect(context.value('close', 4)).toBeNull()
+    })
+
+    it('el alias registrado tiene prioridad sobre la builtin', () => {
+      const withClose = MarketContext.from({ candles: CANDLES, indicators: { close: FAST } })
+
+      expect(withClose.value('close')).toBe(3.5)
+      expect(withClose.value('close', 3)).toBeNull()
+    })
+
+    it('alias no registrado ni builtin → MarketContextError', () => {
+      expect(() => context.value('volume')).toThrow(MarketContextError)
+    })
+
+    it('back negativo en builtin → RangeError', () => {
+      expect(() => context.value('close', -1)).toThrow(RangeError)
+    })
+  })
+
   describe('acceso a series', () => {
     const context = MarketContext.from({ candles: CANDLES, indicators: { fast: FAST } })
 
