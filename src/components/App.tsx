@@ -6,8 +6,10 @@ import { Experiment, ExperimentSnapshot } from '@/domain/backtest/experiment'
 import { Instrument } from '@/domain/instruments/instrument'
 import { CandleRepository } from '@/storage/candleRepository'
 import { ExperimentRepository } from '@/storage/experimentRepository'
+import { loadOpenSection, saveOpenSection } from '@/storage/sidebarState'
 import { CandleChart } from './CandleChart'
 import { BacktestPanel } from './BacktestPanel'
+import { BacktestResults } from './BacktestResults'
 import { ReplayPanel } from './ReplayPanel'
 import { ExperimentHistoryPanel } from './ExperimentHistoryPanel'
 import { TestForwardPanel } from './TestForwardPanel'
@@ -15,6 +17,8 @@ import { OptimizationPanel } from './OptimizationPanel'
 import { CsvImportPanel } from './CsvImportPanel'
 import { DataControls } from './DataControls'
 import { IndicatorPanel } from './IndicatorPanel'
+import { MainTabs, type MainViewId } from './MainTabs'
+import { isSidebarSectionId, SidebarSection, type SidebarSectionId } from './SidebarSection'
 import {
   DEFAULT_INDICATOR_SETTINGS,
   type ChartLine,
@@ -27,6 +31,8 @@ export interface AppProps {
   provider: MarketDataProvider
   /** Experimentos persistidos en localStorage (Fase 6, §9). */
   experiments: ExperimentRepository
+  /** Storage de la UI (sección abierta del sidebar); por defecto, localStorage. */
+  uiStorage?: Storage | null
 }
 
 type Status = { kind: 'success' | 'error'; text: string } | null
@@ -35,11 +41,23 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/** localStorage del navegador; inaccesible (sandbox/cuota) → null y la UI sigue en memoria. */
+function browserStorage(): Storage | null {
+  try {
+    return window.localStorage
+  } catch {
+    return null
+  }
+}
+
 /**
  * Pantalla principal (Fase 1): descargar o importar velas y visualizarlas con
  * indicadores. La lógica vive fuera de React; este componente solo coordina.
+ * El sidebar es un acordeón de 3 secciones y el área principal conmuta entre
+ * `Gráfico` y `Backtest` por estado (plan UI, sin router).
  */
-export function App({ repository, provider, experiments }: AppProps) {
+export function App({ repository, provider, experiments, uiStorage }: AppProps) {
+  const storage = uiStorage === undefined ? browserStorage() : uiStorage
   const [instrument, setInstrument] = useState<Instrument>(() => Instrument.of('BTC', 'USDT'))
   const [timeframe, setTimeframe] = useState<Timeframe>(Timeframe.HOUR)
   const [candles, setCandles] = useState<readonly Candle[]>([])
@@ -52,6 +70,27 @@ export function App({ repository, provider, experiments }: AppProps) {
   const [snapshots, setSnapshots] = useState<readonly ExperimentSnapshot[]>(() =>
     experiments.list(),
   )
+  // Sección abierta del acordeón (plan UI, T1); id desconocido en storage → default.
+  const [openSection, setOpenSection] = useState<SidebarSectionId | null>(() => {
+    const stored = loadOpenSection(storage)
+    return isSidebarSectionId(stored) ? stored : 'datos'
+  })
+  // Vista activa del área principal (plan UI, T4).
+  const [mainView, setMainView] = useState<MainViewId>('chart')
+  // Último backtest ejecutado, mostrado en la pestaña Backtest (plan UI, T3).
+  const [lastExperiment, setLastExperiment] = useState<Experiment | null>(null)
+
+  const handleToggleSection = (id: SidebarSectionId) => {
+    const next = openSection === id ? null : id
+    setOpenSection(next)
+    saveOpenSection(storage, next)
+  }
+
+  /** Auto-conmutación: un backtest con éxito pasa la vista a `Backtest`. */
+  const handleBacktestResult = (next: Experiment) => {
+    setLastExperiment(next)
+    setMainView('backtest')
+  }
 
   const reloadExperiments = useCallback(() => {
     setSnapshots(experiments.list())
@@ -144,47 +183,69 @@ export function App({ repository, provider, experiments }: AppProps) {
 
       <div className="app__body">
         <aside className="app__sidebar">
-          <DataControls
-            instruments={instruments}
-            instrument={instrument}
-            timeframe={timeframe}
-            busy={busy}
-            onInstrumentChange={setInstrument}
-            onTimeframeChange={setTimeframe}
-            onFetch={handleFetch}
-          />
+          <SidebarSection
+            id="datos"
+            title="Datos"
+            open={openSection === 'datos'}
+            onToggle={handleToggleSection}
+          >
+            <DataControls
+              instruments={instruments}
+              instrument={instrument}
+              timeframe={timeframe}
+              busy={busy}
+              onInstrumentChange={setInstrument}
+              onTimeframeChange={setTimeframe}
+              onFetch={handleFetch}
+            />
 
-          <CsvImportPanel
-            target={`${instrument} · ${timeframe}`}
-            disabled={busy}
-            onImport={handleImport}
-            onError={(message) => setStatus({ kind: 'error', text: message })}
-          />
+            <CsvImportPanel
+              target={`${instrument} · ${timeframe}`}
+              disabled={busy}
+              onImport={handleImport}
+              onError={(message) => setStatus({ kind: 'error', text: message })}
+            />
 
-          <IndicatorPanel settings={settings} onChange={setSettings} />
+            <IndicatorPanel settings={settings} onChange={setSettings} />
+          </SidebarSection>
 
-          <BacktestPanel
-            candles={candles}
-            timeframe={timeframe}
-            instrument={instrument}
-            onExperiment={handleExperiment}
-          />
+          <SidebarSection
+            id="experimentos"
+            title="Experimentos"
+            open={openSection === 'experimentos'}
+            onToggle={handleToggleSection}
+          >
+            <BacktestPanel
+              candles={candles}
+              timeframe={timeframe}
+              instrument={instrument}
+              onExperiment={handleExperiment}
+              onResult={handleBacktestResult}
+            />
 
-          <ReplayPanel candles={candles} timeframe={timeframe} onProgress={setReplayCursor} />
+            <ReplayPanel candles={candles} timeframe={timeframe} onProgress={setReplayCursor} />
 
-          <ExperimentHistoryPanel
-            snapshots={snapshots}
-            onRemove={handleRemoveExperiments}
-            onClear={handleClearExperiments}
-          />
+            <TestForwardPanel
+              candles={candles}
+              timeframe={timeframe}
+              onExperiment={handleExperiment}
+            />
 
-          <TestForwardPanel
-            candles={candles}
-            timeframe={timeframe}
-            onExperiment={handleExperiment}
-          />
+            <OptimizationPanel candles={candles} timeframe={timeframe} />
+          </SidebarSection>
 
-          <OptimizationPanel candles={candles} timeframe={timeframe} />
+          <SidebarSection
+            id="resultados"
+            title="Resultados"
+            open={openSection === 'resultados'}
+            onToggle={handleToggleSection}
+          >
+            <ExperimentHistoryPanel
+              snapshots={snapshots}
+              onRemove={handleRemoveExperiments}
+              onClear={handleClearExperiments}
+            />
+          </SidebarSection>
 
           {status !== null && (
             <p className={`status status--${status.kind}`} role="status" data-testid="status">
@@ -195,12 +256,38 @@ export function App({ repository, provider, experiments }: AppProps) {
 
         <main className="app__main">
           <div className="app__chart-header">
-            <span className="app__chart-instrument" data-testid="chart-instrument">
-              {instrument.toString()} · {timeframe.toString()}
-            </span>
-            <span className="app__chart-range">{range}</span>
+            <MainTabs
+              active={mainView}
+              onChange={setMainView}
+              hasResult={lastExperiment !== null}
+            />
+            <div className="app__chart-meta">
+              <span className="app__chart-instrument" data-testid="chart-instrument">
+                {instrument.toString()} · {timeframe.toString()}
+              </span>
+              <span className="app__chart-range">{range}</span>
+            </div>
           </div>
-          <CandleChart candles={visible} lines={lines} />
+
+          {mainView === 'chart' ? (
+            <div
+              className="app__view"
+              id="main-view"
+              role="tabpanel"
+              aria-labelledby="main-tab-chart"
+            >
+              <CandleChart candles={visible} lines={lines} />
+            </div>
+          ) : (
+            <div
+              className="app__view app__view--results"
+              id="main-view"
+              role="tabpanel"
+              aria-labelledby="main-tab-backtest"
+            >
+              <BacktestResults experiment={lastExperiment} />
+            </div>
+          )}
         </main>
       </div>
     </div>

@@ -3,8 +3,8 @@
 > Resumen de implementado y lo pendiente. Fuente de verdad de requisitos: [`AGENTS.md`](../AGENTS.md)
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
-> Última actualización: 2026-11-12 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**767 tests**, 59 archivos). `pnpm build` compila sin errores.
+> Última actualización: 2026-11-13 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
+> (**788 tests**, 63 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
@@ -171,6 +171,27 @@ runs individuales.
 idéntico, §12C); `id` estable → mismo experimento = una sola entrada; deltas con `null` **ausentes**
 (no se inventa `0`); cap de rejilla avisado **antes** de ejecutar; cada experimento opera con su
 propio capital (corrección T0) y la comparación es entre experimentos.
+
+### Mejora UI — sidebar colapsable y pestañas del área principal (completa)
+
+Plan detallado: [`ui-plan.md`](./ui-plan.md). Decisiones: **acordeón de 3 secciones** en el sidebar
+(Datos · Experimentos · Resultados) con una sola abierta por defecto (`Datos`), paneles plegados
+**sin desmontar** (el estado de replay/formularios/resultados sobrevive), sección abierta
+persistida en `localStorage` (`ui:sidebar-section`, fallo tolerado), y conmutador de vista **por
+estado** (sin router) con pestañas `Gráfico | Backtest` en el área principal: un backtest con éxito
+auto-conmuta a su pestaña y los resultados (métricas, equity curve, trades) se muestran **a ancho
+completo** fuera de los 300px del sidebar.
+
+| Módulo                                                                                              | Archivos                                                 | Tests                         |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------- |
+| `SidebarSection` — acordeón con `aria-expanded`/`aria-controls`; contenido con `hidden` (montado)   | `src/components/SidebarSection.tsx`                      | 6                             |
+| `sidebarState` — sección abierta persistida con `Storage` inyectado, fallo → no-op                  | `src/storage/sidebarState.ts`                            | 5                             |
+| `MainTabs` — pestañas `Gráfico                                                                      | Backtest`(roles`tablist`/`tab`, indicador de resultados) | `src/components/MainTabs.tsx` | 4   |
+| `BacktestResults` — resultados en el área principal (rejilla métricas + equity, trades con scroll)  | `src/components/BacktestResults.tsx`                     | 4                             |
+| Split `BacktestPanel` (solo formulario + `onResult`) y `App` (acordeón, pestañas, auto-conmutación) | `src/components/BacktestPanel.tsx`, `App.tsx`            | +2                            |
+
+**Fase 3 del plan UI (pendiente):** mover Replay, Optimización, Test-Forward e Historial al área
+principal con el mismo `MainTabs` (el mecanismo ya existe).
 
 ## Pendiente
 

@@ -1,15 +1,12 @@
 import { useState } from 'react'
 import { Experiment } from '@/domain/backtest/experiment'
-import { Trade } from '@/domain/backtest/trade'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
 import { Sma } from '@/domain/indicators/sma'
 import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
-import { EquityChart } from './EquityChart'
-import { DEFAULT_PARAMS, formatMetric, METRIC_ROWS, Params, validate } from './backtestForm'
-import { formatChartPrice, formatChartTime } from './chartData'
+import { DEFAULT_PARAMS, Params, validate } from './backtestForm'
 
 export interface BacktestPanelProps {
   /** Velas cargadas en `App` (descarga o CSV); el backtest trabaja sobre ellas. */
@@ -20,32 +17,24 @@ export interface BacktestPanelProps {
   instrument?: Instrument
   /** Auto-guardo (Fase 6): App lo guarda como snapshot en el historial. */
   onExperiment?: (experiment: Experiment) => void
-}
-
-function tradesSummary(trades: readonly Trade[]): string {
-  const wins = trades.filter((trade) => trade.win).length
-  const losses = trades.length - wins
-  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
-  return `${count(trades.length, 'trade', 'trades')} · ${count(wins, 'ganador', 'ganadores')} · ${count(
-    losses,
-    'perdedor',
-    'perdedores',
-  )}`
+  /** Último resultado (plan UI, T3): App lo muestra en la pestaña Backtest. */
+  onResult?: (experiment: Experiment) => void
 }
 
 /**
- * Panel de backtest (Fase 4, UI mínima): parámetros + estrategia demo de
- * cruce de SMA, botón de ejecución, tabla de métricas, equity curve y
- * resumen de trades. Toda la lógica vive en el dominio (`Experiment.run`).
+ * Panel de backtest (Fase 4): parámetros + estrategia demo de cruce de SMA y
+ * botón de ejecución. Los resultados se muestran en el área principal
+ * (`BacktestResults`, plan UI T3); aquí solo viven el formulario y los errores.
+ * Toda la lógica vive en el dominio (`Experiment.run`).
  */
 export function BacktestPanel({
   candles,
   timeframe,
   instrument,
   onExperiment,
+  onResult,
 }: BacktestPanelProps) {
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS)
-  const [experiment, setExperiment] = useState<Experiment | null>(null)
   const [closePositionAtEnd, setClosePositionAtEnd] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -56,7 +45,6 @@ export function BacktestPanel({
     const parsed = validate(params)
     if (!parsed.ok) {
       setError(parsed.error)
-      setExperiment(null)
       return
     }
 
@@ -79,15 +67,12 @@ export function BacktestPanel({
         closePositionAtEnd,
       })
       setError(null)
-      setExperiment(next)
       onExperiment?.(next)
+      onResult?.(next)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
-      setExperiment(null)
     }
   }
-
-  const result = experiment?.result ?? null
 
   return (
     <section className="backtest-panel" aria-label="Backtest">
@@ -171,54 +156,6 @@ export function BacktestPanel({
         <p className="status status--error" role="status" data-testid="backtest-error">
           {error}
         </p>
-      )}
-
-      {experiment !== null && result !== null && (
-        <>
-          <p className="backtest-summary" data-testid="backtest-summary">
-            {experiment.strategyId} · {formatChartTime(experiment.period.from)} →{' '}
-            {formatChartTime(experiment.period.to)} · {candles.length} velas ·{' '}
-            {tradesSummary(result.trades)} · equity final {formatChartPrice(result.finalEquity)}
-          </p>
-
-          <table className="backtest-metrics" data-testid="backtest-metrics">
-            <tbody>
-              {METRIC_ROWS.map((row) => (
-                <tr key={row.key}>
-                  <th scope="row">{row.label}</th>
-                  <td>{formatMetric(result.metrics[row.key], row.format)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <EquityChart points={result.equityCurve} />
-
-          {result.trades.length > 0 && (
-            <table className="backtest-trades" data-testid="backtest-trades">
-              <thead>
-                <tr>
-                  <th scope="col">Entrada</th>
-                  <th scope="col">Salida</th>
-                  <th scope="col">PnL</th>
-                  <th scope="col">Resultado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.trades.map((trade, index) => (
-                  <tr key={`${trade.entryTime}-${index}`}>
-                    <td>{formatChartTime(trade.entryTime)}</td>
-                    <td>{formatChartTime(trade.exitTime)}</td>
-                    <td>{formatChartPrice(trade.pnl)}</td>
-                    <td className={trade.win ? 'is-up' : 'is-down'}>
-                      {trade.win ? 'Ganancia' : 'Pérdida'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </>
       )}
     </section>
   )

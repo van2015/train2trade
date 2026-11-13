@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { BacktestPanel, BacktestPanelProps } from '@/components/BacktestPanel'
+import { BacktestResults } from '@/components/BacktestResults'
 import { Experiment } from '@/domain/backtest/experiment'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
@@ -67,6 +69,25 @@ function setCrossoverPeriods() {
   fireEvent.change(screen.getByLabelText('SMA lenta'), { target: { value: '3' } })
 }
 
+/** Formulario + resultados cableados como en App (onResult → BacktestResults). */
+function renderWithResults(props: Partial<BacktestPanelProps> = {}) {
+  function Harness() {
+    const [experiment, setExperiment] = useState<Experiment | null>(null)
+    return (
+      <>
+        <BacktestPanel
+          candles={CANDLES}
+          timeframe={Timeframe.HOUR}
+          onResult={setExperiment}
+          {...props}
+        />
+        <BacktestResults experiment={experiment} />
+      </>
+    )
+  }
+  render(<Harness />)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   seriesMock.created.length = 0
@@ -118,52 +139,19 @@ describe('BacktestPanel — parámetros', () => {
   })
 })
 
-describe('BacktestPanel — resultados', () => {
-  it('ejecuta el backtest y muestra resumen, métricas, equity y trades', () => {
-    renderPanel()
+describe('BacktestPanel — resultados (integración con BacktestResults)', () => {
+  it('ejecutar el backtest muestra los resultados en el área de resultados', () => {
+    renderWithResults()
     setCrossoverPeriods()
     fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
 
-    // resumen del experimento (§12C)
-    const summary = screen.getByTestId('backtest-summary')
-    expect(summary).toHaveTextContent('sma-cross@1')
-
-    // métricas (conjunto mínimo de 8)
-    const metrics = screen.getByTestId('backtest-metrics')
-    expect(metrics).toHaveTextContent('Beneficio neto')
-    expect(metrics).toHaveTextContent('-230.76923077') // 769.23 − 1000
-    expect(metrics).toHaveTextContent('ROI')
-    expect(metrics).toHaveTextContent('-23.08%')
-    expect(metrics).toHaveTextContent('Drawdown máximo')
-    expect(metrics).toHaveTextContent('Win rate')
-    expect(metrics).toHaveTextContent('0.00%')
-    expect(metrics).toHaveTextContent('Sharpe')
-    expect(metrics).toHaveTextContent('Profit factor')
-
-    // equity curve
-    expect(document.querySelector('.equity-chart')).toBeInTheDocument()
-    expect(seriesMock.created[0]?.setData).toHaveBeenCalledTimes(1)
-
-    // trades
-    expect(screen.getByTestId('backtest-summary')).toHaveTextContent(
-      '1 trade · 0 ganadores · 1 perdedor',
-    )
-    const trades = screen.getByTestId('backtest-trades')
-    expect(trades).toHaveTextContent('Pérdida')
-  })
-
-  it('las métricas no definidas se muestran como guion', () => {
-    renderPanel() // sin señales: periods 10/30 no cruzan en 9 velas
-    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
-
-    const metrics = screen.getByTestId('backtest-metrics')
-    expect(screen.getByText('Win rate').closest('tr')).toHaveTextContent('—')
-    expect(screen.getByText('Profit factor').closest('tr')).toHaveTextContent('—')
-    expect(screen.queryByTestId('backtest-trades')).not.toBeInTheDocument()
+    expect(screen.getByTestId('backtest-summary')).toHaveTextContent('sma-cross@1')
+    expect(screen.getByTestId('backtest-metrics')).toHaveTextContent('Beneficio neto')
+    expect(screen.getByTestId('backtest-trades')).toBeInTheDocument()
   })
 
   it('cambiar el capital y re-ejecutar actualiza las métricas', () => {
-    renderPanel()
+    renderWithResults()
     setCrossoverPeriods()
     fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
     expect(screen.getByTestId('backtest-metrics')).toHaveTextContent('-230.76923077')
@@ -190,26 +178,31 @@ describe('BacktestPanel — registro (Fase 6)', () => {
     expect(checkbox).not.toBeChecked()
   })
 
-  it('onExperiment recibe el experimento ejecutado, con el instrumento registrado', () => {
+  it('onExperiment y onResult reciben el experimento ejecutado, con el instrumento', () => {
     const onExperiment = vi.fn()
-    renderPanel(CANDLES, { onExperiment, instrument: Instrument.of('BTC', 'USDT') })
+    const onResult = vi.fn()
+    renderPanel(CANDLES, { onExperiment, onResult, instrument: Instrument.of('BTC', 'USDT') })
     setCrossoverPeriods()
 
     fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
 
     expect(onExperiment).toHaveBeenCalledTimes(1)
-    const experiment = onExperiment.mock.calls[0]?.[0] as Experiment
+    expect(onResult).toHaveBeenCalledTimes(1)
+    const experiment = onResult.mock.calls[0]?.[0] as Experiment
     expect(experiment).toBeInstanceOf(Experiment)
     expect(experiment.instrument?.toString()).toBe('BTC/USDT')
     expect(experiment.strategyId).toBe('sma-cross@1')
+    expect(onExperiment.mock.calls[0]?.[0]).toBe(experiment)
   })
 
   it('sin onExperiment el panel funciona igual (prop opcional)', () => {
-    renderPanel()
+    const onResult = vi.fn()
+    renderPanel(CANDLES, { onResult })
     setCrossoverPeriods()
 
     fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
 
-    expect(screen.getByTestId('backtest-metrics')).toBeInTheDocument()
+    expect(onResult).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('backtest-error')).not.toBeInTheDocument()
   })
 })

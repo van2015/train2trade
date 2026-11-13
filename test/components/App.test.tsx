@@ -102,6 +102,7 @@ function kline(openTime: number, close = '105') {
 
 let repository: CandleRepository
 let experiments: ExperimentRepository
+let uiStorage: MemoryStorage
 
 function renderApp(provider?: MarketDataProvider) {
   const fetchImpl = vi.fn<(url: string) => Promise<Response>>(async () =>
@@ -109,8 +110,15 @@ function renderApp(provider?: MarketDataProvider) {
   )
   const marketProvider =
     provider ?? new BinanceProvider({ fetch: fetchImpl as unknown as FetchLike })
-  render(<App repository={repository} provider={marketProvider} experiments={experiments} />)
-  return { fetchImpl }
+  const utils = render(
+    <App
+      repository={repository}
+      provider={marketProvider}
+      experiments={experiments}
+      uiStorage={uiStorage}
+    />,
+  )
+  return { fetchImpl, unmount: utils.unmount }
 }
 
 /** Panel de backtest (hay dos formularios con los mismos labels en la pantalla). */
@@ -118,11 +126,20 @@ function backtestPanel() {
   return within(screen.getByRole('region', { name: 'Backtest' }))
 }
 
+/** Abre una sección del acordeón del sidebar (por defecto solo "Datos" está abierta). */
+function openSection(name: 'Datos' | 'Experimentos' | 'Resultados') {
+  const header = screen.getByRole('button', { name })
+  if (header.getAttribute('aria-expanded') !== 'true') {
+    fireEvent.click(header)
+  }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   seriesMock.created.length = 0
   repository = new CandleRepository(new MemoryStorage())
   experiments = new ExperimentRepository(new MemoryStorage())
+  uiStorage = new MemoryStorage()
 })
 
 describe('App', () => {
@@ -135,8 +152,67 @@ describe('App', () => {
     expect(screen.getByText('sin datos')).toBeInTheDocument()
   })
 
+  it('agrupa los paneles en tres secciones colapsables del sidebar', () => {
+    renderApp()
+
+    const datos = screen.getByRole('button', { name: 'Datos' })
+    const experimentos = screen.getByRole('button', { name: 'Experimentos' })
+    const resultados = screen.getByRole('button', { name: 'Resultados' })
+
+    // Por defecto solo "Datos" está abierta.
+    expect(datos).toHaveAttribute('aria-expanded', 'true')
+    expect(experimentos).toHaveAttribute('aria-expanded', 'false')
+    expect(resultados).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'Ejecutar backtest' })).not.toBeInTheDocument()
+
+    // Acordeón: abrir otra sección cierra la anterior.
+    fireEvent.click(experimentos)
+    expect(datos).toHaveAttribute('aria-expanded', 'false')
+    expect(experimentos).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Ejecutar backtest' })).toBeInTheDocument()
+
+    // Y la sección abierta se puede cerrar del todo.
+    fireEvent.click(experimentos)
+    expect(experimentos).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'Ejecutar backtest' })).not.toBeInTheDocument()
+  })
+
+  it('permite alternar entre las pestañas Gráfico y Backtest', () => {
+    renderApp()
+
+    expect(screen.getByRole('tab', { name: 'Gráfico' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Backtest' }))
+    expect(screen.getByRole('tab', { name: 'Backtest' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('backtest-results-empty')).toBeInTheDocument()
+    expect(screen.queryByTestId('chart-empty')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Gráfico' }))
+    expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
+    expect(screen.queryByTestId('backtest-results-empty')).not.toBeInTheDocument()
+  })
+
+  it('persiste la sección abierta del sidebar en el storage de UI', () => {
+    const first = renderApp()
+    fireEvent.click(screen.getByRole('button', { name: 'Experimentos' }))
+    expect(screen.getByRole('button', { name: 'Experimentos' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+
+    first.unmount()
+    renderApp()
+
+    expect(screen.getByRole('button', { name: 'Experimentos' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
   it('incluye el panel de backtest (deshabilitado sin datos)', () => {
     renderApp()
+    openSection('Experimentos')
 
     expect(backtestPanel().getByLabelText('Capital inicial')).toHaveValue(1_000)
     expect(screen.getByRole('button', { name: 'Ejecutar backtest' })).toBeDisabled()
@@ -144,6 +220,7 @@ describe('App', () => {
 
   it('incluye el panel de replay (deshabilitado sin datos) y el subtítulo de la fase', () => {
     renderApp()
+    openSection('Experimentos')
 
     expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeDisabled()
     expect(screen.getByTestId('replay-empty')).toHaveTextContent('descarga o importa')
@@ -152,10 +229,15 @@ describe('App', () => {
 
   it('incluye los paneles de la Fase 6 (historial, test-forward y optimización)', () => {
     renderApp()
+    openSection('Experimentos')
 
-    expect(screen.getByTestId('history-empty')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ejecutar test-forward' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Ejecutar optimización' })).toBeDisabled()
+
+    // Acordeón: abrir Resultados cierra Experimentos.
+    openSection('Resultados')
+
+    expect(screen.getByTestId('history-empty')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Borrar todo' })).toBeDisabled()
   })
 
@@ -167,6 +249,7 @@ describe('App', () => {
       closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
     )
     renderApp()
+    openSection('Experimentos')
 
     expect(screen.queryByTestId('history-table')).not.toBeInTheDocument()
     fireEvent.change(backtestPanel().getByLabelText('SMA rápida'), { target: { value: '2' } })
@@ -191,10 +274,13 @@ describe('App', () => {
     )
 
     renderApp()
+    openSection('Experimentos')
     fireEvent.change(backtestPanel().getByLabelText('SMA rápida'), { target: { value: '2' } })
     fireEvent.change(backtestPanel().getByLabelText('SMA lenta'), { target: { value: '3' } })
     fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
 
+    // Auto-conmutación (plan UI): los resultados abren su pestaña en el área principal.
+    expect(screen.getByRole('tab', { name: 'Backtest' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('backtest-summary')).toHaveTextContent('sma-cross@1')
     expect(screen.getByTestId('backtest-metrics')).toHaveTextContent('Beneficio neto')
     expect(screen.getByTestId('backtest-trades')).toBeInTheDocument()
@@ -208,6 +294,7 @@ describe('App', () => {
       closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
     )
     renderApp()
+    openSection('Experimentos')
 
     expect(screen.getByText('9 velas')).toBeInTheDocument()
     expect(screen.queryByTestId('chart-empty')).not.toBeInTheDocument()
