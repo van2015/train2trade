@@ -127,7 +127,7 @@ function backtestPanel() {
 }
 
 /** Abre una sección del acordeón del sidebar (por defecto solo "Datos" está abierta). */
-function openSection(name: 'Datos' | 'Experimentos' | 'Resultados') {
+function openSection(name: 'Datos' | 'Experimentos') {
   const header = screen.getByRole('button', { name })
   if (header.getAttribute('aria-expanded') !== 'true') {
     fireEvent.click(header)
@@ -152,20 +152,20 @@ describe('App', () => {
     expect(screen.getByText('sin datos')).toBeInTheDocument()
   })
 
-  it('agrupa los paneles en tres secciones colapsables del sidebar', () => {
+  it('agrupa los formularios en dos secciones colapsables del sidebar', () => {
     renderApp()
 
     const datos = screen.getByRole('button', { name: 'Datos' })
     const experimentos = screen.getByRole('button', { name: 'Experimentos' })
-    const resultados = screen.getByRole('button', { name: 'Resultados' })
 
-    // Por defecto solo "Datos" está abierta.
+    // Por defecto solo "Datos" está abierta; no existe sección "Resultados"
+    // (Historial es una pestaña desde la Fase 3).
     expect(datos).toHaveAttribute('aria-expanded', 'true')
     expect(experimentos).toHaveAttribute('aria-expanded', 'false')
-    expect(resultados).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'Resultados' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Ejecutar backtest' })).not.toBeInTheDocument()
 
-    // Acordeón: abrir otra sección cierra la anterior.
+    // Acordeón: abrir la otra sección cierra la anterior.
     fireEvent.click(experimentos)
     expect(datos).toHaveAttribute('aria-expanded', 'false')
     expect(experimentos).toHaveAttribute('aria-expanded', 'true')
@@ -177,17 +177,36 @@ describe('App', () => {
     expect(screen.queryByRole('button', { name: 'Ejecutar backtest' })).not.toBeInTheDocument()
   })
 
-  it('permite alternar entre las pestañas Gráfico y Backtest', () => {
+  it('permite alternar entre las seis pestañas del área principal', () => {
     renderApp()
 
     expect(screen.getByRole('tab', { name: 'Gráfico' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
 
+    // Backtest: estado vacío; el gráfico deja de estar montado.
     fireEvent.click(screen.getByRole('tab', { name: 'Backtest' }))
     expect(screen.getByRole('tab', { name: 'Backtest' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('backtest-results-empty')).toBeInTheDocument()
     expect(screen.queryByTestId('chart-empty')).not.toBeInTheDocument()
 
+    // Replay: controles + gráfico juntos en la misma pestaña.
+    fireEvent.click(screen.getByRole('tab', { name: 'Replay' }))
+    expect(screen.getByRole('region', { name: 'Replay' })).toBeVisible()
+    expect(screen.getByTestId('replay-empty')).toBeVisible()
+    expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
+
+    // Test-Forward y Optimización: estado vacío de sus resultados.
+    fireEvent.click(screen.getByRole('tab', { name: 'Test-Forward' }))
+    expect(screen.getByTestId('tf-results-empty')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('tab', { name: 'Optimización' }))
+    expect(screen.getByTestId('opt-results-empty')).toBeInTheDocument()
+
+    // Historial: el panel completo (siempre montado; visible al activar la pestaña).
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial' }))
+    expect(screen.getByTestId('history-empty')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Borrar todo' })).toBeInTheDocument()
+
+    // Vuelta al gráfico.
     fireEvent.click(screen.getByRole('tab', { name: 'Gráfico' }))
     expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
     expect(screen.queryByTestId('backtest-results-empty')).not.toBeInTheDocument()
@@ -218,10 +237,11 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Ejecutar backtest' })).toBeDisabled()
   })
 
-  it('incluye el panel de replay (deshabilitado sin datos) y el subtítulo de la fase', () => {
+  it('incluye la pestaña Replay (controles sin datos) y el subtítulo de la fase', () => {
     renderApp()
-    openSection('Experimentos')
+    fireEvent.click(screen.getByRole('tab', { name: 'Replay' }))
 
+    expect(screen.getByRole('region', { name: 'Replay' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeDisabled()
     expect(screen.getByTestId('replay-empty')).toHaveTextContent('descarga o importa')
     expect(screen.getByText(/Fase 6/)).toBeInTheDocument()
@@ -231,11 +251,12 @@ describe('App', () => {
     renderApp()
     openSection('Experimentos')
 
+    // Formularios en la sidebar…
     expect(screen.getByRole('button', { name: 'Ejecutar test-forward' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Ejecutar optimización' })).toBeDisabled()
 
-    // Acordeón: abrir Resultados cierra Experimentos.
-    openSection('Resultados')
+    // …y el historial completo en su pestaña (sección Resultados eliminada).
+    fireEvent.click(screen.getByRole('tab', { name: 'Historial' }))
 
     expect(screen.getByTestId('history-empty')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Borrar todo' })).toBeDisabled()
@@ -286,7 +307,7 @@ describe('App', () => {
     expect(screen.getByTestId('backtest-trades')).toBeInTheDocument()
   })
 
-  it('recorta el gráfico a las velas consumidas durante el replay', () => {
+  it('ejecutar un test-forward muestra sus resultados en su pestaña', () => {
     const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
     repository.save(
       Instrument.of('BTC', 'USDT'),
@@ -295,6 +316,53 @@ describe('App', () => {
     )
     renderApp()
     openSection('Experimentos')
+
+    // Hay dos formularios con los mismos labels: acotar al panel Test-Forward.
+    const tf = within(screen.getByRole('region', { name: 'Test-Forward' }))
+    fireEvent.change(tf.getByLabelText('SMA rápida'), { target: { value: '2' } })
+    fireEvent.change(tf.getByLabelText('SMA lenta'), { target: { value: '3' } })
+    fireEvent.change(tf.getByLabelText('Corte (UTC)'), { target: { value: '2023-11-15T02:00' } })
+    fireEvent.click(tf.getByRole('button', { name: 'Ejecutar test-forward' }))
+
+    expect(screen.getByRole('tab', { name: 'Test-Forward' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByTestId('tf-summary')).toBeInTheDocument()
+    expect(screen.getByTestId('tf-table')).toBeInTheDocument()
+    // el auto-guardo registra desarrollo y evaluación (§9)
+    expect(experiments.list()).toHaveLength(2)
+  })
+
+  it('ejecutar una optimización muestra sus resultados en su pestaña', () => {
+    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
+    repository.save(
+      Instrument.of('BTC', 'USDT'),
+      Timeframe.HOUR,
+      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
+    )
+    renderApp()
+    openSection('Experimentos')
+
+    // Rejilla por defecto (9 × 8 = 72 combinaciones) sobre las 9 velas.
+    fireEvent.click(screen.getByRole('button', { name: 'Ejecutar optimización' }))
+
+    expect(screen.getByRole('tab', { name: 'Optimización' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(screen.getByTestId('opt-runs')).toBeInTheDocument()
+  })
+
+  it('recorta el gráfico a las velas consumidas durante el replay', () => {
+    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
+    repository.save(
+      Instrument.of('BTC', 'USDT'),
+      Timeframe.HOUR,
+      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
+    )
+    renderApp()
+    fireEvent.click(screen.getByRole('tab', { name: 'Replay' }))
 
     expect(screen.getByText('9 velas')).toBeInTheDocument()
     expect(screen.queryByTestId('chart-empty')).not.toBeInTheDocument()

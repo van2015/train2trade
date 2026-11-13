@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 
-/** Identificadores de las secciones plegables del sidebar (plan UI, T0). */
-export const SIDEBAR_SECTION_IDS = ['datos', 'experimentos', 'resultados'] as const
+/** Identificadores de las secciones plegables del sidebar (plan UI, T0/Fase 3).
+ *  La sección `resultados` se eliminó en la Fase 3: Historial es una pestaña. */
+export const SIDEBAR_SECTION_IDS = ['datos', 'experimentos'] as const
 
 export type SidebarSectionId = (typeof SIDEBAR_SECTION_IDS)[number]
 

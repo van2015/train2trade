@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { OptimizationPanel } from '@/components/OptimizationPanel'
+import { OptimizationPanel, type OptimizationPanelProps } from '@/components/OptimizationPanel'
+import { OptimizationResults, type OptimizationViewState } from '@/components/OptimizationResults'
 import { runOptimization } from '@/domain/backtest/optimization'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
@@ -24,8 +26,25 @@ const CANDLES = PRICES.map((price, index) =>
   }),
 )
 
-function renderPanel(candles: readonly Candle[] = CANDLES) {
-  return render(<OptimizationPanel candles={candles} timeframe={Timeframe.HOUR} />)
+function renderPanel(
+  candles: readonly Candle[] = CANDLES,
+  props: Partial<OptimizationPanelProps> = {},
+) {
+  return render(<OptimizationPanel candles={candles} timeframe={Timeframe.HOUR} {...props} />)
+}
+
+/** Formulario + resultados cableados como en App (onResult → OptimizationResults). */
+function renderWithResults(candles: readonly Candle[] = CANDLES) {
+  function Harness() {
+    const [view, setView] = useState<OptimizationViewState | null>(null)
+    return (
+      <>
+        <OptimizationPanel candles={candles} timeframe={Timeframe.HOUR} onResult={setView} />
+        <OptimizationResults view={view} />
+      </>
+    )
+  }
+  render(<Harness />)
 }
 
 function setField(label: string, value: string): void {
@@ -87,9 +106,9 @@ describe('OptimizationPanel — parámetros y cap (§13)', () => {
   })
 })
 
-describe('OptimizationPanel — resultados', () => {
+describe('OptimizationPanel — resultados (integración con OptimizationResults)', () => {
   it('ejecutar pinta la tabla de runs ordenada y el informe de robustez', () => {
-    renderPanel()
+    renderWithResults()
     setField('SMA rápida hasta', '3')
     setField('SMA lenta desde', '3')
     setField('SMA lenta hasta', '4')
@@ -130,24 +149,8 @@ describe('OptimizationPanel — resultados', () => {
     expect(robustness).toHaveTextContent('slow')
   })
 
-  it('si la métrica es null en todas, muestra los runs y una nota (sin crash)', () => {
-    renderPanel()
-    setField('SMA rápida desde', '10')
-    setField('SMA rápida hasta', '10')
-    setField('SMA lenta desde', '30')
-    setField('SMA lenta hasta', '30')
-    setField('Métrica a optimizar', 'winRate')
-    run()
-
-    expect(screen.queryByTestId('opt-error')).not.toBeInTheDocument()
-    expect(screen.getByTestId('opt-runs')).toBeInTheDocument()
-    expect(within(screen.getByTestId('opt-runs')).getAllByRole('row')).toHaveLength(2) // cabecera + 1
-    expect(screen.getByTestId('opt-note')).toHaveTextContent('winRate')
-    expect(screen.queryByTestId('opt-robustness')).not.toBeInTheDocument()
-  })
-
   it('el selector de métrica cambia la columna mostrada (al re-ejecutar)', () => {
-    renderPanel()
+    renderWithResults()
     setField('SMA rápida hasta', '3')
     setField('SMA lenta desde', '3')
     setField('SMA lenta hasta', '4')
@@ -159,5 +162,21 @@ describe('OptimizationPanel — resultados', () => {
     setField('Métrica a optimizar', 'maxDrawdown')
     run()
     expect(screen.getByTestId('opt-runs')).toHaveTextContent('Drawdown máximo')
+  })
+
+  it('onResult recibe la vista de resultados', () => {
+    const onResult = vi.fn()
+    renderPanel(CANDLES, { onResult })
+    setField('SMA rápida hasta', '3')
+    setField('SMA lenta desde', '3')
+    setField('SMA lenta hasta', '4')
+    setField('SMA lenta paso', '1')
+    run()
+
+    expect(onResult).toHaveBeenCalledTimes(1)
+    const view = onResult.mock.calls[0]?.[0] as OptimizationViewState
+    expect(view.optimization.runs).toHaveLength(4)
+    expect(view.optimization.metric).toBe('netProfit')
+    expect(screen.queryByTestId('opt-runs')).not.toBeInTheDocument() // sin resultados en el panel
   })
 })

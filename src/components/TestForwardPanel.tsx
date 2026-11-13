@@ -6,14 +6,15 @@ import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
 import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
-import { DEFAULT_PARAMS, formatMetric, METRIC_ROWS, Params, validate } from './backtestForm'
-import { formatChartTime } from './chartData'
+import { DEFAULT_PARAMS, Params, validate } from './backtestForm'
 
 export interface TestForwardPanelProps {
   candles: readonly Candle[]
   timeframe: Timeframe
   /** Cada experimento ejecutado (desarrollo primero) → App lo guarda como snapshot. */
   onExperiment: (experiment: Experiment) => void
+  /** Último run (plan UI, Fase 3): App lo muestra en la pestaña Test-Forward. */
+  onResult?: (run: TestForwardRun) => void
 }
 
 function describeError(error: unknown): string {
@@ -34,15 +35,20 @@ function toDateTimeLocal(ms: number): string {
 }
 
 /**
- * Panel de test-forward (Fase 6, §7C, UI mínima): formulario compartido +
- * fecha de corte (estrictamente dentro del rango de velas) → dos experimentos
- * **independientes** con tabla dev/eval lado a lado y fila de deltas. La
- * lógica vive en `runTestForward`; este componente solo valida y pinta.
+ * Formulario de test-forward (Fase 6, §7C): parámetros + fecha de corte
+ * (estrictamente dentro del rango de velas). Al ejecutar produce dos
+ * experimentos **independientes**; los resultados (tabla dev/eval/Δ) se
+ * muestran en el área principal (`TestForwardResults`, plan UI Fase 3).
+ * La lógica vive en `runTestForward`; este componente solo valida y emite.
  */
-export function TestForwardPanel({ candles, timeframe, onExperiment }: TestForwardPanelProps) {
+export function TestForwardPanel({
+  candles,
+  timeframe,
+  onExperiment,
+  onResult,
+}: TestForwardPanelProps) {
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS)
   const [cut, setCut] = useState('')
-  const [result, setResult] = useState<TestForwardRun | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const firstTime = candles[0]?.time
@@ -55,20 +61,17 @@ export function TestForwardPanel({ candles, timeframe, onExperiment }: TestForwa
     const parsed = validate(params)
     if (!parsed.ok) {
       setError(parsed.error)
-      setResult(null)
       return
     }
 
     const cutTime = parseCut(cut)
     if (cutTime === null) {
       setError('Corte: indica fecha y hora (UTC)')
-      setResult(null)
       return
     }
     if (firstTime === undefined || lastTime === undefined) return // sin velas: botón deshabilitado
     if (cutTime <= firstTime || cutTime > lastTime) {
       setError('Corte: la fecha debe estar dentro del rango de velas')
-      setResult(null)
       return
     }
 
@@ -89,12 +92,11 @@ export function TestForwardPanel({ candles, timeframe, onExperiment }: TestForwa
         cutTime,
       })
       setError(null)
-      setResult(run)
       onExperiment(run.development)
       onExperiment(run.evaluation)
+      onResult?.(run)
     } catch (caught) {
       setError(describeError(caught))
-      setResult(null)
     }
   }
 
@@ -179,46 +181,6 @@ export function TestForwardPanel({ candles, timeframe, onExperiment }: TestForwa
         <p className="status status--error" role="status" data-testid="tf-error">
           {error}
         </p>
-      )}
-
-      {result !== null && (
-        <>
-          <p className="panel-summary" data-testid="tf-summary">
-            Corte {formatChartTime(result.cutTime)} · Desarrollo{' '}
-            {formatChartTime(result.development.period.from)} →{' '}
-            {formatChartTime(result.development.period.to)} · Evaluación{' '}
-            {formatChartTime(result.evaluation.period.from)} →{' '}
-            {formatChartTime(result.evaluation.period.to)}
-          </p>
-
-          <div className="panel-scroll">
-            <table className="lab-table" data-testid="tf-table">
-              <thead>
-                <tr>
-                  <th scope="col">Métrica</th>
-                  <th scope="col">Desarrollo</th>
-                  <th scope="col">Evaluación</th>
-                  <th scope="col">Δ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {METRIC_ROWS.map((row) => {
-                  const development = result.development.result.metrics[row.key]
-                  const evaluation = result.evaluation.result.metrics[row.key]
-                  const delta = result.deltas[row.key]
-                  return (
-                    <tr key={row.key}>
-                      <th scope="row">{row.label}</th>
-                      <td>{formatMetric(development, row.format)}</td>
-                      <td>{formatMetric(evaluation, row.format)}</td>
-                      <td>{delta === undefined ? '—' : formatMetric(delta, row.format)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
       )}
     </section>
   )

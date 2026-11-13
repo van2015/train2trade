@@ -3,6 +3,7 @@ import type { MarketDataProvider, TimeRange } from '@/api/marketDataProvider'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Experiment, ExperimentSnapshot } from '@/domain/backtest/experiment'
+import type { TestForwardRun } from '@/domain/backtest/testForward'
 import { Instrument } from '@/domain/instruments/instrument'
 import { CandleRepository } from '@/storage/candleRepository'
 import { ExperimentRepository } from '@/storage/experimentRepository'
@@ -13,7 +14,9 @@ import { BacktestResults } from './BacktestResults'
 import { ReplayPanel } from './ReplayPanel'
 import { ExperimentHistoryPanel } from './ExperimentHistoryPanel'
 import { TestForwardPanel } from './TestForwardPanel'
+import { TestForwardResults } from './TestForwardResults'
 import { OptimizationPanel } from './OptimizationPanel'
+import { OptimizationResults, type OptimizationViewState } from './OptimizationResults'
 import { CsvImportPanel } from './CsvImportPanel'
 import { DataControls } from './DataControls'
 import { IndicatorPanel } from './IndicatorPanel'
@@ -53,8 +56,9 @@ function browserStorage(): Storage | null {
 /**
  * Pantalla principal (Fase 1): descargar o importar velas y visualizarlas con
  * indicadores. La lógica vive fuera de React; este componente solo coordina.
- * El sidebar es un acordeón de 3 secciones y el área principal conmuta entre
- * `Gráfico` y `Backtest` por estado (plan UI, sin router).
+ * El sidebar es un acordeón de 2 secciones (Datos, Experimentos-formularios) y
+ * el área principal conmuta entre 6 pestañas por estado (plan UI, sin router):
+ * Gráfico · Backtest · Replay · Test-Forward · Optimización · Historial.
  */
 export function App({ repository, provider, experiments, uiStorage }: AppProps) {
   const storage = uiStorage === undefined ? browserStorage() : uiStorage
@@ -75,10 +79,12 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
     const stored = loadOpenSection(storage)
     return isSidebarSectionId(stored) ? stored : 'datos'
   })
-  // Vista activa del área principal (plan UI, T4).
+  // Vista activa del área principal (plan UI, T4 + Fase 3).
   const [mainView, setMainView] = useState<MainViewId>('chart')
-  // Último backtest ejecutado, mostrado en la pestaña Backtest (plan UI, T3).
+  // Resultados de cada experimento para su pestaña (Fase 3): auto-conmutación al ejecutar.
   const [lastExperiment, setLastExperiment] = useState<Experiment | null>(null)
+  const [lastTestForward, setLastTestForward] = useState<TestForwardRun | null>(null)
+  const [lastOptimization, setLastOptimization] = useState<OptimizationViewState | null>(null)
 
   const handleToggleSection = (id: SidebarSectionId) => {
     const next = openSection === id ? null : id
@@ -86,10 +92,20 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
     saveOpenSection(storage, next)
   }
 
-  /** Auto-conmutación: un backtest con éxito pasa la vista a `Backtest`. */
+  /** Auto-conmutación: cada ejecución con éxito abre la pestaña de sus resultados. */
   const handleBacktestResult = (next: Experiment) => {
     setLastExperiment(next)
     setMainView('backtest')
+  }
+
+  const handleTestForwardResult = (next: TestForwardRun) => {
+    setLastTestForward(next)
+    setMainView('testforward')
+  }
+
+  const handleOptimizationResult = (next: OptimizationViewState) => {
+    setLastOptimization(next)
+    setMainView('optimization')
   }
 
   const reloadExperiments = useCallback(() => {
@@ -174,6 +190,12 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
         ? `${candles.length} velas`
         : `${visible.length}/${candles.length} velas`
 
+  const results: Partial<Record<MainViewId, boolean>> = {
+    backtest: lastExperiment !== null,
+    testforward: lastTestForward !== null,
+    optimization: lastOptimization !== null,
+  }
+
   return (
     <div className="app">
       <header className="app__header">
@@ -223,27 +245,17 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
               onResult={handleBacktestResult}
             />
 
-            <ReplayPanel candles={candles} timeframe={timeframe} onProgress={setReplayCursor} />
-
             <TestForwardPanel
               candles={candles}
               timeframe={timeframe}
               onExperiment={handleExperiment}
+              onResult={handleTestForwardResult}
             />
 
-            <OptimizationPanel candles={candles} timeframe={timeframe} />
-          </SidebarSection>
-
-          <SidebarSection
-            id="resultados"
-            title="Resultados"
-            open={openSection === 'resultados'}
-            onToggle={handleToggleSection}
-          >
-            <ExperimentHistoryPanel
-              snapshots={snapshots}
-              onRemove={handleRemoveExperiments}
-              onClear={handleClearExperiments}
+            <OptimizationPanel
+              candles={candles}
+              timeframe={timeframe}
+              onResult={handleOptimizationResult}
             />
           </SidebarSection>
 
@@ -256,11 +268,7 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
 
         <main className="app__main">
           <div className="app__chart-header">
-            <MainTabs
-              active={mainView}
-              onChange={setMainView}
-              hasResult={lastExperiment !== null}
-            />
+            <MainTabs active={mainView} onChange={setMainView} results={results} />
             <div className="app__chart-meta">
               <span className="app__chart-instrument" data-testid="chart-instrument">
                 {instrument.toString()} · {timeframe.toString()}
@@ -269,7 +277,7 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
             </div>
           </div>
 
-          {mainView === 'chart' ? (
+          {mainView === 'chart' && (
             <div
               className="app__view"
               id="main-view"
@@ -278,7 +286,9 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
             >
               <CandleChart candles={visible} lines={lines} />
             </div>
-          ) : (
+          )}
+
+          {mainView === 'backtest' && (
             <div
               className="app__view app__view--results"
               id="main-view"
@@ -288,6 +298,62 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
               <BacktestResults experiment={lastExperiment} />
             </div>
           )}
+
+          {/*
+            Replay: siempre montado (oculto fuera de su pestaña) para no perder
+            la sesión; el gráfico solo se monta mientras la pestaña está activa
+            (evita dos instancias de lightweight-charts).
+          */}
+          <div
+            className="app__view app__view--replay"
+            id={mainView === 'replay' ? 'main-view' : 'replay-view'}
+            role="tabpanel"
+            aria-labelledby="main-tab-replay"
+            hidden={mainView !== 'replay'}
+          >
+            <ReplayPanel candles={candles} timeframe={timeframe} onProgress={setReplayCursor} />
+            {mainView === 'replay' && <CandleChart candles={visible} lines={lines} />}
+          </div>
+
+          {mainView === 'testforward' && (
+            <div
+              className="app__view app__view--results"
+              id="main-view"
+              role="tabpanel"
+              aria-labelledby="main-tab-testforward"
+            >
+              <TestForwardResults run={lastTestForward} />
+            </div>
+          )}
+
+          {mainView === 'optimization' && (
+            <div
+              className="app__view app__view--results"
+              id="main-view"
+              role="tabpanel"
+              aria-labelledby="main-tab-optimization"
+            >
+              <OptimizationResults view={lastOptimization} />
+            </div>
+          )}
+
+          {/*
+            Historial: siempre montado (oculto fuera de su pestaña) para
+            conservar la selección de comparación entre visitas.
+          */}
+          <div
+            className="app__view app__view--results"
+            id={mainView === 'history' ? 'main-view' : 'history-view'}
+            role="tabpanel"
+            aria-labelledby="main-tab-history"
+            hidden={mainView !== 'history'}
+          >
+            <ExperimentHistoryPanel
+              snapshots={snapshots}
+              onRemove={handleRemoveExperiments}
+              onClear={handleClearExperiments}
+            />
+          </div>
         </main>
       </div>
     </div>

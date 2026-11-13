@@ -2,12 +2,13 @@
 
 > Plan de reestructuración de la navegación y del aprovechamiento del espacio.
 >
-> **Estado: completado (2026-11-13)** — T0…T6 implementados en la rama `ui-plan`;
-> `pnpm test && pnpm typecheck && pnpm format:check` en verde (**788 tests**, 63 archivos).
-> Decisiones cerradas con el usuario: **secciones colapsables**, **resultados de backtest con
-> prioridad**, **solo desktop** (sin nuevo trabajo responsive), **resultados en pestañas del área
-> principal**, alcance = **Fases 1 y 2 de este plan**. La Fase 3 (mover Replay/Optimización/
-> Test-Forward/Historial al área principal) queda pendiente.
+> **Estado: completado (2026-11-13)** — T0…T6 (Fases 1 y 2) y la **Fase 3** implementados en la
+> rama `ui-plan`; `pnpm test && pnpm typecheck && pnpm format:check` en verde (**795 tests**,
+> 65 archivos).
+> Decisiones cerradas con el usuario: **secciones colapsables**, **resultados con prioridad en el
+> área principal**, **solo desktop** (sin nuevo trabajo responsive), **resultados en pestañas**.
+> Fase 3: **Replay con gráfico integrado en su pestaña**, **formularios en la sidebar → resultados
+> en sus pestañas**, Historial como pestaña (sección `resultados` eliminada del sidebar).
 
 ## Contexto — problema actual
 
@@ -27,26 +28,27 @@ className="app__sidebar">` con **8 paneles apilados, todos visibles siempre**, e
 
 ## Decisiones cerradas
 
-| Decisión           | Elección                                                                                                                                                                           |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Navegación         | **Acordeón de 3 secciones** en el sidebar: `Datos` (mercado, CSV, indicadores) · `Experimentos` (backtest, replay, test-forward, optimización) · `Resultados` (historial).         |
-| Estado inicial     | Por defecto **`Datos` abierta**, el resto cerradas; **una sola abierta a la vez** (acordeón estricto).                                                                             |
-| Montaje de paneles | Los paneles de una sección cerrada **siguen montados** y se ocultan con CSS (`display: none` + `aria-hidden`): no se pierde el estado (sesión de replay, formularios, resultados). |
-| Persistencia       | Sección abierta persistida en `localStorage` (helper con `Storage` inyectado, fallo tolerado → estado en memoria). Clave `ui:sidebar-section`.                                     |
-| Sin router         | Conmutador de vista **por estado React** en `App` (`mainView`), no se introduce react-router.                                                                                      |
-| Área principal     | **Barra de pestañas** `Gráfico                                                                                                                                                     | Backtest`en`app__main`. El gráfico sigue disponible en su pestaña. |
-| Auto-conmutación   | Al ejecutar un backtest con éxito, la UI **salta automáticamente a la pestaña Backtest**.                                                                                          |
-| Split backtest     | `BacktestPanel` queda **solo con el formulario** (sidebar); los resultados se mudan a un componente nuevo `BacktestResults` en el área principal.                                  |
-| Alcance            | Solo Fases 1 y 2. Replay, Optimización, Test-Forward e Historial **no** se mueven de sitio en esta ronda (son candidatos de la Fase 3 con el mismo mecanismo).                     |
-| Responsive         | **Sin cambios**: se mantiene el breakpoint 860px existente tal cual (solo desktop es el objetivo).                                                                                 |
-| Status global      | El mensaje `status` (descarga/CSV) se mantiene **al pie del sidebar**, fuera de las secciones.                                                                                     |
+| Decisión           | Elección                                                                                                                                                                                                                                                                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Navegación         | **Acordeón de secciones** en el sidebar: Fase 1 con 3 (`Datos` · `Experimentos` · `Resultados`); **Fase 3 deja 2**: `Datos` (mercado, CSV, indicadores) y `Experimentos` (formularios de backtest, test-forward y optimización). La sección `Resultados` se elimina: Historial es una pestaña.                                |
+| Estado inicial     | Por defecto **`Datos` abierta**, el resto cerradas; **una sola abierta a la vez** (acordeón estricto).                                                                                                                                                                                                                        |
+| Montaje de paneles | Los paneles de una sección cerrada **siguen montados** y se ocultan con CSS (`display: none` + `aria-hidden`): no se pierde el estado (formularios, resultados). En la Fase 3 el mismo truco aplica a las vistas **Replay** (sesión) e **Historial** (selección de comparación), que permanecen montadas fuera de su pestaña. |
+| Persistencia       | Sección abierta persistida en `localStorage` (helper con `Storage` inyectado, fallo tolerado → estado en memoria). Clave `ui:sidebar-section`.                                                                                                                                                                                |
+| Sin router         | Conmutador de vista **por estado React** en `App` (`mainView`), no se introduce react-router.                                                                                                                                                                                                                                 |
+| Área principal     | **Barra de pestañas** en `app__main`: Fase 2 con `Gráfico \| Backtest`; **Fase 3 amplía a 6**: `Gráfico \| Backtest \| Replay \| Test-Forward \| Optimización \| Historial`.                                                                                                                                                  |
+| Auto-conmutación   | Al ejecutar **cualquier experimento** con éxito (backtest, test-forward, optimización) la UI **salta a la pestaña de sus resultados**, que además muestra un punto indicador.                                                                                                                                                 |
+| Split de paneles   | Cada experimento se divide: **formulario en la sidebar** (`BacktestPanel`, `TestForwardPanel`, `OptimizationPanel` con `onResult`) y **resultados en su pestaña** (`BacktestResults`, `TestForwardResults`, `OptimizationResults`).                                                                                           |
+| Replay             | **Pestaña con gráfico integrado**: `ReplayPanel` (controles, progreso, manuales, log) a la izquierda + `CandleChart` recortado a la derecha. La vista queda montada en `hidden` para no perder la sesión al cambiar de pestaña.                                                                                               |
+| Historial          | `ExperimentHistoryPanel` se muda **entero** a la pestaña Historial (sin split: no tiene formulario).                                                                                                                                                                                                                          |
+| Responsive         | **Sin cambios**: se mantiene el breakpoint 860px existente (solo desktop es el objetivo; en ≤860px la pestaña Replay apila controles sobre el gráfico).                                                                                                                                                                       |
+| Status global      | El mensaje `status` (descarga/CSV) se mantiene **al pie del sidebar**, fuera de las secciones.                                                                                                                                                                                                                                |
 
 ## Contratos propuestos
 
 ```ts
-// T0 — sección plegable del sidebar
+// T0 — sección plegable del sidebar (Fase 3: se eliminó 'resultados')
 // src/components/SidebarSection.tsx
-export type SidebarSectionId = 'datos' | 'experimentos' | 'resultados'
+export type SidebarSectionId = 'datos' | 'experimentos'
 export interface SidebarSectionProps {
   id: SidebarSectionId
   title: string
@@ -68,29 +70,45 @@ export function saveOpenSection(storage: Storage | null, id: string | null): voi
 export const SIDEBAR_SECTION_IDS: readonly SidebarSectionId[]
 export function isSidebarSectionId(value: unknown): value is SidebarSectionId
 
-// T2 — conmutador de vista del área principal
+// T2/Fase 3 — conmutador de vista del área principal
 // src/components/MainTabs.tsx
-export type MainViewId = 'chart' | 'backtest'
+export type MainViewId =
+  'chart' | 'backtest' | 'replay' | 'testforward' | 'optimization' | 'history'
 export interface MainTabsProps {
   active: MainViewId
   onChange: (view: MainViewId) => void
-  /** true si hay resultados de backtest → la pestaña Backtest se muestra habilitada/con indicador. */
-  hasResult: boolean
+  /** Vistas con resultados → punto indicador en la pestaña. */
+  results: Partial<Record<MainViewId, boolean>>
 }
 
-// T3 — split del backtest
-// src/components/BacktestPanel.tsx (ampliar props; la UI de resultados sale de aquí)
+// T3/Fase 3 — split de cada experimento: formulario (sidebar) + resultados (pestaña)
+// src/components/BacktestPanel.tsx / TestForwardPanel.tsx / OptimizationPanel.tsx
 export interface BacktestPanelProps {
   // ...las actuales (candles, timeframe, instrument)...
   /** Auto-guardo en el historial (existente). */
   onExperiment?: (experiment: Experiment) => void
-  /** NUEVO: último resultado para que App lo muestre en la pestaña Backtest. */
+  /** Último resultado para que App lo muestre en su pestaña. */
   onResult?: (experiment: Experiment) => void
 }
-// src/components/BacktestResults.tsx (nuevo)
+// TestForwardPanel: onExperiment (×2: dev + eval) + onResult?: (run: TestForwardRun) => void
+// OptimizationPanel: onResult?: (view: OptimizationViewState) => void
+
+// src/components/BacktestResults.tsx / TestForwardResults.tsx / OptimizationResults.tsx
 export interface BacktestResultsProps {
   /** null → estado vacío ("Ejecuta un backtest..."). */
   experiment: Experiment | null
+}
+export interface TestForwardResultsProps {
+  run: TestForwardRun | null // null → "Ejecuta un test-forward..."
+}
+// OptimizationResults.tsx también exporta el tipo que produce el formulario:
+export interface OptimizationViewState {
+  optimization: OptimizationResult
+  robustness: RobustnessReport | null
+  note: string | null
+}
+export interface OptimizationResultsProps {
+  view: OptimizationViewState | null // null → "Ejecuta una optimización..."
 }
 ```
 
@@ -103,25 +121,31 @@ const [openSection, setOpenSection] = useState<SidebarSectionId | null>(
 )
 const [mainView, setMainView] = useState<MainViewId>('chart')
 const [lastExperiment, setLastExperiment] = useState<Experiment | null>(null)
+const [lastTestForward, setLastTestForward] = useState<TestForwardRun | null>(null)
+const [lastOptimization, setLastOptimization] = useState<OptimizationViewState | null>(null)
 // handleToggleSection: acordeón (abrir cierra la anterior; click en la abierta la cierra)
-// handleBacktestResult: setLastExperiment(next); setMainView('backtest') // auto-conmutación
+// handleBacktestResult / handleTestForwardResult / handleOptimizationResult:
+//   guardan el resultado y conmutan a su pestaña (auto-conmutación)
 ```
 
-## Estructura resultante
+## Estructura resultante (Fase 3)
 
 ```
-┌──────────────────────────────┬──────────────────────────────────────┐
-│ sidebar (300px)              │ app__main                           │
-│ ┌──────────────────────────┐ │ ┌──────────────────────────────────┐ │
-│ │ ▸ Datos                 │ │ │ [Gráfico] [Backtest]  BTC · 1h   │ │
-│ │ ▾ Experimentos          │ │ ├──────────────────────────────────┤ │
-│ │   (formulario backtest, │ │ │ pestaña activa:                  │ │
-│ │    replay, tf, optim)   │ │ │  Gráfico → CandleChart (flex)    │ │
-│ │ ▸ Resultados            │ │ │  Backtest → summary + métricas   │ │
-│ └──────────────────────────┘ │ │  (rejilla 2 col) + equity (alto) │ │
-│ status                       │ │  + tabla de trades (scroll)      │ │
-│                              │ └──────────────────────────────────┘ │
-└──────────────────────────────┴──────────────────────────────────────┘
+┌──────────────────────────────┬──────────────────────────────────────────────┐
+│ sidebar (300px)              │ app__main                                   │
+│ ┌──────────────────────────┐ │ ┌──────────────────────────────────────────┐ │
+│ │ ▸ Datos                 │ │ │ [Gráfico][Backtest][Replay][Test-Forward]│ │
+│ │ ▾ Experimentos          │ │ │ [Optimización][Historial]    BTC · 1h     │ │
+│ │   (form backtest,       │ │ ├──────────────────────────────────────────┤ │
+│ │    test-forward,        │ │ │ pestaña activa:                          │ │
+│ │    optimización)        │ │ │  Gráfico → CandleChart (flex)            │ │
+│ └──────────────────────────┘ │ │  Backtest → métricas + equity + trades   │ │
+│ status                       │ │  Replay → ReplayPanel | CandleChart      │ │
+│                              │ │  Test-Forward → tabla dev/eval/Δ         │ │
+│                              │ │  Optimización → runs + robustez          │ │
+│                              │ │  Historial → panel completo              │ │
+│                              │ └──────────────────────────────────────────┘ │
+└──────────────────────────────┴──────────────────────────────────────────────┘
 ```
 
 ## Tareas (TDD: firma + tests en rojo → implementación → verde → gates)
@@ -208,11 +232,44 @@ optimización`, `Ejecutar backtest`); las assertions de resultados (`backtest-su
 - `proyectstate.md`: registrar el cierre del plan.
 - **Aceptación:** `pnpm test && pnpm typecheck && pnpm format:check` en verde.
 
-## Fuera de alcance (Fase 3 del plan — no incluida en esta ronda)
+## Fase 3 — completada (2026-11-13)
 
-- Mover Replay, Optimización, Test-Forward e Historial al área principal con el mismo
-  `MainTabs` (mecanismo ya previsto: añadir `MainViewId`s).
+Decisiones cerradas con el usuario antes de implementar:
+
+| Decisión    | Elección                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Replay      | **Pestaña con gráfico integrado**: `ReplayPanel` + `CandleChart` recortado juntos (el replay no se puede observar sin mercado). |
+| Formularios | **Forms en sidebar → resultados en pestañas** (mismo patrón que el backtest). Historial se muda entero a su pestaña.            |
+
+Tareas implementadas:
+
+- **F3.1 — `MainTabs` a 6 pestañas** (`chart`, `backtest`, `replay`, `testforward`,
+  `optimization`, `history`) con indicador de resultados por pestaña (`results:
+Partial<Record<MainViewId, boolean>>`, testid `main-tabs-dot-<id>`).
+- **F3.2 — Split de Test-Forward**: `TestForwardPanel` (formulario + `onResult`) →
+  `TestForwardResults` (resumen + tabla dev/eval/Δ, mismos testids `tf-*`).
+- **F3.3 — Split de Optimización**: `OptimizationPanel` (rangos + cap + `onResult`) →
+  `OptimizationResults` (runs ordenados + robustez, mismos testids `opt-*`); el tipo
+  `OptimizationViewState` se exporta desde el componente de resultados.
+- **F3.4 — Historial como pestaña**: `ExperimentHistoryPanel` entero en la vista `history`
+  (montada en `hidden` para conservar la selección de comparación); se elimina la sección
+  `resultados` del sidebar y `SidebarSectionId` pasa a `'datos' | 'experimentos'`.
+- **F3.5 — Replay como pestaña con gráfico**: la vista `replay` permanece montada en `hidden`
+  (la sesión no se pierde al cambiar de pestaña) y solo monta `CandleChart` mientras está activa
+  (una sola instancia de lightweight-charts). Layout panel(320px) | gráfico; en ≤860px se apila.
+- **F3.6 — Auto-conmutación generalizada**: `onResult` en los tres formularios → App guarda el
+  resultado y salta a la pestaña correspondiente; tests de integración en `App.test`.
+- **F3.7 — Tests**: nuevos `TestForwardResults.test` (3) y `OptimizationResults.test` (3);
+  `TestForwardPanel.test`/`OptimizationPanel.test` pasan a harness de integración;
+  `App.test` actualizado a 2 secciones y 6 pestañas.
+
+**Aceptación:** `pnpm test && pnpm typecheck && pnpm format:check` en verde (**795 tests**,
+65 archivos).
+
+## Fuera de alcance (siguientes rondas)
+
 - Router, responsive nuevo, rediseño visual del tema, iconos en las cabeceras.
+- Mover también los **formularios** a sus pestañas (hoy viven en la sidebar por decisión).
 
 ## Riesgos
 
@@ -220,7 +277,7 @@ optimización`, `Ejecutar backtest`); las assertions de resultados (`backtest-su
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Plegar una sección desmonta paneles y pierde estado (replay)    | Montaje permanente con `hidden`/`display: none` (T0): decisión explícita y test de regresión.                       |
 | Tests con `getByRole` fallan con paneles ocultos                | Helper `openSection` en `App.test` (T6); grep de `getByRole` sobre los 8 paneles para identificar todos los puntos. |
-| Auto-conmutación sorprende al usuario                           | Solo en backtest con éxito; la pestaña es un click de volver; se documenta en la aceptación de T3.                  |
+| Auto-conmutación sorprende al usuario                           | Solo con éxito en un experimento; la pestaña es un click de volver; se documenta en las aceptaciones de T3/F3.6.    |
 | `localStorage` no disponible (cuota/modo privado)               | `save` en try/catch + default `'datos'` (T2).                                                                       |
 | Chart oculto con `display: none` (resize de lightweight-charts) | `CandleChart` solo montada en su pestaña (T4), evita el problema de raíz.                                           |
 
@@ -235,3 +292,4 @@ pnpm test && pnpm typecheck && pnpm format:check   # los tres en verde
 - `feat: add collapsible sidebar sections` (T0–T2)
 - `feat: move backtest results to main area tabs` (T3–T5)
 - `test: adapt sidebar and backtest UI tests` (T6)
+- `feat: move replay, test-forward, optimization and history to main-area tabs` (Fase 3)

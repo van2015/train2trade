@@ -1,22 +1,24 @@
 import { useState } from 'react'
 import {
   MAX_OPTIMIZATION_RUNS,
-  OptimizationResult,
   runOptimization,
   StrategyFactory,
 } from '@/domain/backtest/optimization'
 import { analyzeRobustness, RobustnessReport } from '@/domain/backtest/robustness'
-import { Metrics, sortByMetricDesc } from '@/domain/backtest/metrics'
+import { Metrics } from '@/domain/backtest/metrics'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
 import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
-import { formatMetric, METRIC_ROWS } from './backtestForm'
+import { METRIC_ROWS } from './backtestForm'
+import type { OptimizationViewState } from './OptimizationResults'
 
 export interface OptimizationPanelProps {
   candles: readonly Candle[]
   timeframe: Timeframe
+  /** Última optimización (plan UI, Fase 3): App la muestra en su pestaña. */
+  onResult?: (view: OptimizationViewState) => void
 }
 
 interface RangeParams {
@@ -35,13 +37,6 @@ const DEFAULT_RANGES: RangeParams = {
   slowFrom: '5',
   slowTo: '40',
   slowStep: '5',
-}
-
-interface OptimizationViewState {
-  optimization: OptimizationResult
-  /** `null` si la métrica es null en todas las ejecuciones (`note` lo explica). */
-  robustness: RobustnessReport | null
-  note: string | null
 }
 
 type RangeResult = { ok: true; values: number[] } | { ok: false; error: string }
@@ -91,16 +86,16 @@ const buildStrategy: StrategyFactory = (params) =>
   })
 
 /**
- * Panel de optimización (Fase 6, §13, UI mínima): rangos de SMA rápida/lenta
+ * Formulario de optimización (Fase 6, §13): rangos de SMA rápida/lenta
  * (desde/hasta/paso) + métrica → rejilla con aviso de cap **antes** de
- * ejecutar, tabla de runs ordenada con la semántica de `rankBy` y bloque de
- * `RobustnessReport` (mejor, media, desv, plateau, sensibilidad). Sin
- * persistencia de runs (decisión de alcance): solo se muestran.
+ * ejecutar. Al ejecutar produce la vista de resultados (runs ordenados +
+ * `RobustnessReport`), que se muestra en el área principal
+ * (`OptimizationResults`, plan UI Fase 3). Sin persistencia de runs
+ * (decisión de alcance): solo se muestran.
  */
-export function OptimizationPanel({ candles, timeframe }: OptimizationPanelProps) {
+export function OptimizationPanel({ candles, timeframe, onResult }: OptimizationPanelProps) {
   const [ranges, setRanges] = useState<RangeParams>(DEFAULT_RANGES)
   const [metric, setMetric] = useState<keyof Metrics>('netProfit')
-  const [result, setResult] = useState<OptimizationViewState | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const fastRange = buildRange(ranges.fastFrom, ranges.fastTo, ranges.fastStep, 'SMA rápida')
@@ -115,12 +110,10 @@ export function OptimizationPanel({ candles, timeframe }: OptimizationPanelProps
   const handleRun = () => {
     if (!fastRange.ok) {
       setError(fastRange.error)
-      setResult(null)
       return
     }
     if (!slowRange.ok) {
       setError(slowRange.error)
-      setResult(null)
       return
     }
 
@@ -141,17 +134,11 @@ export function OptimizationPanel({ candles, timeframe }: OptimizationPanelProps
       }
 
       setError(null)
-      setResult({ optimization, robustness, note })
+      onResult?.({ optimization, robustness, note })
     } catch (caught) {
       setError(describeError(caught))
-      setResult(null)
     }
   }
-
-  const runMetric = result?.optimization.metric ?? metric
-  const metricRow = METRIC_ROWS.find((row) => row.key === runMetric)
-  const metricLabel = metricRow?.label ?? runMetric
-  const metricFormat = metricRow?.format ?? 'money'
 
   return (
     <section className="optimization-panel" aria-label="Optimización">
@@ -258,74 +245,6 @@ export function OptimizationPanel({ candles, timeframe }: OptimizationPanelProps
         <p className="status status--error" role="status" data-testid="opt-error">
           {error}
         </p>
-      )}
-
-      {result !== null && (
-        <>
-          <div className="panel-scroll">
-            <table className="lab-table" data-testid="opt-runs">
-              <thead>
-                <tr>
-                  <th scope="col">#</th>
-                  <th scope="col">Combinación</th>
-                  <th scope="col">{metricLabel}</th>
-                  <th scope="col">Equity final</th>
-                  <th scope="col">Trades</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortByMetricDesc(result.optimization.runs, runMetric).map((run, index) => (
-                  <tr key={`${String(run.params.fast)}-${String(run.params.slow)}`}>
-                    <td>{index + 1}</td>
-                    <td>
-                      fast {run.params.fast} · slow {run.params.slow}
-                    </td>
-                    <td>{formatMetric(run.metrics[runMetric], metricFormat)}</td>
-                    <td>{formatMetric(run.finalEquity, 'money')}</td>
-                    <td>{run.tradeCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {result.robustness !== null ? (
-            <div className="panel-block" data-testid="opt-robustness">
-              <p className="panel-subtitle">Robustez ({metricLabel})</p>
-              <ul className="panel-list">
-                <li>
-                  Válidas: {result.robustness.count} · Mejor{' '}
-                  {formatMetric(result.robustness.best, metricFormat)} · Peor{' '}
-                  {formatMetric(result.robustness.worst, metricFormat)} · Media{' '}
-                  {formatMetric(result.robustness.mean, metricFormat)} · Desv{' '}
-                  {formatMetric(result.robustness.stdev, metricFormat)}
-                </li>
-                <li>
-                  Plateau: {result.robustness.plateau.neighbors} vecinos · media{' '}
-                  {formatMetric(result.robustness.plateau.avg, metricFormat)} · peor{' '}
-                  {formatMetric(result.robustness.plateau.worst, metricFormat)}
-                </li>
-                <li>
-                  Sobre umbral {result.robustness.aboveThreshold.threshold}:{' '}
-                  {formatMetric(result.robustness.aboveThreshold.fraction, 'percent')} (
-                  {result.robustness.aboveThreshold.count})
-                </li>
-                <li>
-                  Sensibilidad:{' '}
-                  {result.robustness.sensitivity
-                    .map((entry) => `${entry.param} ${formatMetric(entry.spread, metricFormat)}`)
-                    .join(' · ')}
-                </li>
-              </ul>
-            </div>
-          ) : (
-            result.note !== null && (
-              <p className="panel-warning" data-testid="opt-note">
-                {result.note}
-              </p>
-            )
-          )}
-        </>
       )}
     </section>
   )

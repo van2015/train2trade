@@ -1,20 +1,25 @@
-/** Vistas del área principal (plan UI, T4): conmutador por estado, sin router. */
-export type MainViewId = 'chart' | 'backtest'
+/** Vistas del área principal (plan UI, T4/Fase 3): conmutador por estado, sin router. */
+export type MainViewId =
+  'chart' | 'backtest' | 'replay' | 'testforward' | 'optimization' | 'history'
 
 export interface MainTabsProps {
   active: MainViewId
   onChange: (view: MainViewId) => void
-  /** true si hay resultados de backtest → indicador en la pestaña Backtest. */
-  hasResult: boolean
+  /** Vistas con resultados: muestran un punto indicador en su pestaña. */
+  results: Partial<Record<MainViewId, boolean>>
 }
 
 const TABS: readonly { id: MainViewId; label: string }[] = [
   { id: 'chart', label: 'Gráfico' },
   { id: 'backtest', label: 'Backtest' },
+  { id: 'replay', label: 'Replay' },
+  { id: 'testforward', label: 'Test-Forward' },
+  { id: 'optimization', label: 'Optimización' },
+  { id: 'history', label: 'Historial' },
 ]
 
-/** Barra de pestañas `Gráfico | Backtest` del área principal (plan UI, T4). */
-export function MainTabs({ active, onChange, hasResult }: MainTabsProps) {
+/** Barra de pestañas del área principal (plan UI, T4 + Fase 3). */
+export function MainTabs({ active, onChange, results }: MainTabsProps) {
   return (
     <div className="main-tabs" role="tablist" aria-label="Vistas del área principal">
       {TABS.map((tab) => (
@@ -29,8 +34,12 @@ export function MainTabs({ active, onChange, hasResult }: MainTabsProps) {
           onClick={() => onChange(tab.id)}
         >
           {tab.label}
-          {tab.id === 'backtest' && hasResult && (
-            <span className="main-tabs__dot" data-testid="main-tabs-dot" aria-hidden="true" />
+          {results[tab.id] === true && (
+            <span
+              className="main-tabs__dot"
+              data-testid={`main-tabs-dot-${tab.id}`}
+              aria-hidden="true"
+            />
           )}
         </button>
       ))}

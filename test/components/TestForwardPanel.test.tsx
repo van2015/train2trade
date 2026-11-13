@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { TestForwardPanel } from '@/components/TestForwardPanel'
+import { TestForwardPanel, type TestForwardPanelProps } from '@/components/TestForwardPanel'
+import { TestForwardResults } from '@/components/TestForwardResults'
 import { Experiment } from '@/domain/backtest/experiment'
-import { runTestForward } from '@/domain/backtest/testForward'
+import { runTestForward, type TestForwardRun } from '@/domain/backtest/testForward'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
@@ -39,11 +41,39 @@ function crossStrategy(): Strategy {
   })
 }
 
-function renderPanel(candles: readonly Candle[] = CANDLES, onExperiment = vi.fn()) {
+function renderPanel(
+  candles: readonly Candle[] = CANDLES,
+  props: Partial<TestForwardPanelProps> = {},
+) {
+  const onExperiment = vi.fn()
   const view = render(
-    <TestForwardPanel candles={candles} timeframe={Timeframe.HOUR} onExperiment={onExperiment} />,
+    <TestForwardPanel
+      candles={candles}
+      timeframe={Timeframe.HOUR}
+      onExperiment={onExperiment}
+      {...props}
+    />,
   )
   return { ...view, onExperiment }
+}
+
+/** Formulario + resultados cableados como en App (onResult → TestForwardResults). */
+function renderWithResults(candles: readonly Candle[] = CANDLES) {
+  function Harness() {
+    const [run, setRun] = useState<TestForwardRun | null>(null)
+    return (
+      <>
+        <TestForwardPanel
+          candles={candles}
+          timeframe={Timeframe.HOUR}
+          onExperiment={vi.fn()}
+          onResult={setRun}
+        />
+        <TestForwardResults run={run} />
+      </>
+    )
+  }
+  render(<Harness />)
 }
 
 function setCut(value: string): void {
@@ -95,9 +125,9 @@ describe('TestForwardPanel — parámetros y validación', () => {
   })
 })
 
-describe('TestForwardPanel — resultados (§7C)', () => {
+describe('TestForwardPanel — resultados (integración con TestForwardResults, §7C)', () => {
   it('ejecutar pinta resumen y tabla dev/eval/Δ con los valores de runTestForward', () => {
-    renderPanel()
+    renderWithResults()
     setCut(VALID_CUT)
     setCrossoverPeriods()
     run()
@@ -131,8 +161,9 @@ describe('TestForwardPanel — resultados (§7C)', () => {
     expect(screen.getAllByRole('row')).toHaveLength(9) // cabecera + 8
   })
 
-  it('llama a onExperiment con el desarrollo y la evaluación (en ese orden)', () => {
-    const { onExperiment } = renderPanel()
+  it('llama a onExperiment con desarrollo y evaluación, y a onResult con el run', () => {
+    const onResult = vi.fn()
+    const { onExperiment } = renderPanel(CANDLES, { onResult })
     setCut(VALID_CUT)
     setCrossoverPeriods()
     run()
@@ -143,15 +174,11 @@ describe('TestForwardPanel — resultados (§7C)', () => {
     expect(development).toBeInstanceOf(Experiment)
     expect(evaluation).toBeInstanceOf(Experiment)
     expect(development.period.to).toBeLessThan(evaluation.period.from)
-  })
 
-  it('métricas null en ambos lados → celda de delta como guion', () => {
-    renderPanel() // periodos 10/30: sin trades en 9 velas
-    setCut(VALID_CUT)
-    run()
-
-    const winRateRow = screen.getByText('Win rate').closest('tr')
-    expect(winRateRow).toHaveTextContent('—')
-    expect(screen.queryByTestId('tf-error')).not.toBeInTheDocument()
+    expect(onResult).toHaveBeenCalledTimes(1)
+    const runResult = onResult.mock.calls[0]?.[0] as TestForwardRun
+    expect(runResult.cutTime).toBe(Date.parse(`${VALID_CUT}:00Z`))
+    expect(runResult.development).toBe(development)
+    expect(runResult.evaluation).toBe(evaluation)
   })
 })
