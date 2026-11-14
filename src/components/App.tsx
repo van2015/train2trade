@@ -5,6 +5,7 @@ import { Timeframe } from '@/domain/candles/timeframe'
 import { Experiment, ExperimentSnapshot } from '@/domain/backtest/experiment'
 import type { TestForwardSession } from '@/domain/testforward/session'
 import { Instrument } from '@/domain/instruments/instrument'
+import type { StrategySpec } from '@/domain/strategies/spec'
 import { CandleRepository } from '@/storage/candleRepository'
 import { ExperimentRepository } from '@/storage/experimentRepository'
 import { StrategyRepository, StrategySnapshot } from '@/storage/strategyRepository'
@@ -23,6 +24,7 @@ import { DataControls } from './DataControls'
 import { IndicatorPanel } from './IndicatorPanel'
 import { StrategySelect } from './StrategySelect'
 import { StrategyPanel } from './StrategyPanel'
+import { StrategyPreviewChart } from './StrategyPreviewChart'
 import { MainTabs, type MainViewId } from './MainTabs'
 import { isSidebarSectionId, SidebarSection, type SidebarSectionId } from './SidebarSection'
 import {
@@ -100,11 +102,25 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
   // Resultados de cada experimento para su pestaña (Fase 3): auto-conmutación al ejecutar.
   const [lastExperiment, setLastExperiment] = useState<Experiment | null>(null)
   const [lastOptimization, setLastOptimization] = useState<OptimizationViewState | null>(null)
+  // Draft del editor de estrategias (plan strategy-preview, ampliación): mientras
+  // no sea null, la pestaña Gráfico muestra el preview en lugar del chart normal.
+  const [editingSpec, setEditingSpec] = useState<StrategySpec | null>(null)
 
   const handleToggleSection = (id: SidebarSectionId) => {
     const next = openSection === id ? null : id
     setOpenSection(next)
     saveOpenSection(storage, next)
+  }
+
+  /**
+   * Ciclo de edición del editor (§1.8): al **abrir** (null → spec) auto-conmuta
+   * a la pestaña Gráfico para ver el preview; los cambios de draft y el cierre
+   * no tocan la pestaña (el usuario puede navegar mientras edita).
+   */
+  const handleEditingChange = (spec: StrategySpec | null) => {
+    const opening = spec !== null && editingSpec === null
+    setEditingSpec(spec)
+    if (opening) setMainView('chart')
   }
 
   /** Auto-conmutación: cada ejecución con éxito abre la pestaña de sus resultados. */
@@ -326,6 +342,7 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
               repository={strategies}
               candles={candles}
               onChange={reloadStrategies}
+              onEditingChange={handleEditingChange}
             />
           </SidebarSection>
 
@@ -347,6 +364,12 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
             </div>
           </div>
 
+          {/*
+            Pestaña Gráfico: con el editor de estrategias abierto muestra el
+            preview (plan strategy-preview, ampliación) en lugar del chart
+            normal — se sustituyen, nunca conviven dos instancias de
+            lightweight-charts. `visible` respeta el recorte de sesión activa.
+          */}
           {mainView === 'chart' && (
             <div
               className="app__view"
@@ -354,7 +377,11 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
               role="tabpanel"
               aria-labelledby="main-tab-chart"
             >
-              <CandleChart candles={visible} lines={lines} />
+              {editingSpec !== null ? (
+                <StrategyPreviewChart candles={visible} spec={editingSpec} />
+              ) : (
+                <CandleChart candles={visible} lines={lines} />
+              )}
             </div>
           )}
 
@@ -372,10 +399,9 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
           {/*
             Replay: siempre montado (oculto fuera de su pestaña) para no perder
             la sesión; el gráfico solo se monta mientras la pestaña está activa
-            (evita dos instancias de lightweight-charts). Excepción deliberada:
-            el minichart del editor de estrategias (StrategyPreviewChart) puede
-            convivir con este gráfico mientras el editor está abierto (plan
-            strategy-preview-plan, decisión cerrada con el usuario).
+            (evita dos instancias de lightweight-charts). El preview del editor
+            sustituye al chart en la pestaña Gráfico mientras se edita: el
+            invariante de instancia única se mantiene (plan strategy-preview).
           */}
           <div
             className="app__view app__view--replay"

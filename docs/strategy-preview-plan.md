@@ -4,12 +4,15 @@
 > indicadores del borrador y los **niveles de operación configurados** (entrada/TP/SL/triggers),
 > como feedback visual mientras se configura.
 >
-> **Estado: completado (2026-11-14)** — T1…T5 implementados con TDD; `pnpm test && pnpm typecheck
-&& pnpm format:check` en verde (**1026 tests**, 77 archivos) y `pnpm build` OK; `proyectstate.md`
-> actualizado. Decisiones cerradas con el usuario: **ubicación** (dentro del editor), **alcance C**
-> (estructura configurada — la lectura inicial A "backtest preview" se descartó), **motor de render**
-> (lightweight-charts, 2ª instancia). Pendiente: aplicar los mensajes de commit sugeridos por tarea
-> (AGENTS.md §Git: el agente no hace commits).
+> **Estado: completado (2026-11-14)** — T1…T5 + **ampliación D** implementados con TDD;
+> `pnpm test && pnpm typecheck && pnpm format:check` en verde (**1034 tests**, 77 archivos) y
+> `pnpm build` OK; `proyectstate.md` actualizado. Decisiones cerradas con el usuario:
+> **alcance C** (estructura configurada — la lectura inicial A "backtest preview" se descartó),
+> **motor de render** (lightweight-charts) y **ubicación (ampliación D)**: el preview se mudó de
+> un minichart en la sidebar (demasiado pequeño) al **área principal** — la pestaña Gráfico lo
+> muestra en lugar del chart mientras el editor está abierto (ver "Ampliación" al final).
+> Pendiente: aplicar los mensajes de commit sugeridos por tarea (AGENTS.md §Git: el agente no
+> hace commits).
 >
 > **Revisión de alcance (2026-11-14):** la lectura inicial "órdenes = backtest preview" se descartó.
 > El minichart es **Strategy-centric puro (§14)**: no ejecuta ni simula nada, solo anota la
@@ -43,13 +46,13 @@ B, descartado) ni con qué cantidad (backtest = A, descartado).
 
 | Decisión             | Elección                                                                                                                                                                                                                                                                                          |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ubicación            | **Dentro del editor, en la sidebar**: bajo el `<h3>` de `StrategyEditor`, ~276×160px. Solo se monta mientras se edita.                                                                                                                                                                            |
+| Ubicación            | **(Revisada por la ampliación D — ver al final)** Original: bajo el `<h3>` de `StrategyEditor` (sidebar, ~276×160px). Resultó demasiado pequeño → ahora vive en el **área principal** mientras se edita.                                                                                          |
 | Alcance              | **C — estructura configurada**: velas + indicadores del draft + niveles entrada/TP/SL/triggers **evaluados en la vela actual**. Sin simulación de decisiones, sin órdenes, sin capital, sin comisiones.                                                                                           |
-| Motor de render      | **lightweight-charts (2ª instancia)**: consistencia visual, reutiliza `chartData` y la sincronía de series. Acepta romper el invariante "una instancia a la vez" de `App.tsx:375` **solo con el editor abierto**.                                                                                 |
+| Motor de render      | **lightweight-charts**: consistencia visual, reutiliza `chartData` y la sincronía de series. La "2ª instancia" original se anuló con la ampliación D: preview y chart se sustituyen (1 instancia siempre).                                                                                        |
 | Semántica de niveles | Fiél al dominio: `OperationLevels` no tiene histórico ⇒ niveles = **líneas horizontales punteadas** evaluadas en la última vela (mismo espíritu que `levelWarning`, enmienda 16).                                                                                                                 |
 | Entrada hipotética   | TP/SL/triggers pueden referenciar `entry` (alias de operación). Se inyecta `entry = precio límite evaluado` (si `execution === 'limit'`) o `close` de la última vela (si `market`) ⇒ el TP canónico `entry * 1.02` **sí se dibuja**. Queda etiquetado como nivel evaluado con entrada hipotética. |
 | Degradación          | **Sin `buildStrategy`**: indicadores y niveles se evalúan uno a uno con try/catch propio. Draft con reglas/alias rotos → sigue mostrando todo lo evaluables; lo omitido se enumera en `note`.                                                                                                     |
-| Interacción          | **Sin zoom/scroll** (`handleScale/handleScroll: false`): en la sidebar la rueda debe scrollear. `fitContent()` al cambiar velas. Sin leyenda ni volumen (no cabe).                                                                                                                                |
+| Interacción          | **Sin zoom/scroll** (`handleScale/handleScroll: false`), `fitContent()` al cambiar velas, sin leyenda ni volumen: el preview es un overview fijo. (En la sidebar valía para no robar la rueda del scroll; en el área principal se mantiene por coherencia con el overview.)                       |
 | TP/SL invertidos     | El aviso `level-warning` existente **no cambia** (fuera de alcance); ver follow-up T6 para unificarlo con la evaluación del preview.                                                                                                                                                              |
 | Fuera de alcance     | Marcadores de trades/órdenes, señales por vela, equity, métricas, ventana "últimas N velas".                                                                                                                                                                                                      |
 
@@ -206,8 +209,9 @@ export interface StrategyPreviewChartProps {
 
 ## Riesgos y follow-ups
 
-- **2ª instancia de lightweight-charts** (decidido): verificar en dev que convive con el gráfico
-  principal sin coste notable; fallback = SVG propio si se notara.
+- **2ª instancia de lightweight-charts** (decidido en la propuesta original): **superado por la
+  ampliación D** — el preview sustituye al chart, así que ahora vuelve a haber 1 sola instancia
+  y este riesgo queda anulado.
 - **Entrada hipotética:** la anotación `entry = close` (market) es una convención de preview, no
   semántica de dominio; el `note`/leyenda debe hacerla explícita para no confundir.
 - **`constPane` es un heuristic** (constante dentro del rango de precios ⇒ price, si no ⇒ lower);
@@ -215,5 +219,42 @@ export interface StrategyPreviewChartProps {
 - **T6 (follow-up):** unificar `levelWarning` del editor con `buildPreviewLevels` — hoy el aviso
   no evalúa TP/SL que referencian `entry` (contexto sin niveles ⇒ `null` ⇒ sin aviso); con la
   entrada hipotética detectaría también `TP = entry * 1.02` invertido respecto a `SL`.
-- **Follow-ups:** ventana "últimas N velas" (hasta 1000 velas en 276px es denso), leyenda compacta
-  al hover, señales/marcadores como capa opcional (B/A) si se quiere feedback de disparos.
+- **Follow-ups:** ventana "últimas N velas" (si la densidad de ~1000 velas en ancho completo
+  resulta intensa), leyenda compacta al hover, señales/marcadores como capa opcional (B/A) si se
+  quiere feedback de disparos, botón de expandir (overlay) si se quiere ver el chart y el preview
+  a la vez.
+
+## Ampliación: superficie del preview (opción D, completada 2026-11-14)
+
+El minichart de la sidebar (276×160px) resultó **demasiado pequeño**. Decisiones cerradas con el
+usuario (tras presentar 4 opciones):
+
+| Decisión                      | Elección                                                                                                                                                                                                                                                              |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Superficie                    | **D — preview en el área principal**: mientras el editor está abierto, la pestaña `Gráfico` muestra `StrategyPreviewChart` **en lugar de** `CandleChart` (patrón split formulario↔resultados ya existente). Auto-conmutación a `Gráfico` **solo al abrir** el editor. |
+| Minichart de la sidebar       | **Eliminado** (preview único): `StrategyEditor` ya no lo monta.                                                                                                                                                                                                       |
+| Invariante de instancia única | **Recuperado sin excepciones**: preview y chart se sustituyen, nunca conviven. Se retiró la anotación de "excepción deliberada" de T4 en `App.tsx`.                                                                                                                   |
+| Datos del preview             | `visible` (no `candles`): respeta el recorte de sesión activa, igual que el chart que sustituye.                                                                                                                                                                      |
+
+**Flujo de datos** (el draft vive en `StrategyEditor`, sube por la cadena):
+
+```ts
+// StrategyEditor: + onDraftChange?: (spec: StrategySpec) => void
+useEffect(() => onDraftChange?.(draft), [draft]) // sin buildStrategy, sin excepciones
+// StrategyPanel: + onEditingChange?: (spec: StrategySpec | null) => void
+//   openNew/openEdit → spec · close (guardar/cancelar) → null · cambios del editor → reenviados
+// App: editingSpec: StrategySpec | null
+//   handleEditingChange: setEditingSpec + setMainView('chart') SOLO en null → spec
+//   (cambios de draft y cierre no tocan la pestaña — testeado)
+// Pestaña Gráfico: editingSpec !== null ? <StrategyPreviewChart candles={visible} …/> : <CandleChart …/>
+```
+
+- CSS: `.strategy-preview` pasa de `height: 160px` a `flex: 1; min-height: 0` (llena la vista).
+- Tests: **+8 netos** (1034 total): 4 editor (notificación en cambio/deshacer/regla rota + el
+  preview ya no vive en la sidebar), 3 panel (`onEditingChange`: abrir/cambiar/cerrar y error al
+  guardar no emite null), 5 App (swap en la pestaña Gráfico, auto-conmutación desde otra pestaña,
+  draft en vivo → `preview-note`, restauración del chart al cerrar, los cambios de draft no roban
+  la pestaña). Retirados los 4 tests del minichart-en-sidebar.
+- T4 del plan original queda **parcialmente sustituido**: el preview ya no se monta bajo el `<h3>`
+  del editor ni anota una "excepción" de instancia; la integración ahora es vía
+  `onEditingChange`/`editingSpec` en `App`.

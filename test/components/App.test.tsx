@@ -601,4 +601,80 @@ describe('App', () => {
 
     expect(screen.getByTestId('csv-target')).toHaveTextContent('BTC/USDT · 4h')
   })
+
+  describe('previsualización de estrategia en el área principal (ampliación)', () => {
+    /** Abre la sección Estrategias y pulsa Nueva (editor abierto). */
+    function openEditor() {
+      fireEvent.click(screen.getByRole('button', { name: 'Estrategias' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Nueva estrategia' }))
+    }
+
+    it('abrir el editor muestra el preview en la pestaña Gráfico en lugar del chart', () => {
+      renderApp()
+      expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
+
+      openEditor()
+
+      expect(screen.getByTestId('strategy-preview')).toBeInTheDocument()
+      expect(screen.queryByTestId('chart-empty')).not.toBeInTheDocument()
+      expect(screen.getByRole('tab', { name: 'Gráfico' })).toHaveAttribute('aria-selected', 'true')
+    })
+
+    it('abrir el editor estando en otra pestaña auto-conmuta a Gráfico', () => {
+      renderApp()
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Backtest' }))
+      expect(screen.getByRole('tab', { name: 'Backtest' })).toHaveAttribute('aria-selected', 'true')
+
+      openEditor()
+
+      expect(screen.getByRole('tab', { name: 'Gráfico' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByTestId('strategy-preview')).toBeInTheDocument()
+    })
+
+    it('el draft en vivo del editor alimenta el preview (periodo inválido → nota)', () => {
+      repository.save(Instrument.of('BTC', 'USDT'), Timeframe.HOUR, [
+        candle(1_700_000_000_000),
+        candle(1_700_003_600_000),
+      ])
+      renderApp()
+      openEditor()
+
+      expect(screen.queryByTestId('preview-note')).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Indicador 1 periodo'), {
+        target: { value: '0' },
+      })
+
+      const note = screen.getByTestId('preview-note')
+      expect(note).toHaveTextContent('Omitidos:')
+      expect(note).toHaveTextContent('indicador fast')
+    })
+
+    it('cerrar el editor restaura el chart de la pestaña Gráfico', () => {
+      renderApp()
+      openEditor()
+      expect(screen.getByTestId('strategy-preview')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+      expect(screen.queryByTestId('strategy-preview')).not.toBeInTheDocument()
+      expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
+    })
+
+    it('cambiar de pestaña con el editor abierto: los cambios de draft no fuerzan volver', () => {
+      renderApp()
+      openEditor()
+      expect(screen.getByTestId('strategy-preview')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('tab', { name: 'Backtest' }))
+
+      fireEvent.change(screen.getByLabelText('Indicador 1 periodo'), {
+        target: { value: '0' },
+      })
+
+      expect(screen.getByRole('tab', { name: 'Backtest' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByTestId('strategy-preview')).not.toBeInTheDocument()
+    })
+  })
 })

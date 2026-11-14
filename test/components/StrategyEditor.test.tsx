@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, type Mock } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { StrategyEditor } from '@/components/StrategyEditor'
 import { Candle } from '@/domain/candles/candle'
@@ -52,7 +52,11 @@ const SPEC: StrategySpec = {
   entry: { rule: { kind: 'condition', op: '>', a: 'close', b: 'fast' }, execution: 'market' },
 }
 
-function renderEditor(initial: StrategySpec = SPEC, candles: Candle[] = CANDLES) {
+function renderEditor(
+  initial: StrategySpec = SPEC,
+  candles: Candle[] = CANDLES,
+  onDraftChange: Mock<(spec: StrategySpec) => void> = vi.fn(),
+) {
   const onSave = vi.fn()
   const onCancel = vi.fn()
   render(
@@ -63,9 +67,10 @@ function renderEditor(initial: StrategySpec = SPEC, candles: Candle[] = CANDLES)
       error={null}
       onSave={onSave}
       onCancel={onCancel}
+      onDraftChange={onDraftChange}
     />,
   )
-  return { onSave, onCancel }
+  return { onSave, onCancel, onDraftChange }
 }
 
 function saved(onSave: ReturnType<typeof vi.fn>): StrategySpec {
@@ -350,34 +355,39 @@ describe('StrategyEditor — deshacer', () => {
   })
 })
 
-describe('StrategyEditor — previsualización (plan strategy-preview)', () => {
-  it('monta el minichart bajo el título con las velas y el draft', () => {
+describe('StrategyEditor — previsualización en el área principal (ampliación)', () => {
+  it('el preview ya NO vive en el editor: se muestra en la pestaña Gráfico de App', () => {
     renderEditor()
 
-    const editor = screen.getByTestId('strategy-editor')
-    const preview = within(editor).getByTestId('strategy-preview')
-    expect(preview).toBeInTheDocument()
-    // Draft válido + velas cargadas → sin nota ni vacío.
-    expect(within(editor).queryByTestId('preview-note')).not.toBeInTheDocument()
-    expect(within(editor).queryByTestId('preview-empty')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('strategy-preview')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('preview-note')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('preview-empty')).not.toBeInTheDocument()
   })
 
-  it('refleja en el preview los cambios del draft (periodo inválido → nota)', () => {
-    renderEditor()
-
-    expect(screen.queryByTestId('preview-note')).not.toBeInTheDocument()
+  it('notifica el draft al padre en cada cambio (para el preview del área principal)', () => {
+    const { onDraftChange } = renderEditor()
 
     fireEvent.change(screen.getByLabelText('Indicador 1 periodo'), {
       target: { value: '0' },
     })
 
-    const note = screen.getByTestId('preview-note')
-    expect(note).toHaveTextContent('Omitidos:')
-    expect(note).toHaveTextContent('indicador fast')
+    expect(onDraftChange).toHaveBeenCalled()
+    const last = onDraftChange.mock.calls.at(-1)?.[0] as StrategySpec
+    expect(last.indicators[0]).toEqual({ alias: 'fast', kind: 'sma', period: 0 })
   })
 
-  it('draft con regla rota sigue previsualizando (sin bloquear por buildStrategy)', () => {
-    renderEditor({
+  it('notifica también al deshacer', () => {
+    const { onDraftChange } = renderEditor()
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'otro' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }))
+
+    const last = onDraftChange.mock.calls.at(-1)?.[0] as StrategySpec
+    expect(last.name).toBe('demo')
+  })
+
+  it('draft con regla rota sigue notificando (sin bloquear por buildStrategy)', () => {
+    const { onDraftChange } = renderEditor({
       ...SPEC,
       entry: {
         rule: { kind: 'condition', op: '>', a: 'fantasma', b: 'fast' },
@@ -385,14 +395,9 @@ describe('StrategyEditor — previsualización (plan strategy-preview)', () => {
       },
     })
 
-    // Sin issues (reglas no se evalúan en el preview) → sin nota.
-    expect(screen.queryByTestId('preview-note')).not.toBeInTheDocument()
-    expect(screen.getByTestId('strategy-preview')).toBeInTheDocument()
-  })
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'x' } })
 
-  it('sin velas cargadas muestra el estado vacío del preview', () => {
-    renderEditor(SPEC, [])
-
-    expect(screen.getByTestId('preview-empty')).toHaveTextContent('Sin datos para previsualizar')
+    const last = onDraftChange.mock.calls.at(-1)?.[0] as StrategySpec
+    expect(last.name).toBe('x')
   })
 })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Candle } from '@/domain/candles/candle'
 import { evaluatePriceExpr, PriceExpr, series } from '@/domain/strategies/priceExpr'
 import {
@@ -15,7 +15,6 @@ import {
 } from '@/domain/strategies/spec'
 import { PriceExprEditor } from './PriceExprEditor'
 import { RuleEditor, defaultCondition } from './RuleEditor'
-import { StrategyPreviewChart } from './StrategyPreviewChart'
 
 export interface StrategyEditorProps {
   /** Título del editor: "Crear estrategia" o "Editar <name>@<version>". */
@@ -29,6 +28,8 @@ export interface StrategyEditorProps {
   /** Emite el draft al guardar (el panel valida y persiste). */
   onSave: (spec: StrategySpec) => void
   onCancel: () => void
+  /** Draft en vivo hacia el padre: alimenta el preview del área principal (App). */
+  onDraftChange?: (spec: StrategySpec) => void
 }
 
 type LevelKey = 'takeProfit' | 'stopLoss'
@@ -47,9 +48,18 @@ export function StrategyEditor({
   error,
   onSave,
   onCancel,
+  onDraftChange,
 }: StrategyEditorProps) {
   const [draft, setDraft] = useState(spec)
   const [past, setPast] = useState<readonly StrategySpec[]>([])
+
+  // El draft sube al padre en vivo: alimenta el preview del área principal (App).
+  // Deps solo [draft]: el callback se recaptura con cada cambio real del draft,
+  // y abrir/cerrar el editor garantiza un closure fresco (abierto → no re-emite
+  // al montar porque App ya tiene ese mismo objeto).
+  useEffect(() => {
+    onDraftChange?.(draft)
+  }, [draft])
 
   /** Aplica una transformación y guarda la versión anterior para deshacer. */
   const update = (next: (current: StrategySpec) => StrategySpec) => {
@@ -340,8 +350,6 @@ export function StrategyEditor({
       aria-label="Editor de estrategia"
     >
       <h3 className="panel-title">{title}</h3>
-
-      <StrategyPreviewChart candles={candles} spec={draft} />
 
       <div className="panel-form">
         <label className="field">

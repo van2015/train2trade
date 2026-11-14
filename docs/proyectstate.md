@@ -284,6 +284,47 @@ punteadas evaluadas en la última vela (fiel a `OperationLevels`, que no tiene h
 añadidos a `StrategyEditor.test`/`StrategyPanel.test` (jsdom sin `ResizeObserver`); los 14 tests
 de `CandleChart` pasaron en T2 sin editar aserciones (red de seguridad de la extracción).
 
+## Ampliación (2026-11-14): superficie del preview (opción D)
+
+**Problema**: el minichart de la sidebar (276×160px) era demasiado pequeño para leer la
+estrategia. Decisiones cerradas con el usuario: **D — preview en el área principal** (mientras se
+edita, la pestaña Gráfico muestra el preview **en lugar del** `CandleChart`, patrón split ya
+existente en el repo) y **quitar el minichart de la sidebar** (preview único).
+
+**Invariante recuperado**: como el preview _sustituye_ al chart normal (nunca conviven), el
+invariante "una sola instancia de lightweight-charts" vuelve a sostenerse **sin excepciones** —
+se retiró la anotación de excepción que añadió T4 en `App.tsx`.
+
+**Nuevo flujo de datos** (el draft vive en el editor, así que sube por la cadena):
+
+```
+StrategyEditor.onDraftChange (useEffect sobre `draft`)
+  → StrategyPanel.onEditingChange (abrir: spec · cerrar: null · cambios: spec)
+    → App.editingSpec (state) + auto-conmutación a Gráfico SOLO al abrir (null → spec)
+      → pestaña Gráfico: editingSpec !== null ? StrategyPreviewChart : CandleChart
+```
+
+Contratos:
+
+```ts
+// StrategyEditor: + onDraftChange?: (spec: StrategySpec) => void
+//   useEffect(() => onDraftChange?.(draft), [draft]) — sin buildStrategy, sin excepciones
+// StrategyPanel: + onEditingChange?: (spec: StrategySpec | null) => void
+//   openNew/openEdit → spec · close → null · onDraftChange del editor → reenviado
+// App: const [editingSpec, setEditingSpec] = useState<StrategySpec | null>(null)
+//   handleEditingChange: auto-conmuta a 'chart' SOLO en transición null → spec
+//   (cambios de draft y cierre no tocan la pestaña: el usuario puede navegar
+//    mientras edita; testeado)
+```
+
+- El preview usa `visible` (respeta el recorte de sesión activa), no `candles`.
+- `.strategy-preview` pasa de `height: 160px` a `flex: 1; min-height: 0` (llena el área principal).
+- Tests: **+8** (4 editor: notificación en cambio/deshacer/regla rota + ausencia del preview en la
+  sidebar; 3 panel: emitir en abrir/cambiar/cerrar y no emitir null con error; 5 App: swap en la
+  pestaña Gráfico, auto-conmutación desde otra pestaña, draft en vivo → nota, restauración al
+  cerrar y no-robo de pestaña). Se retiraron 4 tests del editor que verificaban el minichart en la
+  sidebar (movidos/reorientados a App) → neto +8 sobre 1026 = **1034 tests**.
+
 ## Pendiente
 
 ### Inmediato (siguiente paso natural)

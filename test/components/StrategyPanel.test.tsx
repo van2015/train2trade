@@ -247,3 +247,59 @@ describe('StrategyPanel — borrar', () => {
     expect(repository.list().map((snapshot) => snapshot.name)).toEqual(['beta'])
   })
 })
+
+describe('StrategyPanel — onEditingChange (hacia el preview del área principal)', () => {
+  /** Render directo con espía del ciclo de edición. */
+  function setupEditing(...specs: StrategySpec[]) {
+    const repository = new StrategyRepository(new MemoryStorage())
+    for (const spec of specs) repository.save(spec)
+    const onEditingChange = vi.fn()
+    render(
+      <StrategyPanel
+        strategies={repository.list()}
+        repository={repository}
+        candles={[]}
+        onChange={() => undefined}
+        onEditingChange={onEditingChange}
+      />,
+    )
+    return { repository, onEditingChange }
+  }
+
+  it('Nueva emite la plantilla, los cambios del draft se reenvían y Cancelar emite null', () => {
+    const { onEditingChange } = setupEditing(ALPHA)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva estrategia' }))
+    expect(onEditingChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: '', version: 1 }),
+    )
+
+    fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'nueva' } })
+    expect(onEditingChange).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'nueva' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(onEditingChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('Editar emite el draft precargado y Guardar cierra con null', () => {
+    const { onEditingChange } = setupEditing(ALPHA)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Editar alpha@1' }))
+    expect(onEditingChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'alpha', version: 1 }),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(onEditingChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('un error al guardar mantiene el ciclo abierto (no emite null)', () => {
+    const { onEditingChange } = setupEditing(ALPHA)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nueva estrategia' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' })) // name vacío → error
+
+    expect(screen.getByTestId('strategy-editor-error')).toBeInTheDocument()
+    expect(onEditingChange).not.toHaveBeenCalledWith(null)
+  })
+})

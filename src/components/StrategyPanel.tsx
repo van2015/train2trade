@@ -18,6 +18,12 @@ export interface StrategyPanelProps {
   candles: readonly Candle[]
   /** Tras guardar/borrar: el padre refresca la lista (y la selección cae a la primera). */
   onChange: () => void
+  /**
+   * Ciclo de edición hacia App (plan strategy-preview, ampliación): draft en
+   * vivo (`spec`) mientras se edita, `null` al cerrar. App lo usa para
+   * mostrar/ocultar el preview en la pestaña Gráfico.
+   */
+  onEditingChange?: (spec: StrategySpec | null) => void
 }
 
 /** Plantilla de "Nueva": estructura de la demo con `name` vacío (enmienda 16). */
@@ -52,23 +58,33 @@ function fingerprintOf(snapshot: StrategySnapshot): string {
  * con `nextVersion` conservando la anterior (enmienda 13); sin cambios respecto
  * al original no se crea versión.
  */
-export function StrategyPanel({ strategies, repository, candles, onChange }: StrategyPanelProps) {
+export function StrategyPanel({
+  strategies,
+  repository,
+  candles,
+  onChange,
+  onEditingChange,
+}: StrategyPanelProps) {
   const [editing, setEditing] = useState<Editing | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const openNew = () => {
     setEditing({ original: null, spec: TEMPLATE })
     setError(null)
+    onEditingChange?.(TEMPLATE)
   }
 
   const openEdit = (snapshot: StrategySnapshot) => {
-    setEditing({ original: snapshot, spec: toDraft(snapshot) })
+    const spec = toDraft(snapshot)
+    setEditing({ original: snapshot, spec })
     setError(null)
+    onEditingChange?.(spec)
   }
 
   const close = () => {
     setEditing(null)
     setError(null)
+    onEditingChange?.(null)
   }
 
   const handleSave = (draft: StrategySpec) => {
@@ -111,6 +127,7 @@ export function StrategyPanel({ strategies, repository, candles, onChange }: Str
           error={error}
           onSave={handleSave}
           onCancel={close}
+          onDraftChange={(spec) => onEditingChange?.(spec)}
         />
       ) : (
         <>
