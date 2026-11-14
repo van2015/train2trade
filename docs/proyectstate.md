@@ -4,7 +4,7 @@
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
 > Última actualización: 2026-11-14 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**981 tests**, 74 archivos). `pnpm build` compila sin errores.
+> (**1026 tests**, 77 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
@@ -21,7 +21,10 @@ interactivo** (2026-11-14): modelo de estrategia completo (`PriceExpr` sin liter
 compuestas AND/OR/NOT, TP/SL por toque, triggers, spec serializable validada), **persistencia de
 estrategias con CRUD por UI** (editor por bloques + selector único compartido por los paneles) y
 **test-forward interactivo** (puntos de confirmación aleatorios, decisiones del usuario, overrides
-de TP/SL) que sustituyó por completo al split dev/eval automático.
+de TP/SL) que sustituyó por completo al split dev/eval automático. Además, la **previsualización
+del editor** (minichart de estrategia): módulo puro `strategyPreview` (velas + indicadores del
+draft + niveles entrada/TP/SL/triggers evaluados en la última vela, degradación por drafts rotos)
+y componente `StrategyPreviewChart` montado en el editor.
 
 ## Implementado
 
@@ -252,6 +255,34 @@ N+1); la instancia de las órdenes aceptadas transiciona **antes** de evaluar la
 (broker decorado, sin hueco en SL/TP/exitRule); TP/SL y triggers se ejecutan solos; la sesión **no**
 genera `ExperimentSnapshot` (decisiones humanas + `Math.random`); `reset()` → mismo recorrido con el
 mismo RNG (§12C); el gráfico nunca muestra futuro de la sesión activa.
+
+## Plan: previsualización del editor (minichart de estrategia) (completa, 2026-11-14)
+
+Plan detallado: [`strategy-preview-plan.md`](./strategy-preview-plan.md) — T1…T5 con TDD.
+Decisiones cerradas con el usuario: **dentro del editor** (sidebar, bajo el `<h3>`), alcance
+**C — estructura configurada** (velas + indicadores + niveles; sin backtest ni decisiones: §14
+mantiene el editor dentro de Strategy Design), render con **lightweight-charts** (2ª instancia
+deliberada, anotada en `App.tsx`). El alcance inicial "órdenes = backtest preview" se descartó
+tras cuestionarlo el usuario: las órdenes dependen de capital/comisiones ajenos al editor.
+
+| Módulo                                                                                                                                                 | Archivos                                               | Tests               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ------------------- |
+| `buildIndicator` exportado (constructor de indicadores, existente pero privado)                                                                        | `src/domain/strategies/spec.ts`                        | +2                  |
+| `strategyPreview` — puro: líneas (pane/color por kind, id por índice) + niveles (entrada hipotética, TP/SL con `entry`, triggers) + `note` deduplicado | `src/components/strategyPreview.ts`                    | 22                  |
+| `lineSeries` — extracción de `lineOptions` + `syncLineSeries` desde `CandleChart` (una sola fuente de sincronía)                                       | `src/components/lineSeries.ts`, refactor `CandleChart` | 7 (+14 sin cambios) |
+| `StrategyPreviewChart` — chart compacto (sin leyenda/volumen/scroll), niveles como `IPriceLine` sincronizados                                          | `src/components/StrategyPreviewChart.tsx`              | 10                  |
+| Integración: render bajo el `<h3>`, estilos `.strategy-preview*`, anotación de la excepción de 2ª instancia                                            | `StrategyEditor.tsx`, `styles.css`, `App.tsx`          | +4                  |
+| `CHART_COLORS.constant` — color para constantes                                                                                                        | `src/components/chartData.ts`                          | —                   |
+
+**Invariantes/decisiones técnicas:** sin `buildStrategy` en el preview (un draft con reglas o
+nombre rotos sigue previsualizable — testeado con contraste: `buildStrategy` → lanza); cada
+indicador/expresión se evalúa con try/catch individual → issue, nunca excepción; TP/SL usan
+**entrada hipotética** (`entry = precio límite evaluado ?? cierre actual`) para que `entry * 1.02`
+se dibuje (convención de preview, no semántica de dominio); niveles = líneas horizontales
+punteadas evaluadas en la última vela (fiel a `OperationLevels`, que no tiene histórico);
+`handleScale/handleScroll: false` (la rueda en la sidebar scrollea); mocks de `lightweight-charts`
+añadidos a `StrategyEditor.test`/`StrategyPanel.test` (jsdom sin `ResizeObserver`); los 14 tests
+de `CandleChart` pasaron en T2 sin editar aserciones (red de seguridad de la extracción).
 
 ## Pendiente
 

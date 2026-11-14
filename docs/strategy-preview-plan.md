@@ -4,8 +4,12 @@
 > indicadores del borrador y los **niveles de operación configurados** (entrada/TP/SL/triggers),
 > como feedback visual mientras se configura.
 >
-> **Estado: propuesta (2026-11-14)** — investigación completada, decisiones cerradas con el usuario,
-> pendiente de implementar con TDD. Baseline: **981 tests** en verde.
+> **Estado: completado (2026-11-14)** — T1…T5 implementados con TDD; `pnpm test && pnpm typecheck
+&& pnpm format:check` en verde (**1026 tests**, 77 archivos) y `pnpm build` OK; `proyectstate.md`
+> actualizado. Decisiones cerradas con el usuario: **ubicación** (dentro del editor), **alcance C**
+> (estructura configurada — la lectura inicial A "backtest preview" se descartó), **motor de render**
+> (lightweight-charts, 2ª instancia). Pendiente: aplicar los mensajes de commit sugeridos por tarea
+> (AGENTS.md §Git: el agente no hace commits).
 >
 > **Revisión de alcance (2026-11-14):** la lectura inicial "órdenes = backtest preview" se descartó.
 > El minichart es **Strategy-centric puro (§14)**: no ejecuta ni simula nada, solo anota la
