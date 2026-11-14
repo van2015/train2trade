@@ -335,6 +335,30 @@ Anti look-ahead: decisión en vela N → relleno en N+1; solo se ve hasta el cur
   finish sin candidatos), `StrategyPanel/StrategyEditor`, `TestForwardPanel` reescrito,
   `App.test.tsx` ampliado.
 
+### 2.5 Notas de implementación (Ronda G — decisiones tomadas)
+
+- **`start()` ≡ `jump()`**: el RNG se inyecta en el **constructor**
+  (`random: () => number = Math.random`); `start` es el alias de arranque y comparte la
+  semántica de salto (plan: `start(random)` — la inyección por constructor sirve a todos los
+  saltos de la sesión y a los tests).
+- **Codificación de los overrides**: `setTakeProfit(price, enabled)` con
+  `enabled=false` → desactivado; `price=null` + `enabled=true` → **automático** (revertir);
+  `enabled=true` + número → override manual. Solo surte efecto si la estrategia declara el
+  nivel (§1.5). Igual para `setStopLoss`.
+- **Semántica de `jump`**: el destino es un punto futuro al azar; las **entradas intermedias
+  se descartan** (el destino manda, §2.1.4) pero las **salidas por regla interrumpen** cualquier
+  avance (`step`, `jump` y la corrida final sin candidatos): dejar pasar una salida dejaría la
+  posición sin su regla de cierre. Sin candidatos → procesa el resto de velas y `finished`.
+- **Órdenes aceptadas**: `decide(true)` replica el envío del runner (mismo sizing de
+  `RiskManager`, `price ⇔ limit`, relleno en N+1) pero la orden es de la sesión (`t<n>`); el
+  relleno se notifica al broker-decorador **durante** el paso 3 del runner para que la instancia
+  transicione antes de evaluar la vela del relleno (sin hueco en SL/TP/exitRule). Un veto
+  posterior **retira** la orden de entrada aceptada (misma semántica que el runner).
+- **Identificación de la fuente** de una decisión (`signal` vs `trigger`/nivel): por
+  `reason === signal.name` — los triggers usan `"acción @ expresión"` y los niveles
+  `stop_loss`/`take_profit`, sin colisión con `"acción: regla"`; la prioridad la sigue
+  decidiendo `Strategy.evaluate` sin replicarla.
+
 ---
 
 ## Orden de implementación (TDD por rondas)
