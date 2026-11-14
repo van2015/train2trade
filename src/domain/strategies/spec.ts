@@ -648,7 +648,7 @@ function assertOperand(operand: string, allowed: readonly string[], where: strin
   }
 }
 
-function buildIndicator(spec: IndicatorSpec): Indicator {
+export function buildIndicator(spec: IndicatorSpec): Indicator {
   switch (spec.kind) {
     case 'sma':
       return new Sma(spec.period)

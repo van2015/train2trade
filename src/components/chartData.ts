@@ -26,6 +26,7 @@ export const CHART_COLORS = {
   sma: '#2962ff',
   ema: '#ff9800',
   rsi: '#ab47bc',
+  constant: '#787b86',
   equity: '#7e57c2',
 } as const
 

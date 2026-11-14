@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { Constant } from '@/domain/indicators/constant'
 import { Ema } from '@/domain/indicators/ema'
-import { IndicatorValue } from '@/domain/indicators/indicator'
+import { IndicatorValue, InvalidPeriodError } from '@/domain/indicators/indicator'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
 import { MarketContext } from '@/domain/strategies/marketContext'
@@ -21,6 +21,7 @@ import { StrategyAction } from '@/domain/strategies/strategy'
 import {
   assertRuleSpec,
   assertStrategySpec,
+  buildIndicator,
   buildRule,
   buildStrategy,
   compatibleClasses,
@@ -683,5 +684,18 @@ describe('API para el editor (enmienda 16)', () => {
     expect(compatibleClasses('constant', 'oscillator')).toBe(true)
     expect(compatibleClasses('price', 'constant')).toBe(true)
     expect(compatibleClasses(undefined, 'price')).toBe(false)
+  })
+})
+
+describe('buildIndicator (export para el preview)', () => {
+  it('construye la clase de dominio correspondiente al kind', () => {
+    expect(buildIndicator({ alias: 'a', kind: 'sma', period: 5 })).toBeInstanceOf(Sma)
+    expect(buildIndicator({ alias: 'a', kind: 'ema', period: 5 })).toBeInstanceOf(Ema)
+    expect(buildIndicator({ alias: 'a', kind: 'rsi', period: 14 })).toBeInstanceOf(Rsi)
+    expect(buildIndicator({ alias: 'a', kind: 'const', value: 30 })).toBeInstanceOf(Constant)
+  })
+
+  it('propaga la validación del indicador (periodo inválido)', () => {
+    expect(() => buildIndicator({ alias: 'a', kind: 'sma', period: 0 })).toThrow(InvalidPeriodError)
   })
 })
