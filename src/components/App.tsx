@@ -22,6 +22,7 @@ import { CsvImportPanel } from './CsvImportPanel'
 import { DataControls } from './DataControls'
 import { IndicatorPanel } from './IndicatorPanel'
 import { StrategySelect } from './StrategySelect'
+import { StrategyPanel } from './StrategyPanel'
 import { MainTabs, type MainViewId } from './MainTabs'
 import { isSidebarSectionId, SidebarSection, type SidebarSectionId } from './SidebarSection'
 import {
@@ -123,6 +124,11 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
   const reloadExperiments = useCallback(() => {
     setSnapshots(experiments.list())
   }, [experiments])
+
+  /** Tras el CRUD de estrategias (§1.8): la lista y la selección se recalculan. */
+  const reloadStrategies = useCallback(() => {
+    setStrategiesList(strategies.list())
+  }, [strategies])
 
   /** Auto-guardo (§9/§12C): id determinístico → re-ejecutar sobrescribe, sin duplicados. */
   const handleExperiment = (experiment: Experiment) => {
@@ -277,6 +283,20 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
               timeframe={timeframe}
               strategy={selectedStrategy ?? null}
               onResult={handleOptimizationResult}
+            />
+          </SidebarSection>
+
+          <SidebarSection
+            id="estrategias"
+            title="Estrategias"
+            open={openSection === 'estrategias'}
+            onToggle={handleToggleSection}
+          >
+            <StrategyPanel
+              strategies={strategiesList}
+              repository={strategies}
+              candles={candles}
+              onChange={reloadStrategies}
             />
           </SidebarSection>
 

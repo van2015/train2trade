@@ -863,3 +863,41 @@ input[aria-invalid='true'] {
 .panel-list li {
   margin: 2px 0;
 }
+
+/* Estrategias: lista y editor por bloques (§1.8, ronda F) */
+.strategy-panel .panel-actions {
+  margin: 6px 0;
+}
+
+.strategy-panel .lab-table td:last-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.rule-tree {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--border, #333);
+  list-style: none;
+}
+
+.rule-node {
+  margin: 4px 0;
+}
+
+.rule-node__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Botones fantasma de los editores (añadir/quitar término, factor…) */
+.button--ghost {
+  width: auto;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border, rgba(128, 128, 128, 0.4));
+  font-weight: 400;
+}

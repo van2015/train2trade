@@ -36,6 +36,35 @@
     de precio con un oscilador **en la misma condición**. Cada condición binaria compara
     operandos de la misma clase; los constantes son compatibles con cualquier clase.
 
+### Enmienda F — editor de estrategias (huecos resueltos, 2026-11)
+
+13. **Versionado al editar**: editar crea una **versión nueva** (`version = max(las del mismo
+name) + 1`) y **conserva la anterior**; el formulario **no pide versión** (la asigna la UI
+    antes de `save`). Invariante en `StrategyRepository`: `name@version` → **contenido único**
+    (misma clave si el contenido coincide; error si ya existe otro contenido con ese
+    `name@version`). Lista y selector muestran todas las versiones; se borran desde el panel.
+14. **Reproducibilidad**: sin cambios en `Experiment` (decisión de alcance de §1.9). Se confía
+    en el invariante 13 (`name@version` identifica un contenido) + `fingerprint` para detectar
+    manipulación; si se borra la versión, el experiment queda como registro histórico y el
+    comparador del Historial avisa (`history-differences`).
+15. **UI de `PriceExpr`**: **suma de productos** (forma plana): fila de términos con signo
+    `+`/`-`; cada término = producto de series. Cubre `sma_fast + two * atr14`; sin paréntesis.
+    El dominio sigue aceptando el árbol completo; si se carga una spec fuera de esa forma
+    (solo posible si se creó fuera de la UI) → aviso "expresión no editable en el formulario".
+16. **Detalles del formulario**:
+    - "Nueva" parte de una **plantilla sma-cross prefilled** (no vacío).
+    - TP/SL invertido: **solo avisa** al guardar (no bloquea), como indican los riesgos.
+    - `StrategyPanel` = **CRUD puro**; el selector único sigue en la sección Experimentos
+      (enmienda §1.9). No se duplica la selección.
+    - **Borrado libre** aunque haya experimentos (los snapshots son independientes).
+    - `fraction` de los triggers: campo **solo para `request_add`/`request_reduce`**,
+      fracción `(0, 1]` con paso 0.01; oculto para `entry`/`exit`.
+    - API para el editor (evita duplicar la clasificación): exportar de `spec.ts`
+      **`seriesClasses(spec)`** (builtins + `entry`/`sl`/`tp` + indicadores de la spec) y
+      **`operationAliases(contexto)`** (disponibilidad de `entry`/`sl`/`tp` por contexto:
+      `entry.rule`/`invalidation` → ninguno; `exitRule`/triggers → los tres;
+      `takeProfit`/`stopLoss` → solo `entry`).
+
 ## Estado actual (punto de partida)
 
 - No hay creador ni persistencia de estrategias: la demo `sma-cross` está **duplicada en 5
@@ -201,25 +230,35 @@ se inyectan igual. El contexto sigue siendo puro (recibe valores, no conoce el b
 Clon de `ExperimentRepository`: `Storage` inyectado, claves `strategies:<id>` (id = hash del
 spec), `save/find/list/remove/clear`, corrupto → `CorruptedStorageError`. **Semilla**: si está
 vacío se guarda la demo `sma-cross` como spec (con sus indicadores y reglas compuestas).
+**Invariante (enmienda 13)**: `name@version` → contenido único — `save` con un contenido ya
+existente es idempotente (misma clave), pero si `name@version` corresponde a **otro** contenido
+distinto lanza `InvalidStrategyDefinitionError` (evita etiquetas ambiguas en el selector). La UI
+asigna la versión con **`nextVersion(name)`** (max + 1, 1 si no existe).
 
 ### 1.8 UI: editor + selector
 
 - **`StrategyPanel.tsx`** — tercera sección del sidebar (`SidebarSection` id `estrategias`):
-  lista (nombre@versión + fingerprint) con Nueva / Editar / Borrar.
+  lista (nombre@versión + fingerprint) con Nueva / Editar / Borrar. **CRUD puro** (enmienda 16):
+  el selector único de ejecución sigue en la sección Experimentos (§1.9). Editar asigna
+  `version = max + 1` y conserva la anterior (enmienda 13); "Nueva" parte de la plantilla
+  sma-cross prefilled (enmienda 16).
 - **`StrategyEditor.tsx`** — formulario por bloques:
   - Indicadores: filas alias + tipo (SMA/EMA/RSI/constante) + parámetro; agrupados por clase
-    (oscilador / precio / constante).
+    (oscilador / precio / constante). Clases vía `seriesClasses(spec)` (enmienda 16).
   - **Editor de reglas anidadas**: árbol visual con add-condición / add-grupo (AND/OR) /
     NOT por nodo / quitar; operandos = selector de alias (indicadores + series builtin
-    `close`/`open`/`high`/`low` + `entry`/`sl`/`tp` cuando aplique) **filtrado por clase de
-    la condición**: al elegir el primer operando, el segundo solo ofrece aliados compatibles
-    (misma clase o constante). Profundidad libre pero con deshacer sencillo.
-  - Entrada: regla (árbol) + expresión de precio (suma de términos sobre series: `sma_fast +
-two * atr14` → en el formulario: operandos y operadores, sin campos numéricos salvo el
-    parámetro de los indicadores) + limit/market.
-  - TP / SL: expresión (alias `entry` disponible) + limit/market + activo.
-  - Triggers: filas {expresión, acción, ejecución}.
+    `close`/`open`/`high`/`low` + `entry`/`sl`/`tp` vía `operationAliases(contexto)`, enmienda 16) **filtrado por clase de la condición**: al elegir el primer operando, el segundo solo
+    ofrece aliados compatibles (misma clase o constante). Profundidad libre pero con deshacer
+    sencillo.
+  - Entrada: regla (árbol) + expresión de precio en **suma de productos** (enmienda 15): fila
+    de términos con signo, cada término = producto de series, sin campos numéricos salvo el
+    parámetro de los indicadores + limit/market.
+  - TP / SL: expresión (alias `entry` disponible) + limit/market + activo. Nivel invertido →
+    aviso al guardar, no bloquea (enmienda 16).
+  - Triggers: filas {expresión, acción, ejecución, **fraction solo en add/reduce (0, 1]**}
+    (enmienda 16; el dominio la exige en esas acciones).
   - Salida por regla y veto opcionales.
+  - Guardar → `parseStrategySpec`/`buildStrategy` validan; errores de dominio en el formulario.
 - `App.tsx` + `main.tsx`: `StrategyRepository` como prop (composition root).
 
 ### 1.9 Experimentos múltiples, cada uno con su estrategia

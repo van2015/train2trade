@@ -107,6 +107,31 @@ const BUILTIN_CLASSES: SeriesClasses = Object.freeze({
 /** Alias de operación (§1.1): disponibles según el contexto de la expresión. */
 const OPERATION_ALIASES: readonly string[] = ['entry', 'sl', 'tp']
 
+/** Contextos donde pueden aparecer alias de operación (§1.1 / enmienda 16). */
+export type OperationContext =
+  'entry.rule' | 'entry.price' | 'exitRule' | 'invalidation' | 'takeProfit' | 'stopLoss' | 'trigger'
+
+/**
+ * Alias de operación disponibles en cada contexto (enmienda 16, fuente única
+ * para `buildStrategy` y para el selector de operandos del editor): prohibidos
+ * donde no hay posición (`entry.rule`, `invalidation`, `entry.price`); solo
+ * `entry` en TP/SL; los tres en `exitRule` y triggers.
+ */
+export function operationAliases(context: OperationContext): readonly string[] {
+  switch (context) {
+    case 'entry.rule':
+    case 'entry.price':
+    case 'invalidation':
+      return []
+    case 'takeProfit':
+    case 'stopLoss':
+      return ['entry']
+    case 'exitRule':
+    case 'trigger':
+      return OPERATION_ALIASES
+  }
+}
+
 /** Reservados: no pueden ser alias de indicador (los usaría el builtin). */
 const RESERVED_ALIASES: ReadonlySet<string> = new Set(Object.keys(BUILTIN_CLASSES))
 
@@ -186,7 +211,7 @@ function toRule(spec: RuleSpec, classes: SeriesClasses): Rule {
 function toCondition(spec: Extract<RuleSpec, { kind: 'condition' }>, classes: SeriesClasses): Rule {
   const classA = classOf(spec.a, classes)
   const classB = classOf(spec.b, classes)
-  if (!compatible(classA, classB)) {
+  if (!compatibleClasses(classA, classB)) {
     throw new InvalidStrategyDefinitionError(
       `no se pueden comparar series de clase "${classA}" con "${classB}"`,
       `${spec.a} ${spec.op} ${spec.b}`,
@@ -214,8 +239,13 @@ function classOf(alias: string, classes: SeriesClasses): SeriesClass {
   return found
 }
 
-/** Misma clase a ambos lados, o `constant` por cualquier lado. */
-function compatible(a: SeriesClass, b: SeriesClass): boolean {
+/**
+ * ¿Dos clases son comparables en una condición? (misma clase o `constant`
+ * por cualquier lado; `undefined` = alias no registrado → no compatible).
+ * Fuente única de la decisión 12 para `buildStrategy` y el editor.
+ */
+export function compatibleClasses(a: SeriesClass | undefined, b: SeriesClass | undefined): boolean {
+  if (a === undefined || b === undefined) return false
   return a === b || a === 'constant' || b === 'constant'
 }
 
@@ -307,6 +337,49 @@ export function parseStrategySpec(value: unknown): StrategySpec {
 }
 
 /**
+ * Mapa de clases de series de una spec (enmienda 16): builtins (vela actual +
+ * `entry`/`sl`/`tp`) + indicadores. **No valida** la spec: sirve mientras el
+ * editor tiene un draft en construcción.
+ */
+export function seriesClasses(spec: StrategySpec): SeriesClasses {
+  const classes: Record<string, SeriesClass> = {}
+  for (const indicator of spec.indicators) classes[indicator.alias] = classOfKind(indicator.kind)
+  return { ...BUILTIN_CLASSES, ...classes }
+}
+
+/**
+ * Alias disponibles como operandos de una expresión de precio (enmienda 16):
+ * clases `price`/`constant` (los osciladores no forman precios) + los alias de
+ * operación permitidos en el contexto. `classes` sale de `seriesClasses`.
+ */
+export function priceOperandAliases(
+  classes: SeriesClasses,
+  operations: readonly string[],
+): string[] {
+  return Object.keys(classes).filter((alias) => {
+    if (alias === '') return false
+    if (OPERATION_ALIASES.includes(alias)) return operations.includes(alias)
+    return classes[alias] !== 'oscillator'
+  })
+}
+
+/**
+ * Alias disponibles como operandos de una **regla** (enmienda 16): cualquier
+ * clase (la compatibilidad se decide por condición con `compatibleClasses`)
+ * salvo las operaciones no permitidas en el contexto.
+ */
+export function ruleOperandAliases(
+  classes: SeriesClasses,
+  operations: readonly string[],
+): string[] {
+  return Object.keys(classes).filter((alias) => {
+    if (alias === '') return false
+    if (OPERATION_ALIASES.includes(alias)) return operations.includes(alias)
+    return true
+  })
+}
+
+/**
  * Construye la `Strategy` del dominio (§1.4): valida la semántica de la spec
  * (alias registrados, clases por contexto de operación) y ensambla indicadores,
  * señales (entry + exitRule), niveles TP/SL, triggers y veto.
@@ -324,37 +397,52 @@ export function buildStrategy(spec: StrategySpec): Strategy {
   const allClasses: SeriesClasses = { ...BUILTIN_CLASSES, ...classes }
 
   // 2. Reglas: operandos de operación según contexto (§1.1) + clases (§1.2).
-  assertRuleOperations(parsed.entry.rule, [], 'entry.rule')
+  assertRuleOperations(parsed.entry.rule, operationAliases('entry.rule'), 'entry.rule')
   const entryRule = buildRule(parsed.entry.rule, classes)
 
   // 3. Señales: entry (limit adjunta price; market no) + exitRule (market).
   const entryConfig: { price?: PriceExpr } = {}
   if (parsed.entry.execution === 'limit') {
-    assertPriceOperands(parsed.entry.price, allClasses, [], 'entry.price')
+    assertPriceOperands(
+      parsed.entry.price,
+      allClasses,
+      operationAliases('entry.price'),
+      'entry.price',
+    )
     entryConfig.price = parsed.entry.price
   }
   const signals: Signal[] = [new Signal(StrategyAction.RequestEntry, entryRule, entryConfig)]
 
   if (parsed.exitRule !== undefined) {
-    assertRuleOperations(parsed.exitRule, OPERATION_ALIASES, 'exitRule')
+    assertRuleOperations(parsed.exitRule, operationAliases('exitRule'), 'exitRule')
     signals.push(new Signal(StrategyAction.RequestExit, buildRule(parsed.exitRule, classes)))
   }
 
   // 4. Niveles TP/SL: `entry` disponible, `sl`/`tp` sin auto-referencia (§1.1).
   let takeProfit: PriceLevel | undefined
   if (parsed.takeProfit !== undefined) {
-    assertPriceOperands(parsed.takeProfit.price, allClasses, ['entry'], 'takeProfit.price')
+    assertPriceOperands(
+      parsed.takeProfit.price,
+      allClasses,
+      operationAliases('takeProfit'),
+      'takeProfit.price',
+    )
     takeProfit = parsed.takeProfit
   }
   let stopLoss: PriceLevel | undefined
   if (parsed.stopLoss !== undefined) {
-    assertPriceOperands(parsed.stopLoss.price, allClasses, ['entry'], 'stopLoss.price')
+    assertPriceOperands(
+      parsed.stopLoss.price,
+      allClasses,
+      operationAliases('stopLoss'),
+      'stopLoss.price',
+    )
     stopLoss = parsed.stopLoss
   }
 
   // 5. Triggers: los tres alias de operación disponibles (§1.1).
   const triggers = parsed.triggers?.map((trigger) => {
-    assertPriceOperands(trigger.price, allClasses, OPERATION_ALIASES, 'trigger.price')
+    assertPriceOperands(trigger.price, allClasses, operationAliases('trigger'), 'trigger.price')
     return new Trigger({
       price: trigger.price,
       action: TRIGGER_ACTIONS[trigger.action],
@@ -366,7 +454,7 @@ export function buildStrategy(spec: StrategySpec): Strategy {
   // 6. Veto: sin alias de operación (mismo criterio que entry.rule).
   let invalidationRule: Rule | undefined
   if (parsed.invalidation !== undefined) {
-    assertRuleOperations(parsed.invalidation, [], 'invalidation')
+    assertRuleOperations(parsed.invalidation, operationAliases('invalidation'), 'invalidation')
     invalidationRule = buildRule(parsed.invalidation, classes)
   }
 

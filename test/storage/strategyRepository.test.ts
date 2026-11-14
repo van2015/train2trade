@@ -161,6 +161,59 @@ describe('StrategyRepository — guardado inválido (escritura)', () => {
   })
 })
 
+describe('StrategyRepository — invariante name@version → contenido único (enmienda 13)', () => {
+  it('mismo name@version con el mismo contenido → idempotente (misma clave)', () => {
+    const id = repository.save(spec())
+
+    expect(repository.save(spec())).toBe(id)
+    expect(repository.list()).toHaveLength(1)
+  })
+
+  it('mismo name@version con distinto contenido → InvalidStrategyDefinitionError', () => {
+    repository.save(spec())
+    const other = spec({
+      indicators: [
+        { alias: 'fast', kind: 'sma', period: 5 },
+        { alias: 'slow', kind: 'sma', period: 30 },
+      ],
+    })
+
+    expect(() => repository.save(other)).toThrow(InvalidStrategyDefinitionError)
+    expect(repository.list()).toHaveLength(1) // nada guardado de más
+  })
+
+  it('nueva versión del mismo name → entrada separada (se conserva la anterior)', () => {
+    repository.save(spec())
+    repository.save({
+      ...spec({
+        indicators: [
+          { alias: 'fast', kind: 'sma', period: 5 },
+          { alias: 'slow', kind: 'sma', period: 30 },
+        ],
+      }),
+      version: 2,
+    })
+
+    expect(repository.list().map((snapshot) => snapshot.version)).toEqual([2, 1])
+  })
+})
+
+describe('StrategyRepository — nextVersion (enmienda 13)', () => {
+  it('sin estrategias con ese name → 1', () => {
+    expect(repository.nextVersion('demo')).toBe(1)
+  })
+
+  it('max(versiones del name) + 1 (no depende de los demás names)', () => {
+    repository.save(spec({ name: 'alpha', version: 1 }))
+    repository.save(spec({ name: 'alpha', version: 3 }))
+    repository.save(spec({ name: 'beta', version: 7 }))
+
+    expect(repository.nextVersion('alpha')).toBe(4)
+    expect(repository.nextVersion('beta')).toBe(8)
+    expect(repository.nextVersion('gamma')).toBe(1)
+  })
+})
+
 describe('StrategyRepository — semilla (§1.7)', () => {
   it('vacío → seedIfEmpty guarda la demo y devuelve true (idempotente)', () => {
     expect(repository.seedIfEmpty()).toBe(true)

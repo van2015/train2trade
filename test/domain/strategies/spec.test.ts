@@ -23,9 +23,14 @@ import {
   assertStrategySpec,
   buildRule,
   buildStrategy,
+  compatibleClasses,
   InvalidStrategyDefinitionError,
+  operationAliases,
   parseStrategySpec,
+  priceOperandAliases,
+  ruleOperandAliases,
   RuleSpec,
+  seriesClasses,
   SeriesClasses,
   StrategySpec,
 } from '@/domain/strategies/spec'
@@ -602,5 +607,81 @@ describe('buildStrategy', () => {
     )
     expect(decision.action).toBe(StrategyAction.RequestEntry)
     expect(decision.price).toBeNull()
+  })
+})
+
+describe('API para el editor (enmienda 16)', () => {
+  it('seriesClasses combina builtins (vela + entry/sl/tp) e indicadores con su clase', () => {
+    const classes = seriesClasses(validSpec())
+
+    expect(classes.close).toBe('price')
+    expect(classes.open).toBe('price')
+    expect(classes.high).toBe('price')
+    expect(classes.low).toBe('price')
+    expect(classes.entry).toBe('price')
+    expect(classes.sl).toBe('price')
+    expect(classes.tp).toBe('price')
+    expect(classes.fast).toBe('price') // sma
+    expect(classes.slow).toBe('price') // ema
+    expect(classes.r).toBe('oscillator') // rsi
+    expect(classes.umbral).toBe('constant')
+  })
+
+  it('seriesClasses no valida la spec (sirve para drafts en edición)', () => {
+    const draft = { ...validSpec(), indicators: [{ alias: 'x', kind: 'sma' }] } as never
+    expect(seriesClasses(draft).x).toBe('price')
+  })
+
+  it('operationAliases devuelve los alias disponibles por contexto (§1.1)', () => {
+    expect(operationAliases('entry.rule')).toEqual([])
+    expect(operationAliases('invalidation')).toEqual([])
+    expect(operationAliases('entry.price')).toEqual([])
+    expect(operationAliases('takeProfit')).toEqual(['entry'])
+    expect(operationAliases('stopLoss')).toEqual(['entry'])
+    expect(operationAliases('exitRule')).toEqual(['entry', 'sl', 'tp'])
+    expect(operationAliases('trigger')).toEqual(['entry', 'sl', 'tp'])
+  })
+
+  it('priceOperandAliases: price/constant + alias de operación del contexto (sin osciladores)', () => {
+    const classes = seriesClasses(validSpec())
+
+    const withoutOps = priceOperandAliases(classes, [])
+    expect(withoutOps).toContain('close')
+    expect(withoutOps).toContain('umbral') // constante
+    expect(withoutOps).toContain('fast') // sma
+    expect(withoutOps).not.toContain('r') // rsi → oscilador, no es precio
+    expect(withoutOps).not.toContain('entry') // alias de operación fuera de contexto
+
+    const withEntry = priceOperandAliases(classes, ['entry'])
+    expect(withEntry).toContain('entry')
+    expect(withEntry).not.toContain('sl')
+    expect(withEntry).not.toContain('r')
+
+    const all = priceOperandAliases(classes, ['entry', 'sl', 'tp'])
+    expect(all).toContain('tp')
+  })
+
+  it('ruleOperandAliases: todas las clases, menos las operaciones fuera de contexto', () => {
+    const classes = seriesClasses(validSpec())
+
+    const withoutOps = ruleOperandAliases(classes, [])
+    expect(withoutOps).toContain('close')
+    expect(withoutOps).toContain('r') // oscilador: sí forma parte de reglas (decisión 12)
+    expect(withoutOps).toContain('umbral')
+    expect(withoutOps).not.toContain('entry')
+    expect(withoutOps).not.toContain('sl')
+
+    const all = ruleOperandAliases(classes, ['entry', 'sl', 'tp'])
+    expect(all).toContain('entry')
+    expect(all).toContain('tp')
+  })
+
+  it('compatibleClasses: misma clase a ambos lados o constante (decisión 12)', () => {
+    expect(compatibleClasses('price', 'price')).toBe(true)
+    expect(compatibleClasses('oscillator', 'oscillator')).toBe(true)
+    expect(compatibleClasses('price', 'oscillator')).toBe(false)
+    expect(compatibleClasses('constant', 'oscillator')).toBe(true)
+    expect(compatibleClasses('price', 'constant')).toBe(true)
+    expect(compatibleClasses(undefined, 'price')).toBe(false)
   })
 })

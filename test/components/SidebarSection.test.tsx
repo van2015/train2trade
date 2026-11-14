@@ -83,6 +83,7 @@ describe('isSidebarSectionId', () => {
   it('acepta los ids conocidos y rechaza el resto', () => {
     expect(isSidebarSectionId('datos')).toBe(true)
     expect(isSidebarSectionId('experimentos')).toBe(true)
+    expect(isSidebarSectionId('estrategias')).toBe(true)
 
     // 'resultados' se eliminó en la Fase 3 (Historial es una pestaña):
     // un valor antiguo persistido cae al default 'datos' en App.

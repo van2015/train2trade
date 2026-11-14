@@ -1,5 +1,9 @@
 import { canonicalHash } from '@/domain/strategies/fingerprint'
-import { parseStrategySpec, StrategySpec } from '@/domain/strategies/spec'
+import {
+  InvalidStrategyDefinitionError,
+  parseStrategySpec,
+  StrategySpec,
+} from '@/domain/strategies/spec'
 import { CorruptedStorageError } from '@/storage/errors'
 
 /** Prefijo de claves (convive con `experiments:` y `candles:` en el mismo Storage). */
@@ -48,8 +52,34 @@ export class StrategyRepository {
   save(spec: StrategySpec): string {
     const valid = parseStrategySpec(spec)
     const id = canonicalHash(valid)
+    this.assertUniqueLabel(valid, id)
     this.storage.setItem(`${KEY_PREFIX}${id}`, JSON.stringify(valid))
     return id
+  }
+
+  /**
+   * Enmienda 13: `name@version` → contenido único. Mismo contenido = misma
+   * clave (idempotente); contenido distinto bajo un `name@version` ya usado →
+   * error (evita etiquetas ambiguas en el selector).
+   */
+  private assertUniqueLabel(spec: StrategySpec, id: string): void {
+    for (const snapshot of this.list()) {
+      if (snapshot.name === spec.name && snapshot.version === spec.version && snapshot.id !== id) {
+        throw new InvalidStrategyDefinitionError(
+          `ya existe una estrategia distinta "${spec.name}@${spec.version}"`,
+          spec,
+        )
+      }
+    }
+  }
+
+  /** Siguiente versión disponible para un `name` (max + 1; 1 si no existe). */
+  nextVersion(name: string): number {
+    let max = 0
+    for (const snapshot of this.list()) {
+      if (snapshot.name === name && snapshot.version > max) max = snapshot.version
+    }
+    return max + 1
   }
 
   /** Snapshot por id; inexistente → `null`; corrupto → `CorruptedStorageError`. */

@@ -185,29 +185,37 @@ describe('App', () => {
     expect(screen.getByText('sin datos')).toBeInTheDocument()
   })
 
-  it('agrupa los formularios en dos secciones colapsables del sidebar', () => {
+  it('agrupa los formularios en tres secciones colapsables del sidebar', () => {
     renderApp()
 
     const datos = screen.getByRole('button', { name: 'Datos' })
     const experimentos = screen.getByRole('button', { name: 'Experimentos' })
+    const estrategias = screen.getByRole('button', { name: 'Estrategias' })
 
     // Por defecto solo "Datos" está abierta; no existe sección "Resultados"
     // (Historial es una pestaña desde la Fase 3).
     expect(datos).toHaveAttribute('aria-expanded', 'true')
     expect(experimentos).toHaveAttribute('aria-expanded', 'false')
+    expect(estrategias).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByRole('button', { name: 'Resultados' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Ejecutar backtest' })).not.toBeInTheDocument()
 
-    // Acordeón: abrir la otra sección cierra la anterior.
+    // Acordeón: abrir otra sección cierra la anterior.
     fireEvent.click(experimentos)
     expect(datos).toHaveAttribute('aria-expanded', 'false')
     expect(experimentos).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Ejecutar backtest' })).toBeInTheDocument()
 
-    // Y la sección abierta se puede cerrar del todo.
-    fireEvent.click(experimentos)
+    // La tercera sección (CRUD de estrategias, §1.8) abre el editor/lista.
+    fireEvent.click(estrategias)
     expect(experimentos).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('button', { name: 'Ejecutar backtest' })).not.toBeInTheDocument()
+    expect(estrategias).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Nueva estrategia' })).toBeInTheDocument()
+
+    // Y la sección abierta se puede cerrar del todo.
+    fireEvent.click(estrategias)
+    expect(estrategias).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('button', { name: 'Nueva estrategia' })).not.toBeInTheDocument()
   })
 
   it('permite alternar entre las seis pestañas del área principal', () => {
