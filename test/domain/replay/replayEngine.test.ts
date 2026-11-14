@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { OrderSide, OrderType } from '@/domain/execution/order'
+import { Constant } from '@/domain/indicators/constant'
 import { Sma } from '@/domain/indicators/sma'
 import { MarketReplayEngine, ReplayError } from '@/domain/replay/replayEngine'
+import { series } from '@/domain/strategies/priceExpr'
 import { CrossesAbove, CrossesBelow, Rule } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { TradingSessionConfig, TradingSessionError } from '@/domain/trading/tradingSession'
@@ -62,12 +64,14 @@ function vetoStrategy(): Strategy {
   let evaluations = 0
   return new Strategy({
     name: 'veto-e2e',
+    // Precio numérico del test → indicador constante (decisión 9).
+    indicators: { farPx: new Constant(50) },
     signals: [
       new Signal(
         StrategyAction.RequestEntry,
         { name: 'always', evaluate: () => true },
         {
-          limitPrice: 50,
+          price: series('farPx'),
         },
       ),
     ],

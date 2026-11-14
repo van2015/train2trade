@@ -6,6 +6,7 @@ import {
   assertPriceExpr,
   dividedBy,
   evaluatePriceExpr,
+  formatPriceExpr,
   InvalidPriceExprError,
   minus,
   plus,
@@ -178,6 +179,20 @@ describe('PriceExpr', () => {
       const context2 = contextWith({ a: [1, 1, 1, 1], b: [10, 10, 10, 10] })
 
       expect(evaluatePriceExpr(minus('a', 'b'), context2)).toBe(-9)
+    })
+  })
+
+  describe('formatPriceExpr', () => {
+    it('serie → su alias', () => {
+      expect(formatPriceExpr(series('sma_fast'))).toBe('sma_fast')
+    })
+
+    it('operaciones binarias con anidación entre paréntesis', () => {
+      expect(formatPriceExpr(plus('fast', 'slow'))).toBe('fast + slow')
+      expect(formatPriceExpr(times('two', 'atr'))).toBe('two * atr')
+      // (entry - (two * atr))  →  prioridad visual sin ambigüedad
+      expect(formatPriceExpr(minus('entry', times('two', 'atr')))).toBe('entry - (two * atr)')
+      expect(formatPriceExpr(dividedBy(plus('a', 'b'), 'c'))).toBe('(a + b) / c')
     })
   })
 })

@@ -45,6 +45,21 @@ export function dividedBy(left: PriceSeriesRef, right: PriceSeriesRef): PriceExp
   return { kind: 'binary', op: '/', left: toExpr(left), right: toExpr(right) }
 }
 
+/**
+ * Representación legible para observabilidad (nombres de señal/trigger):
+ * las sub-expresiones binarias van entre paréntesis para no perder la
+ * precedencia (`entry - (two * atr)`).
+ */
+export function formatPriceExpr(expr: PriceExpr): string {
+  if (expr.kind === 'series') return expr.id
+  return `${wrap(expr.left)} ${expr.op} ${wrap(expr.right)}`
+}
+
+function wrap(expr: PriceExpr): string {
+  const text = formatPriceExpr(expr)
+  return expr.kind === 'binary' ? `(${text})` : text
+}
+
 function binary(kind: 'series', id: string): PriceExpr {
   const expr: PriceExpr = { kind, id }
   assertPriceExpr(expr)

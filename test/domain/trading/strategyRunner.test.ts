@@ -4,7 +4,10 @@ import { ExecutionModel, NextOpenExecutionModel } from '@/domain/execution/execu
 import { Fill } from '@/domain/execution/fill'
 import { HistoricalBroker } from '@/domain/execution/historicalBroker'
 import { OrderSide, OrderStatus, OrderType } from '@/domain/execution/order'
+import { Constant } from '@/domain/indicators/constant'
+import { Indicator } from '@/domain/indicators/indicator'
 import { MarketContextError } from '@/domain/strategies/marketContext'
+import { series } from '@/domain/strategies/priceExpr'
 import { Rule } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { StrategyState } from '@/domain/strategies/strategyInstance'
@@ -52,19 +55,30 @@ function rule(name: string, value: () => boolean): Rule {
 }
 
 function makeStrategy(flags: Flags, options: RunnerOptions = {}): Strategy {
+  // Los precios numéricos del test se declaran como indicadores constante
+  // (decisión 9: los precios de una estrategia no son literales).
+  const indicators: Record<string, Indicator> = {}
+  if (options.entryLimitPrice !== undefined) {
+    indicators.entryPx = new Constant(options.entryLimitPrice)
+  }
+  if (options.addLimitPrice !== undefined) {
+    indicators.addPx = new Constant(options.addLimitPrice)
+  }
+
   return new Strategy({
     name: 'runner-test',
+    indicators,
     signals: [
       new Signal(
         StrategyAction.RequestEntry,
         rule('entry?', () => flags.entry),
-        options.entryLimitPrice !== undefined ? { limitPrice: options.entryLimitPrice } : {},
+        options.entryLimitPrice !== undefined ? { price: series('entryPx') } : {},
       ),
       new Signal(
         StrategyAction.RequestAdd,
         rule('add?', () => flags.add),
         options.addLimitPrice !== undefined
-          ? { fraction: 0.5, limitPrice: options.addLimitPrice }
+          ? { fraction: 0.5, price: series('addPx') }
           : { fraction: 0.5 },
       ),
       new Signal(

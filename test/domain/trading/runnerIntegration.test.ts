@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { NextOpenExecutionModel } from '@/domain/execution/executionModel'
 import { HistoricalBroker } from '@/domain/execution/historicalBroker'
+import { Constant } from '@/domain/indicators/constant'
+import { Indicator } from '@/domain/indicators/indicator'
 import { Sma } from '@/domain/indicators/sma'
+import { series } from '@/domain/strategies/priceExpr'
 import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { StrategyState } from '@/domain/strategies/strategyInstance'
@@ -41,14 +44,19 @@ function makeRunner(options: E2EOptions = {}) {
   const model = new NextOpenExecutionModel({ slippageBps: 10, feeBps: 10 })
   const risk = new RiskManager({ slippageBps: 10, feeBps: 10 })
   const broker = new HistoricalBroker(portfolio, model)
+  // Precio numérico del test → indicador constante (decisión 9).
+  const indicators: Record<string, Indicator> = { fast: new Sma(2), slow: new Sma(3) }
+  if (options.entryLimitPrice !== undefined) {
+    indicators.entryPx = new Constant(options.entryLimitPrice)
+  }
   const strategy = new Strategy({
     name: 'cross-e2e',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
+    indicators,
     signals: [
       new Signal(
         StrategyAction.RequestEntry,
         new CrossesAbove('fast', 'slow'),
-        options.entryLimitPrice !== undefined ? { limitPrice: options.entryLimitPrice } : {},
+        options.entryLimitPrice !== undefined ? { price: series('entryPx') } : {},
       ),
       new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
     ],

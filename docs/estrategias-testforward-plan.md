@@ -135,11 +135,18 @@ interface StrategySpec {
   name: string
   version: number
   indicators: IndicatorSpec[]
-  /** Confirmación (regla compuesta) + precio de entrada + tipo de ejecución. */
-  entry: { rule: RuleSpec; price: PriceExpr; execution: 'limit' | 'market' }
+  /** `limit` exige `price`; `market` lo prohíbe (la orden va a mercado sin precio). */
+  entry:
+    | { rule: RuleSpec; price: PriceExpr; execution: 'limit' }
+    | { rule: RuleSpec; execution: 'market' }
   takeProfit?: { price: PriceExpr; execution: 'limit' | 'market' } // sin alias sl/tp dentro
   stopLoss?: { price: PriceExpr; execution: 'limit' | 'market' } // sin alias sl/tp dentro
-  triggers?: { price: PriceExpr; action: TriggerAction; execution: 'limit' | 'market' }[]
+  triggers?: {
+    price: PriceExpr
+    action: TriggerAction
+    execution: 'limit' | 'market'
+    fraction?: number // solo en add/reduce (como en Signal)
+  }[]
   exitRule?: RuleSpec // salida por regla; en test-forward la decide el usuario
   invalidation?: RuleSpec // veto → Invalidate
 }
@@ -148,16 +155,22 @@ type TriggerAction = 'request_entry' | 'request_add' | 'request_reduce' | 'reque
 ```
 
 - **`buildStrategy(spec): Strategy`** — pura, spec → `Strategy` (dominio existente ampliado);
-  valida todo y lanza `InvalidStrategyDefinitionError`.
-- **`parseStrategySpec(value): StrategySpec`** — validación de forma para persistencia;
-  error → `CorruptedStorageError`.
+  valida la semántica (alias registrados, clases, alias de operación por contexto) y ensambla
+  indicadores, señales (`entry.rule` → `RequestEntry` con price solo si limit; `exitRule` →
+  `RequestExit` market), niveles TP/SL, triggers y veto. Lanza `InvalidStrategyDefinitionError`.
+- **`parseStrategySpec(value): StrategySpec`** — validación de **forma** para persistencia
+  (`assertStrategySpec`): tipos, rangos, reglas limit⇔price, aliases no reservados/únicos,
+  reglas de fraction. Lanza errores de dominio (`InvalidStrategyDefinitionError`; un price
+  malformado propaga `InvalidPriceExprError`) y **el repositorio envuelve en
+  `CorruptedStorageError`** (mismo patrón que `Trade.from` → `ExperimentRepository`).
 - `strategyFingerprint`/`canonicalHash` existentes → id de la clave de storage.
 
 ### 1.5 Evaluación en `Strategy` (ampliación, mismo contrato `evaluate`)
 
-`StrategyDefinition` gana `takeProfit`/`stopLoss`/`triggers`/`exitRule` (opcional);
-`signals` se mantiene como mecanismo interno (`entry.rule` → señal `RequestEntry` con
-`entry.price` + `execution`; `exitRule` → `RequestExit`). Prioridad **tras el veto**:
+`StrategyDefinition` gana `takeProfit`/`stopLoss`/`triggers` (opcional); `signals` sigue siendo
+el mecanismo interno (`entry.rule` → señal `RequestEntry` con `price` si execution es `limit`;
+`exitRule` → señal `RequestExit` a mercado — la spec lo convierte, no es campo de
+`StrategyDefinition`). Prioridad **tras el veto**:
 
 1. **SL** (abierta, `low <= sl`) → `RequestExit @ sl` (primero que TP: conservador).
 2. **TP** (abierta, `high >= tp`) → `RequestExit @ tp`.
@@ -165,17 +178,23 @@ type TriggerAction = 'request_entry' | 'request_add' | 'request_reduce' | 'reque
 4. **Triggers** por toque direccional con `isApplicable`:
    venta (exit/reduce) → `high >= price`; compra (entry/add) → `low <= price`.
 
-- El precio resuelto viaja en `StrategyDecision.price` (ya existe) y el tipo limit/market lo
-  decide `createOrder` del runner con la metadata nueva → relleno en **N+1** (anti look-ahead
-  sin cambios).
-- Sin datos (calentamiento) o alias de operación sin posición → `null` → no evalúa ese ciclo.
+- **Invariante `price` ⇔ limit**: la decisión lleva `price` resuelto solo si la ejecución es
+  `limit`; a `market` la decisión va sin precio. `createOrder` del runner **no cambia**
+  (`price === null ? Market : Limit`) y el sizing de órdenes market sigue usando el cierre.
+  Los niveles efectivos (`entry`/`sl`/`tp`) se materializan en el contexto antes de evaluar,
+  para que reglas y triggers los vean vía `value('sl')`.
+- Sin datos (calentamiento), sin posición o alias de operación sin valor → `null` → no evalúa
+  ese ciclo. Los overrides de sesión (`sl`/`tp`) solo se aplican si la estrategia declara el
+  nivel correspondiente.
 
 ### 1.6 `MarketContext` — alias de operación
 
-`MarketContext.from` acepta `levels?: { entry?: number | null; sl?: number | null; tp?: number | null }`
-y `value('entry' | 'sl' | 'tp')` los resuelve; sin posición → `null` (como calentamiento).
-Los construye `Strategy.buildContext` a partir del portfolio/sesión — el contexto sigue
-siendo puro (recibe valores, no conoce el broker).
+`MarketContext.from` acepta `levels?: { entry?: number | null; sl?: number | null; tp?: number | null }`,
+`value('entry' | 'sl' | 'tp')` los resuelve (alias de operación sin histórico: `back > 0` → `null`)
+y `withLevels(...)` deriva un contexto que **comparte velas e indicadores** (barato). El
+**runner inyecta `entry` tras los rellenos** (antes de `evaluate`) para que SL/TP/`entry` vean el
+precio real desde la misma vela en que se abre la posición; los overrides `sl`/`tp` de la sesión
+se inyectan igual. El contexto sigue siendo puro (recibe valores, no conoce el broker).
 
 ### 1.7 Persistencia: `StrategyRepository` (nuevo `src/storage/strategyRepository.ts`)
 

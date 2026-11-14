@@ -137,6 +137,83 @@ describe('MarketContext', () => {
     })
   })
 
+  describe('niveles de operación (entry/sl/tp)', () => {
+    it('resuelve entry/sl/tp desde levels; ausentes → null', () => {
+      const context = MarketContext.from({
+        candles: CANDLES,
+        levels: { entry: 100, sl: 95, tp: 110 },
+      })
+
+      expect(context.value('entry')).toBe(100)
+      expect(context.value('sl')).toBe(95)
+      expect(context.value('tp')).toBe(110)
+
+      const empty = MarketContext.from({ candles: CANDLES })
+      expect(empty.value('entry')).toBeNull()
+      expect(empty.value('sl')).toBeNull()
+      expect(empty.value('tp')).toBeNull()
+    })
+
+    it('levels explícitos null → null (sin posición / desactivado)', () => {
+      const context = MarketContext.from({ candles: CANDLES, levels: { entry: null, sl: null } })
+
+      expect(context.value('entry')).toBeNull()
+      expect(context.value('sl')).toBeNull()
+    })
+
+    it('alias de operación con back > 0 → null (no tienen histórico)', () => {
+      const context = MarketContext.from({ candles: CANDLES, levels: { entry: 100 } })
+
+      expect(context.value('entry', 1)).toBeNull()
+      expect(context.value('entry', 3)).toBeNull()
+    })
+
+    it('levels con tipos inválidos (string, NaN) → MarketContextError', () => {
+      expect(() =>
+        MarketContext.from({ candles: CANDLES, levels: { entry: '100' as unknown as number } }),
+      ).toThrow(MarketContextError)
+      expect(() => MarketContext.from({ candles: CANDLES, levels: { sl: Number.NaN } })).toThrow(
+        MarketContextError,
+      )
+      expect(() =>
+        MarketContext.from({ candles: CANDLES, levels: { tp: Number.POSITIVE_INFINITY } }),
+      ).toThrow(MarketContextError)
+    })
+
+    it('el alias de indicador registrado tiene prioridad sobre el de operación', () => {
+      const context = MarketContext.from({
+        candles: CANDLES,
+        indicators: { entry: FAST },
+        levels: { entry: 999 },
+      })
+
+      expect(context.value('entry')).toBe(3.5)
+    })
+
+    it('withLevels fusiona niveles y comparte velas/series (contexto inmutable)', () => {
+      const base = MarketContext.from({
+        candles: CANDLES,
+        indicators: { fast: FAST },
+        levels: { entry: 100, sl: null },
+      })
+      const derived = base.withLevels({ sl: 95, tp: 110 })
+
+      expect(derived.value('entry')).toBe(100) // fusionado
+      expect(derived.value('sl')).toBe(95)
+      expect(derived.value('tp')).toBe(110)
+      expect(base.value('sl')).toBeNull() // el original no cambia
+      expect(derived.candles).toBe(base.candles) // comparte ventana
+      expect(derived.value('fast')).toBe(3.5) // comparte series
+      expect(Object.isFrozen(derived.levels)).toBe(true)
+    })
+
+    it('withLevels con niveles inválidos → MarketContextError', () => {
+      const base = MarketContext.from({ candles: CANDLES })
+
+      expect(() => base.withLevels({ sl: 'x' as unknown as number })).toThrow(MarketContextError)
+    })
+  })
+
   describe('acceso a series', () => {
     const context = MarketContext.from({ candles: CANDLES, indicators: { fast: FAST } })
 

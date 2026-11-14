@@ -1,8 +1,14 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
 import { Candle } from '@/domain/candles/candle'
 import { Indicator, IndicatorValue } from '@/domain/indicators/indicator'
-import { MarketContext } from '@/domain/strategies/marketContext'
-import { resolveRef, Rule, SeriesRef } from '@/domain/strategies/rules'
+import { MarketContext, OperationLevels } from '@/domain/strategies/marketContext'
+import {
+  assertPriceExpr,
+  evaluatePriceExpr,
+  formatPriceExpr,
+  PriceExpr,
+} from '@/domain/strategies/priceExpr'
+import { Rule } from '@/domain/strategies/rules'
 
 export enum StrategyAction {
   /** Sin señal: no hacer nada (solo resultado de evaluate). */
@@ -21,11 +27,71 @@ export enum StrategyAction {
 
 export type SignalAction = Exclude<StrategyAction, StrategyAction.None | StrategyAction.Invalidate>
 
+/** Tipo de ejecución de una acción (decisión 6): la define la estrategia. */
+export type OrderExecution = 'limit' | 'market'
+
 export interface SignalConfig {
   /** Obligatoria en RequestAdd/RequestReduce (0 < f <= 1), prohibida en el resto. */
   fraction?: number
-  /** Precio objetivo declarativo: alias de indicador o constante. */
-  limitPrice?: SeriesRef
+  /**
+   * Precio de la orden como expresión (alias/operación/aritmética, sin
+   * literales numéricos — decisión 9). **Presencia ⇒ orden `Limit`** en el
+   * precio resuelto; ausencia ⇒ `Market`. Un precio sin resolver
+   * (calentamiento) descarta la señal. Sustituye al antiguo
+   * `limitPrice: SeriesRef`; el runner infiere el tipo como siempre
+   * (`price === null ? Market : Limit`).
+   */
+  price?: PriceExpr
+}
+
+/** Nivel de take-profit/stop-loss: expresión + cómo ejecutar al tocarlo. */
+export interface PriceLevel {
+  price: PriceExpr
+  execution: OrderExecution
+}
+
+/**
+ * Disparador por toque de precio (decisión 6/8): cuando el mercado alcanza
+ * la expresión se ejecuta `action` (dirección de toque como límite: venta →
+ * `high >= price`, compra → `low <= price`). `execution` decide el tipo de
+ * orden al disparar: `limit` lleva el precio en la decisión; `market` va sin
+ * precio y el runner crea la orden `Market`.
+ */
+export class Trigger {
+  readonly price: PriceExpr
+  readonly action: SignalAction
+  readonly execution: OrderExecution
+  readonly fraction: number | null
+  /** Observabilidad: `"request_entry @ sma_fast + two * atr14"`. */
+  readonly name: string
+
+  constructor(data: {
+    price: PriceExpr
+    action: SignalAction
+    execution: OrderExecution
+    fraction?: number
+  }) {
+    assertPriceExpr(data.price)
+    if (!isSignalAction(data.action)) {
+      throw new InvalidStrategyDefinitionError(
+        'trigger.action debe ser una acción de señal (entry/add/reduce/exit)',
+        data.action,
+      )
+    }
+    if (data.execution !== 'limit' && data.execution !== 'market') {
+      throw new InvalidStrategyDefinitionError(
+        'execution debe ser "limit" o "market"',
+        data.execution,
+      )
+    }
+    assertFraction(data.action, data.fraction)
+
+    this.price = data.price
+    this.action = data.action
+    this.execution = data.execution
+    this.fraction = data.fraction ?? null
+    this.name = `${data.action} @ ${formatPriceExpr(data.price)}`
+  }
 }
 
 export interface StrategyDecision {
@@ -49,6 +115,12 @@ export interface StrategyDefinition {
   signals: readonly Signal[]
   /** Si dispara → `Invalidate`. */
   invalidationRule?: Rule
+  /** Take-profit: toque `high >= tp` con posición abierta → salida. */
+  takeProfit?: PriceLevel
+  /** Stop-loss: toque `low <= sl` con posición abierta → salida. */
+  stopLoss?: PriceLevel
+  /** Disparadores por toque de precio (compra `low <=`, venta `high >=`). */
+  triggers?: readonly Trigger[]
 }
 
 export class InvalidStrategyDefinitionError extends DomainError {
@@ -70,17 +142,23 @@ export class Signal {
     readonly config: SignalConfig = {},
   ) {
     assertSignalConfig(action, config)
-    this.name = `${action}: ${rule.name}${config.limitPrice !== undefined ? ` @ ${config.limitPrice}` : ''}`
+    this.name = `${action}: ${rule.name}${config.price !== undefined ? ` @ ${formatPriceExpr(config.price)}` : ''}`
   }
 }
 
 /**
  * Valida `config` según la acción: `fraction` obligatoria en add/reduce
- * (0 < f <= 1) y prohibida en el resto; `limitPrice` alias de serie o número
- * finito. Lanza `InvalidStrategyDefinitionError` en el primer campo inválido.
+ * (0 < f <= 1) y prohibida en el resto; `price` debe ser una expresión de
+ * precio válida (sin literales numéricos). Lanza en el primer campo inválido.
  */
 function assertSignalConfig(action: SignalAction, config: SignalConfig): void {
-  const { fraction, limitPrice } = config
+  const { fraction, price } = config
+  assertFraction(action, fraction)
+  if (price !== undefined) assertPriceExpr(price)
+}
+
+/** Fracción obligatoria en add/reduce (0 < f <= 1), prohibida en el resto. */
+function assertFraction(action: SignalAction, fraction: number | undefined): void {
   const needsFraction =
     action === StrategyAction.RequestAdd || action === StrategyAction.RequestReduce
 
@@ -93,22 +171,20 @@ function assertSignalConfig(action: SignalAction, config: SignalConfig): void {
   if (!needsFraction && fraction !== undefined) {
     throw new InvalidStrategyDefinitionError(`la señal "${action}" no admite fraction`, fraction)
   }
+}
 
-  if (limitPrice !== undefined) {
-    if (typeof limitPrice !== 'number' && typeof limitPrice !== 'string') {
-      throw new InvalidStrategyDefinitionError(
-        'limitPrice debe ser un alias de serie o un número',
-        limitPrice,
-      )
-    }
-    if (typeof limitPrice === 'number' && !Number.isFinite(limitPrice)) {
-      throw new InvalidStrategyDefinitionError('limitPrice numérico debe ser finito', limitPrice)
-    }
-  }
+/** `true` si `action` es una de las cuatro acciones de señal (no None/Invalidate). */
+function isSignalAction(action: unknown): action is SignalAction {
+  return (
+    action === StrategyAction.RequestEntry ||
+    action === StrategyAction.RequestAdd ||
+    action === StrategyAction.RequestReduce ||
+    action === StrategyAction.RequestExit
+  )
 }
 
 /** `true` si `fraction` es un número finito en (0, 1]. */
-function isUnitFraction(fraction: unknown): fraction is number {
+export function isUnitFraction(fraction: unknown): fraction is number {
   return typeof fraction === 'number' && Number.isFinite(fraction) && fraction > 0 && fraction <= 1
 }
 
@@ -119,9 +195,21 @@ export class Strategy {
   readonly indicators: Readonly<Record<string, Indicator>>
   readonly signals: readonly Signal[]
   readonly invalidationRule: Rule | null
+  readonly takeProfit: PriceLevel | null
+  readonly stopLoss: PriceLevel | null
+  readonly triggers: readonly Trigger[]
 
   constructor(definition: StrategyDefinition) {
-    const { name, version = 1, indicators, signals, invalidationRule } = definition
+    const {
+      name,
+      version = 1,
+      indicators,
+      signals,
+      invalidationRule,
+      takeProfit,
+      stopLoss,
+      triggers,
+    } = definition
 
     if (typeof name !== 'string' || name.trim() === '') {
       throw new InvalidStrategyDefinitionError('el name no puede estar vacío', name)
@@ -132,37 +220,63 @@ export class Strategy {
     if (signals.length === 0) {
       throw new InvalidStrategyDefinitionError('se requiere al menos una señal', signals.length)
     }
+    if (takeProfit !== undefined) assertPriceLevel(takeProfit, 'takeProfit')
+    if (stopLoss !== undefined) assertPriceLevel(stopLoss, 'stopLoss')
 
     this.name = name
     this.version = version
     this.indicators = Object.freeze({ ...indicators })
     this.signals = Object.freeze([...signals])
     this.invalidationRule = invalidationRule ?? null
+    this.takeProfit = takeProfit ?? null
+    this.stopLoss = stopLoss ?? null
+    this.triggers = Object.freeze([...(triggers ?? [])])
   }
 
-  /** Calcula los indicadores declarados y construye el `MarketContext` alineado. */
-  buildContext(candles: readonly Candle[]): MarketContext {
+  /**
+   * Calcula los indicadores declarados y construye el `MarketContext`
+   * alineado; `levels` inyecta los alias de operación (entry/sl/tp) — el
+   * runner aporta `entry` desde el portfolio y los overrides de sesión.
+   */
+  buildContext(candles: readonly Candle[], levels?: OperationLevels): MarketContext {
     const series: Record<string, IndicatorValue[]> = {}
     for (const [alias, indicator] of Object.entries(this.indicators)) {
       series[alias] = indicator.calculate(candles)
     }
-    return MarketContext.from({ candles, indicators: series })
+    return MarketContext.from({ candles, indicators: series, levels })
   }
 
   /**
-   * Evaluación pura. `open` = posición abierta. Sin veto devuelve la primera
-   * señal aplicable que dispare; con veto, `Invalidate`.
+   * Evaluación pura. `open` = instancia en posición. Prioridad (§1.5):
+   * veto → SL → TP → señales (reglas) → triggers; sin nada → `None`.
+   *
+   * Los niveles efectivos (`entry`/`sl`/`tp`) se materializan en el contexto
+   * antes de evaluar: `sl`/`tp` = override de sesión ?? expresión de la
+   * estrategia (solo con la instancia en posición y `entry` conocido; sin
+   * posición → todo `null`), para que reglas y triggers los vean a través
+   * de `value('sl')`.
    */
   evaluate(context: MarketContext, open: boolean): StrategyDecision {
+    const levels = this.effectiveLevels(context, open)
+    const ctx = context.withLevels(levels)
+
     const vetoReason =
-      this.invalidationRule !== null && this.invalidationRule.evaluate(context)
+      this.invalidationRule !== null && this.invalidationRule.evaluate(ctx)
         ? this.invalidationRule.name
         : null
-
     if (vetoReason !== null && !open) return invalidated(vetoReason)
-
     const vetoed = vetoReason !== null
-    const fired = this.firstFiringSignal(context, open, vetoed)
+
+    // 1. SL (solo con posición; el veto nunca bloquea cerrar): toque `low <= sl`.
+    if (levels.sl !== null && levels.sl !== undefined && ctx.current.low <= levels.sl) {
+      return levelExit('stop_loss', levels.sl, this.stopLoss?.execution ?? 'market')
+    }
+    // 2. TP: toque `high >= tp`. Antes que las reglas (prioridad §1.5).
+    if (levels.tp !== null && levels.tp !== undefined && ctx.current.high >= levels.tp) {
+      return levelExit('take_profit', levels.tp, this.takeProfit?.execution ?? 'market')
+    }
+
+    const fired = this.firstFiringSignal(ctx, open, vetoed)
     if (fired !== null) {
       return {
         action: fired.signal.action,
@@ -172,13 +286,50 @@ export class Strategy {
       }
     }
 
+    const trigger = this.firstFiringTrigger(ctx, open, vetoed)
+    if (trigger !== null) {
+      return {
+        action: trigger.trigger.action,
+        fraction: trigger.trigger.fraction,
+        price: trigger.trigger.execution === 'limit' ? trigger.price : null,
+        reason: trigger.trigger.name,
+      }
+    }
+
     if (vetoReason !== null) return invalidated(vetoReason)
     return { action: StrategyAction.None, fraction: null, price: null, reason: null }
   }
 
   /**
-   * Primera señal aplicable que dispara; `null` si ninguna. Un `limitPrice`
-   * sin resolver descarta la señal: nunca caemos a market en silencio.
+   * Niveles efectivos de la operación (§1.6): `entry` desde el contexto (lo
+   * inyecta el runner) solo con la instancia en posición; `sl`/`tp` solo si
+   * la estrategia los declara — el override de sesión (número o `null` =
+   * desactivado) sustituye a la expresión, pero no crea niveles que la
+   * estrategia no define. Sin posición → todo `null`.
+   */
+  private effectiveLevels(context: MarketContext, open: boolean): OperationLevels {
+    const entry = open ? (context.levels.entry ?? null) : null
+    if (entry === null) return { entry: null, sl: null, tp: null }
+
+    const sl =
+      this.stopLoss === null
+        ? null
+        : context.levels.sl !== undefined
+          ? context.levels.sl
+          : evaluatePriceExpr(this.stopLoss.price, context)
+    const tp =
+      this.takeProfit === null
+        ? null
+        : context.levels.tp !== undefined
+          ? context.levels.tp
+          : evaluatePriceExpr(this.takeProfit.price, context)
+    return { entry, sl, tp }
+  }
+
+  /**
+   * Primera señal aplicable que dispara; `null` si ninguna. Un precio sin
+   * resolver (calentamiento) descarta la señal: nunca caemos a market en
+   * silencio — la presencia de precio ⇔ orden `Limit`.
    */
   private firstFiringSignal(
     context: MarketContext,
@@ -190,10 +341,9 @@ export class Strategy {
       if (!signal.rule.evaluate(context)) continue
 
       let price: number | null = null
-      if (signal.config.limitPrice !== undefined) {
-        const resolved = resolveRef(context, signal.config.limitPrice)
-        if (resolved === null) continue
-        price = resolved
+      if (signal.config.price !== undefined) {
+        price = evaluatePriceExpr(signal.config.price, context)
+        if (price === null) continue
       }
 
       return { signal, price }
@@ -201,9 +351,59 @@ export class Strategy {
     return null
   }
 
+  /**
+   * Primer trigger por toque direccional que dispara; `null` si ninguno.
+   * Toque con semántica de orden límite: venta → `high >= price`, compra →
+   * `low <= price` (misma regla que `NextOpenExecutionModel.limitPrice`).
+   * Un precio sin resolver (calentamiento) no dispara.
+   */
+  private firstFiringTrigger(
+    context: MarketContext,
+    open: boolean,
+    vetoed: boolean,
+  ): { trigger: Trigger; price: number } | null {
+    for (const trigger of this.triggers) {
+      if (!isApplicable(trigger.action, open, vetoed)) continue
+      const price = evaluatePriceExpr(trigger.price, context)
+      if (price === null) continue
+
+      const sells =
+        trigger.action === StrategyAction.RequestExit ||
+        trigger.action === StrategyAction.RequestReduce
+      const touched = sells ? context.current.high >= price : context.current.low <= price
+      if (touched) return { trigger, price }
+    }
+    return null
+  }
+
   /** Identidad reproducible (`name@version`) para registrar resultados. */
   toString(): string {
     return `${this.name}@${this.version}`
+  }
+}
+
+/** Validación de un nivel TP/SL: expresión válida + ejecución conocida. */
+function assertPriceLevel(level: PriceLevel, field: string): void {
+  assertPriceExpr(level.price)
+  if (level.execution !== 'limit' && level.execution !== 'market') {
+    throw new InvalidStrategyDefinitionError(
+      `${field}.execution debe ser "limit" o "market"`,
+      level.execution,
+    )
+  }
+}
+
+/**
+ * Decisión de salida por nivel (SL/TP): `limit` lleva el precio en la
+ * decisión (orden `Limit` en el nivel); `market` va sin precio (orden
+ * `Market` a la apertura siguiente) — la presencia de precio ⇔ limit.
+ */
+function levelExit(reason: string, level: number, execution: OrderExecution): StrategyDecision {
+  return {
+    action: StrategyAction.RequestExit,
+    fraction: null,
+    price: execution === 'limit' ? level : null,
+    reason,
   }
 }
 

@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
+import { Constant } from '@/domain/indicators/constant'
 import { IndicatorValue } from '@/domain/indicators/indicator'
 import { Rsi } from '@/domain/indicators/rsi'
+import { Sma } from '@/domain/indicators/sma'
 import { MarketContext, MarketContextError } from '@/domain/strategies/marketContext'
+import { InvalidPriceExprError, plus, series } from '@/domain/strategies/priceExpr'
 import { Greater, Rule } from '@/domain/strategies/rules'
 import {
   InvalidStrategyDefinitionError,
+  OrderExecution,
   Signal,
+  SignalAction,
   Strategy,
   StrategyAction,
   StrategyDefinition,
+  Trigger,
 } from '@/domain/strategies/strategy'
 
 function candle(time: number, close: number): Candle {
@@ -40,12 +46,13 @@ function strategyWith(signals: Signal[], overrides: Partial<StrategyDefinition> 
 }
 
 describe('Signal', () => {
-  it('name es "accion: rule.name" y con limitPrice añade "@ ref"', () => {
+  it('name es "accion: rule.name" y con price añade "@ expr"', () => {
     expect(new Signal(StrategyAction.RequestEntry, rule('rsi > 30', true)).name).toBe(
       'request_entry: rsi > 30',
     )
     expect(
-      new Signal(StrategyAction.RequestExit, rule('rsi > 70', true), { limitPrice: 'sma20' }).name,
+      new Signal(StrategyAction.RequestExit, rule('rsi > 70', true), { price: series('sma20') })
+        .name,
     ).toBe('request_exit: rsi > 70 @ sma20')
   })
 
@@ -69,13 +76,19 @@ describe('Signal', () => {
     )
   })
 
-  it('limitPrice acepta alias y constante sin error', () => {
+  it('price acepta expresiones; un literal numérico → InvalidPriceExprError', () => {
     expect(
-      () => new Signal(StrategyAction.RequestEntry, rule('a', true), { limitPrice: 'sma20' }),
+      () => new Signal(StrategyAction.RequestEntry, rule('a', true), { price: series('sma20') }),
     ).not.toThrow()
     expect(
-      () => new Signal(StrategyAction.RequestEntry, rule('a', true), { limitPrice: 99.5 }),
+      () =>
+        new Signal(StrategyAction.RequestEntry, rule('a', true), {
+          price: plus('a', 'b'),
+        }),
     ).not.toThrow()
+    expect(
+      () => new Signal(StrategyAction.RequestEntry, rule('a', true), { price: 99.5 as never }),
+    ).toThrow(InvalidPriceExprError)
   })
 })
 
@@ -237,25 +250,26 @@ describe('Strategy.evaluate (aplicabilidad)', () => {
 })
 
 describe('Strategy.evaluate (precio)', () => {
-  it('limitPrice por alias resuelve el valor en la vela actual', () => {
+  it('price por alias resuelve el valor en la vela actual', () => {
     const strategy = strategyWith([
-      new Signal(StrategyAction.RequestEntry, rule('a', true), { limitPrice: 'target' }),
+      new Signal(StrategyAction.RequestEntry, rule('a', true), { price: series('target') }),
     ])
 
     expect(strategy.evaluate(contextWith({ target: [10, 10, 10, 12] }), false).price).toBe(12)
   })
 
-  it('limitPrice por constante resuelve esa constante', () => {
-    const strategy = strategyWith([
-      new Signal(StrategyAction.RequestEntry, rule('a', true), { limitPrice: 99.5 }),
-    ])
+  it('price con indicador constante resuelve su valor (decisión 9)', () => {
+    const strategy = strategyWith(
+      [new Signal(StrategyAction.RequestEntry, rule('a', true), { price: series('fixed') })],
+      { indicators: { fixed: new Constant(99.5) } },
+    )
 
-    expect(strategy.evaluate(context, false).price).toBe(99.5)
+    expect(strategy.evaluate(strategy.buildContext(CANDLES), false).price).toBe(99.5)
   })
 
-  it('limitPrice en calentamiento → la señal no dispara y gana la siguiente aplicable', () => {
+  it('price en calentamiento → la señal no dispara y gana la siguiente aplicable', () => {
     const strategy = strategyWith([
-      new Signal(StrategyAction.RequestEntry, rule('a', true), { limitPrice: 'target' }),
+      new Signal(StrategyAction.RequestEntry, rule('a', true), { price: series('target') }),
       new Signal(StrategyAction.RequestEntry, rule('b', true)),
     ])
     const decision = strategy.evaluate(contextWith({ target: [null, null, null, null] }), false)
@@ -264,12 +278,22 @@ describe('Strategy.evaluate (precio)', () => {
     expect(decision.price).toBeNull()
   })
 
-  it('limitPrice con alias no registrado → MarketContextError', () => {
+  it('price con alias no registrado → MarketContextError', () => {
     const strategy = strategyWith([
-      new Signal(StrategyAction.RequestEntry, rule('a', true), { limitPrice: 'ghost' }),
+      new Signal(StrategyAction.RequestEntry, rule('a', true), { price: series('ghost') }),
     ])
 
     expect(() => strategy.evaluate(context, false)).toThrow(MarketContextError)
+  })
+
+  it('el precio viaja en la decisión y sin price la decisión va a mercado (price null)', () => {
+    const market = strategyWith([new Signal(StrategyAction.RequestEntry, rule('a', true))])
+    expect(market.evaluate(context, false).price).toBeNull()
+
+    const limit = strategyWith([
+      new Signal(StrategyAction.RequestEntry, rule('a', true), { price: series('target') }),
+    ])
+    expect(limit.evaluate(contextWith({ target: [10, 10, 10, 12] }), false).price).toBe(12)
   })
 })
 
@@ -399,5 +423,340 @@ describe('Strategy.evaluate (invalidación)', () => {
         invalidationRule: declared,
       }).invalidationRule,
     ).toBe(declared)
+  })
+})
+
+describe('Strategy.evaluate (TP/SL)', () => {
+  const entrySignal = () => new Signal(StrategyAction.RequestEntry, rule('entry?', false))
+
+  it('SL market: toque low <= sl → RequestExit sin precio, reason stop_loss', () => {
+    const strategy = strategyWith([entrySignal()], {
+      stopLoss: { price: series('slLevel'), execution: 'market' },
+      indicators: { slLevel: new Constant(12) },
+    })
+    // Vela actual: low = 12 → toca el sl (12 <= 12).
+    const decision = strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), true)
+
+    expect(decision).toEqual({
+      action: StrategyAction.RequestExit,
+      fraction: null,
+      price: null,
+      reason: 'stop_loss',
+    })
+  })
+
+  it('SL limit: la decisión lleva el precio del nivel (presencia ⇔ limit)', () => {
+    const strategy = strategyWith([entrySignal()], {
+      stopLoss: { price: series('slLevel'), execution: 'limit' },
+      indicators: { slLevel: new Constant(12) },
+    })
+    const decision = strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), true)
+
+    expect(decision.action).toBe(StrategyAction.RequestExit)
+    expect(decision.price).toBe(12)
+    expect(decision.reason).toBe('stop_loss')
+  })
+
+  it('TP: toque high >= tp → RequestExit con reason take_profit', () => {
+    const strategy = strategyWith([entrySignal()], {
+      takeProfit: { price: series('tpLevel'), execution: 'limit' },
+      indicators: { tpLevel: new Constant(14) },
+    })
+    // Vela actual: high = 14 → toca el tp (14 >= 14).
+    const decision = strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), true)
+
+    expect(decision.action).toBe(StrategyAction.RequestExit)
+    expect(decision.price).toBe(14)
+    expect(decision.reason).toBe('take_profit')
+  })
+
+  it('prioridad: SL gana a TP cuando ambas tocan en la misma vela', () => {
+    const strategy = strategyWith([entrySignal()], {
+      stopLoss: { price: series('slLevel'), execution: 'market' },
+      takeProfit: { price: series('tpLevel'), execution: 'market' },
+      indicators: { slLevel: new Constant(12), tpLevel: new Constant(14) },
+    })
+
+    expect(strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), true).reason).toBe(
+      'stop_loss',
+    )
+  })
+
+  it('prioridad: SL gana a las señales cuando ambas disparan', () => {
+    const strategy = strategyWith([new Signal(StrategyAction.RequestExit, rule('exit?', true))], {
+      stopLoss: { price: series('slLevel'), execution: 'market' },
+      indicators: { slLevel: new Constant(12) },
+    })
+    const decision = strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), true)
+
+    expect(decision.reason).toBe('stop_loss')
+  })
+
+  it('sin posición (open=false) → nunca SL/TP, aunque los niveles toquen', () => {
+    const strategy = strategyWith([entrySignal()], {
+      stopLoss: { price: series('slLevel'), execution: 'market' },
+      indicators: { slLevel: new Constant(12) },
+    })
+
+    expect(strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), false).action).toBe(
+      StrategyAction.None,
+    )
+  })
+
+  it('sin entry en el contexto (posiciones manuales del replay) → nunca SL/TP', () => {
+    const strategy = strategyWith([entrySignal()], {
+      stopLoss: { price: series('slLevel'), execution: 'market' },
+      indicators: { slLevel: new Constant(12) },
+    })
+
+    expect(strategy.evaluate(strategy.buildContext(CANDLES), true).action).toBe(StrategyAction.None)
+  })
+
+  it('override de sesión: número gana a la expresión (5 > low no toca)', () => {
+    const strategy = strategyWith([entrySignal()], {
+      stopLoss: { price: series('slLevel'), execution: 'market' },
+      indicators: { slLevel: new Constant(12) },
+    })
+
+    expect(
+      strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100, sl: 5 }), true).action,
+    ).toBe(StrategyAction.None)
+    // y el override sí dispara si toca
+    expect(
+      strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100, sl: 13 }), true).reason,
+    ).toBe('stop_loss')
+  })
+
+  it('override null desactiva el nivel aunque la expresión tocaría', () => {
+    const strategy = strategyWith([entrySignal()], {
+      stopLoss: { price: series('slLevel'), execution: 'market' },
+      indicators: { slLevel: new Constant(12) },
+    })
+
+    expect(
+      strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100, sl: null }), true).action,
+    ).toBe(StrategyAction.None)
+  })
+
+  it('las reglas ven los niveles materializados (value("sl"))', () => {
+    const slReader: Rule = { name: 'sl == 5', evaluate: (ctx) => ctx.value('sl') === 5 }
+    const strategy = strategyWith([new Signal(StrategyAction.RequestExit, slReader)], {
+      stopLoss: { price: series('slLevel'), execution: 'market' },
+      indicators: { slLevel: new Constant(5) },
+    })
+    // sl = 5 no toca (low 12 > 5), pero la regla lo ve materializado.
+    const decision = strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), true)
+
+    expect(decision.action).toBe(StrategyAction.RequestExit)
+    expect(decision.reason).toBe('request_exit: sl == 5')
+  })
+
+  it('sin stopLoss declarado → no hay SL aunque la sesión pase un override', () => {
+    const strategy = strategyWith([entrySignal()])
+
+    expect(
+      strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100, sl: 13 }), true).action,
+    ).toBe(StrategyAction.None)
+  })
+})
+
+describe('Trigger', () => {
+  it('name es "action @ expr" para observabilidad', () => {
+    const trigger = new Trigger({
+      price: plus('fast', 'slow'),
+      action: StrategyAction.RequestEntry,
+      execution: 'limit',
+    })
+
+    expect(trigger.name).toBe('request_entry @ fast + slow')
+    expect(trigger.fraction).toBeNull()
+  })
+
+  it('acción fuera de las cuatro señales → InvalidStrategyDefinitionError', () => {
+    expect(
+      () =>
+        new Trigger({
+          price: series('x'),
+          action: StrategyAction.None as never,
+          execution: 'market',
+        }),
+    ).toThrow(InvalidStrategyDefinitionError)
+  })
+
+  it('execution desconocida → InvalidStrategyDefinitionError', () => {
+    expect(
+      () =>
+        new Trigger({
+          price: series('x'),
+          action: StrategyAction.RequestEntry,
+          execution: 'stop' as never,
+        }),
+    ).toThrow(InvalidStrategyDefinitionError)
+  })
+
+  it('fraction igual que las señales: obligatoria en add/reduce, prohibida en entry/exit', () => {
+    expect(
+      () =>
+        new Trigger({
+          price: series('x'),
+          action: StrategyAction.RequestAdd,
+          execution: 'market',
+          fraction: 0.5,
+        }),
+    ).not.toThrow()
+    expect(
+      () =>
+        new Trigger({ price: series('x'), action: StrategyAction.RequestAdd, execution: 'market' }),
+    ).toThrow(InvalidStrategyDefinitionError)
+    expect(
+      () =>
+        new Trigger({
+          price: series('x'),
+          action: StrategyAction.RequestEntry,
+          execution: 'market',
+          fraction: 0.5,
+        }),
+    ).toThrow(InvalidStrategyDefinitionError)
+  })
+
+  it('precio literal numérico → InvalidPriceExprError', () => {
+    expect(
+      () =>
+        new Trigger({
+          price: 99 as never,
+          action: StrategyAction.RequestEntry,
+          execution: 'limit',
+        }),
+    ).toThrow(InvalidPriceExprError)
+  })
+})
+
+describe('Strategy.evaluate (triggers)', () => {
+  /** Señal que nunca dispara (las estrategias requieren ≥ 1 señal). */
+  const neverSignal = () => new Signal(StrategyAction.RequestEntry, rule('never', false))
+
+  /** Trigger de compra (low <= price) o venta (high >= price) con nivel constante. */
+  function triggerStrategy(
+    action: SignalAction,
+    level: number,
+    execution: OrderExecution,
+    warmup = false,
+  ): Strategy {
+    return strategyWith([neverSignal()], {
+      triggers: [
+        new Trigger({
+          price: series('lvl'),
+          action,
+          execution,
+        }),
+      ],
+      // Calentamiento: SMA(5) sobre 4 velas → toda la serie en null.
+      indicators: { lvl: warmup ? new Sma(5) : new Constant(level) },
+    })
+  }
+
+  it('compra: toque low <= price → la acción dispara con su precio (limit)', () => {
+    // low actual = 12 → un nivel en 13 se toca (12 <= 13).
+    const strategy = triggerStrategy(StrategyAction.RequestEntry, 13, 'limit')
+    const decision = strategy.evaluate(strategy.buildContext(CANDLES), false)
+
+    expect(decision.action).toBe(StrategyAction.RequestEntry)
+    expect(decision.price).toBe(13)
+    expect(decision.reason).toBe('request_entry @ lvl')
+  })
+
+  it('venta: toque high >= price → la acción dispara', () => {
+    // high actual = 14 → un nivel en 13 se toca (14 >= 13).
+    const strategy = triggerStrategy(StrategyAction.RequestExit, 13, 'limit')
+    const decision = strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), true)
+
+    expect(decision.action).toBe(StrategyAction.RequestExit)
+    expect(decision.price).toBe(13)
+  })
+
+  it('sin toque → no dispara', () => {
+    // Compra en 11: low actual 12 > 11 → no toca.
+    const strategy = triggerStrategy(StrategyAction.RequestEntry, 11, 'limit')
+
+    expect(strategy.evaluate(strategy.buildContext(CANDLES), false).action).toBe(
+      StrategyAction.None,
+    )
+  })
+
+  it('execution market → la decisión va sin precio (price null)', () => {
+    const strategy = triggerStrategy(StrategyAction.RequestEntry, 13, 'market')
+    const decision = strategy.evaluate(strategy.buildContext(CANDLES), false)
+
+    expect(decision.action).toBe(StrategyAction.RequestEntry)
+    expect(decision.price).toBeNull()
+  })
+
+  it('calentamiento (expresión sin resolver) → el trigger no dispara', () => {
+    const strategy = triggerStrategy(StrategyAction.RequestEntry, 13, 'limit', true)
+
+    expect(strategy.evaluate(strategy.buildContext(CANDLES), false).action).toBe(
+      StrategyAction.None,
+    )
+  })
+
+  it('applicabilidad: request_entry solo sin posición; request_exit solo con posición', () => {
+    const buy = triggerStrategy(StrategyAction.RequestEntry, 13, 'limit')
+    expect(buy.evaluate(buy.buildContext(CANDLES, { entry: 100 }), true).action).toBe(
+      StrategyAction.None,
+    )
+
+    const sell = triggerStrategy(StrategyAction.RequestExit, 13, 'limit')
+    expect(sell.evaluate(sell.buildContext(CANDLES), false).action).toBe(StrategyAction.None)
+  })
+
+  it('el veto bloquea triggers de add pero nunca los de venta', () => {
+    const vetoOn = rule('veto', true)
+    const add = strategyWith([neverSignal()], {
+      invalidationRule: vetoOn,
+      triggers: [
+        new Trigger({
+          price: series('lvl'),
+          action: StrategyAction.RequestAdd,
+          execution: 'limit',
+          fraction: 0.5,
+        }),
+      ],
+      indicators: { lvl: new Constant(13) },
+    })
+    // add requiere !vetoed → no dispara; el veto degrada la decisión a Invalidate.
+    expect(add.evaluate(add.buildContext(CANDLES, { entry: 100 }), true).action).toBe(
+      StrategyAction.Invalidate,
+    )
+
+    const sell = strategyWith([neverSignal()], {
+      invalidationRule: vetoOn,
+      triggers: [
+        new Trigger({
+          price: series('lvl'),
+          action: StrategyAction.RequestExit,
+          execution: 'limit',
+        }),
+      ],
+      indicators: { lvl: new Constant(13) },
+    })
+    expect(sell.evaluate(sell.buildContext(CANDLES, { entry: 100 }), true).action).toBe(
+      StrategyAction.RequestExit,
+    )
+  })
+
+  it('prioridad: las señales (reglas) ganan a los triggers', () => {
+    const strategy = strategyWith([new Signal(StrategyAction.RequestExit, rule('exit?', true))], {
+      triggers: [
+        new Trigger({
+          price: series('lvl'),
+          action: StrategyAction.RequestExit,
+          execution: 'limit',
+        }),
+      ],
+      indicators: { lvl: new Constant(13) },
+    })
+    const decision = strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), true)
+
+    expect(decision.reason).toBe('request_exit: exit?')
   })
 })

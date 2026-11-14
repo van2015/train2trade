@@ -4,7 +4,7 @@ import { Fill } from '@/domain/execution/fill'
 import { Order, OrderSide, OrderType } from '@/domain/execution/order'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 import { RiskManager } from '@/domain/portfolio/riskManager'
-import { MarketContext } from '@/domain/strategies/marketContext'
+import { MarketContext, OperationLevels } from '@/domain/strategies/marketContext'
 import { Strategy, StrategyAction, StrategyDecision } from '@/domain/strategies/strategy'
 import { StrategyEvent, StrategyInstance } from '@/domain/strategies/strategyInstance'
 import { MarketClock } from '@/domain/time/marketClock'
@@ -95,7 +95,14 @@ export class StrategyRunner {
     }
 
     // 4. Evaluación al cierre (siempre después del avance: sin look-ahead).
-    const decision = this.strategy.evaluate(context, this.instance.open)
+    // Niveles: `entry` = precio de relleno de la posición vigente (§1.6).
+    // Se inyectan tras los rellenos para que SL/TP/`entry` vean el precio
+    // real desde la misma vela en que se abre la posición.
+    const position = this.portfolio.position
+    const levels: OperationLevels = {
+      entry: position !== null && position.isOpen ? position.avgEntryPrice : null,
+    }
+    const decision = this.strategy.evaluate(context.withLevels(levels), this.instance.open)
     events.push(...this.applyDecision(decision, context, candle.time))
     return events
   }
