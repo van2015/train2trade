@@ -236,9 +236,9 @@ describe('App', () => {
     expect(screen.getByTestId('replay-empty')).toBeVisible()
     expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
 
-    // Test-Forward y Optimización: estado vacío de sus resultados.
+    // Test-Forward y Optimización: estado vacío (sin sesión / sin resultados).
     fireEvent.click(screen.getByRole('tab', { name: 'Test-Forward' }))
-    expect(screen.getByTestId('tf-results-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('tf-session-empty')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: 'Optimización' }))
     expect(screen.getByTestId('opt-results-empty')).toBeInTheDocument()
 
@@ -319,7 +319,7 @@ describe('App', () => {
     openSection('Experimentos')
 
     // Formularios en la sidebar…
-    expect(screen.getByRole('button', { name: 'Ejecutar test-forward' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Ejecutar optimización' })).toBeDisabled()
 
     // …y el historial completo en su pestaña (sección Resultados eliminada).
@@ -370,7 +370,7 @@ describe('App', () => {
     expect(screen.getByTestId('backtest-trades')).toBeInTheDocument()
   })
 
-  it('ejecutar un test-forward muestra sus resultados en su pestaña', () => {
+  it('iniciar un test-forward corta el gráfico y abre su pestaña (§2.3)', () => {
     const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
     repository.save(
       Instrument.of('BTC', 'USDT'),
@@ -382,17 +382,19 @@ describe('App', () => {
 
     // Hay dos formularios con los mismos labels: acotar al panel Test-Forward.
     const tf = within(screen.getByRole('region', { name: 'Test-Forward' }))
-    fireEvent.change(tf.getByLabelText('Corte (UTC)'), { target: { value: '2023-11-15T02:00' } })
-    fireEvent.click(tf.getByRole('button', { name: 'Ejecutar test-forward' }))
+    fireEvent.click(tf.getByRole('button', { name: 'Iniciar sesión' }))
 
+    // Auto-conmutación a la pestaña con la sesión viva y el gráfico cortado.
     expect(screen.getByRole('tab', { name: 'Test-Forward' })).toHaveAttribute(
       'aria-selected',
       'true',
     )
-    expect(screen.getByTestId('tf-summary')).toBeInTheDocument()
-    expect(screen.getByTestId('tf-table')).toBeInTheDocument()
-    // el auto-guardo registra desarrollo y evaluación (§9)
-    expect(experiments.list()).toHaveLength(2)
+    expect(screen.getByTestId('tf-progress')).toHaveTextContent('5 / 9 velas')
+    expect(screen.getByTestId('tf-decision')).toHaveTextContent('Entrada')
+    expect(screen.getByText('5/9 velas')).toBeInTheDocument() // rango del gráfico (anti look-ahead)
+
+    // La sesión NO genera ExperimentSnapshot (riesgo §: decisiones humanas + RNG).
+    expect(experiments.list()).toHaveLength(0)
   })
 
   it('ejecutar una optimización muestra sus resultados en su pestaña', () => {

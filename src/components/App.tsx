@@ -3,7 +3,7 @@ import type { MarketDataProvider, TimeRange } from '@/api/marketDataProvider'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Experiment, ExperimentSnapshot } from '@/domain/backtest/experiment'
-import type { TestForwardRun } from '@/domain/backtest/testForward'
+import type { TestForwardSession } from '@/domain/testforward/session'
 import { Instrument } from '@/domain/instruments/instrument'
 import { CandleRepository } from '@/storage/candleRepository'
 import { ExperimentRepository } from '@/storage/experimentRepository'
@@ -15,7 +15,7 @@ import { BacktestResults } from './BacktestResults'
 import { ReplayPanel } from './ReplayPanel'
 import { ExperimentHistoryPanel } from './ExperimentHistoryPanel'
 import { TestForwardPanel } from './TestForwardPanel'
-import { TestForwardResults } from './TestForwardResults'
+import { TestForwardSessionView } from './TestForwardSessionView'
 import { OptimizationPanel } from './OptimizationPanel'
 import { OptimizationResults, type OptimizationViewState } from './OptimizationResults'
 import { CsvImportPanel } from './CsvImportPanel'
@@ -76,6 +76,9 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
   const [busy, setBusy] = useState(false)
   // Cursor del replay activo (null = sin sesión): el gráfico solo ve lo consumido.
   const [replayCursor, setReplayCursor] = useState<number | null>(null)
+  // Sesión de test-forward y su cursor (§2.3): el gráfico se corta hasta ella.
+  const [tfSession, setTfSession] = useState<TestForwardSession | null>(null)
+  const [tfCursor, setTfCursor] = useState<number | null>(null)
   const [snapshots, setSnapshots] = useState<readonly ExperimentSnapshot[]>(() =>
     experiments.list(),
   )
@@ -96,7 +99,6 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
   const [mainView, setMainView] = useState<MainViewId>('chart')
   // Resultados de cada experimento para su pestaña (Fase 3): auto-conmutación al ejecutar.
   const [lastExperiment, setLastExperiment] = useState<Experiment | null>(null)
-  const [lastTestForward, setLastTestForward] = useState<TestForwardRun | null>(null)
   const [lastOptimization, setLastOptimization] = useState<OptimizationViewState | null>(null)
 
   const handleToggleSection = (id: SidebarSectionId) => {
@@ -111,14 +113,40 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
     setMainView('backtest')
   }
 
-  const handleTestForwardResult = (next: TestForwardRun) => {
-    setLastTestForward(next)
-    setMainView('testforward')
-  }
-
   const handleOptimizationResult = (next: OptimizationViewState) => {
     setLastOptimization(next)
     setMainView('optimization')
+  }
+
+  /**
+   * Cursor del replay: una sesión nueva (cursor no nulo) descarta la de
+   * test-forward — el gráfico sigue a una sola sesión a la vez (§2.3); el
+   * descarte por cambio de velas (null) no toca el test-forward.
+   */
+  const handleReplayProgress = useCallback((cursor: number | null) => {
+    setReplayCursor(cursor)
+    if (cursor !== null) {
+      setTfSession(null)
+      setTfCursor(null)
+    }
+  }, [])
+
+  /** Nueva sesión (§2.3): corta el gráfico, olvida el cursor del replay y abre la pestaña. */
+  const handleTfStart = (session: TestForwardSession) => {
+    setTfSession(session)
+    setTfCursor(session.cursor)
+    setReplayCursor(null)
+    setMainView('testforward')
+  }
+
+  /** Cursor de la sesión de test-forward; null = descartada (velas nuevas). */
+  const handleTfProgress = (cursor: number | null) => {
+    if (cursor === null) {
+      setTfSession(null)
+      setTfCursor(null)
+      return
+    }
+    setTfCursor(cursor)
   }
 
   const reloadExperiments = useCallback(() => {
@@ -161,9 +189,11 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
     reload()
   }, [reload])
 
-  // Con replay activo, el gráfico (velas e indicadores) solo ve lo consumido:
-  // ni la UI ni la estrategia miran al futuro (§7B, anti look-ahead).
-  const visible = replayCursor === null ? candles : candles.slice(0, replayCursor)
+  // Con una sesión activa, el gráfico (velas e indicadores) solo ve lo
+  // consumido: ni la UI ni la estrategia miran al futuro (§7B/§2.3). Cada
+  // arranque descarta el cursor de la otra sesión → uno solo manda.
+  const activeCursor = replayCursor ?? tfCursor
+  const visible = activeCursor === null ? candles : candles.slice(0, activeCursor)
 
   const lines: readonly ChartLine[] = useMemo(
     () => buildLines(visible, settings),
@@ -204,13 +234,13 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
   const range =
     candles.length === 0
       ? 'sin datos'
-      : replayCursor === null
+      : activeCursor === null
         ? `${candles.length} velas`
         : `${visible.length}/${candles.length} velas`
 
   const results: Partial<Record<MainViewId, boolean>> = {
     backtest: lastExperiment !== null,
-    testforward: lastTestForward !== null,
+    testforward: tfSession !== null,
     optimization: lastOptimization !== null,
   }
 
@@ -274,8 +304,7 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
               candles={candles}
               timeframe={timeframe}
               strategy={selectedStrategy ?? null}
-              onExperiment={handleExperiment}
-              onResult={handleTestForwardResult}
+              onStart={handleTfStart}
             />
 
             <OptimizationPanel
@@ -356,21 +385,30 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
               candles={candles}
               timeframe={timeframe}
               strategy={selectedStrategy ?? null}
-              onProgress={setReplayCursor}
+              onProgress={handleReplayProgress}
             />
             {mainView === 'replay' && <CandleChart candles={visible} lines={lines} />}
           </div>
 
-          {mainView === 'testforward' && (
-            <div
-              className="app__view app__view--results"
-              id="main-view"
-              role="tabpanel"
-              aria-labelledby="main-tab-testforward"
-            >
-              <TestForwardResults run={lastTestForward} />
-            </div>
-          )}
+          {/*
+            Test-Forward: siempre montado (oculto fuera de su pestaña) para no
+            perder la sesión; el gráfico solo se monta mientras la pestaña está
+            activa (evita dos instancias de lightweight-charts), patrón Replay.
+          */}
+          <div
+            className="app__view app__view--replay"
+            id={mainView === 'testforward' ? 'main-view' : 'testforward-view'}
+            role="tabpanel"
+            aria-labelledby="main-tab-testforward"
+            hidden={mainView !== 'testforward'}
+          >
+            <TestForwardSessionView
+              session={tfSession}
+              candles={candles}
+              onProgress={handleTfProgress}
+            />
+            {mainView === 'testforward' && <CandleChart candles={visible} lines={lines} />}
+          </div>
 
           {mainView === 'optimization' && (
             <div

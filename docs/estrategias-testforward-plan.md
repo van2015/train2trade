@@ -359,6 +359,21 @@ Anti look-ahead: decisión en vela N → relleno en N+1; solo se ve hasta el cur
   `stop_loss`/`take_profit`, sin colisión con `"acción: regla"`; la prioridad la sigue
   decidiendo `Strategy.evaluate` sin replicarla.
 
+### 2.6 Notas de implementación (Ronda H — decisiones tomadas)
+
+- **Dos componentes, una sesión**: `TestForwardPanel` (sidebar, Experimentos) solo valida y
+  crea la sesión (`onStart` → App); la UI de la sesión vive en **`TestForwardSessionView`**,
+  montada siempre en la pestaña Test-Forward (oculta fuera de ella, patrón Replay) para que la
+  sesión sobreviva a los cambios de pestaña. La sesión es de **App** (estado), no del panel.
+- **El gráfico sigue a una sola sesión** (`activeCursor = replayCursor ?? tfCursor`): iniciar
+  test-forward olvida el cursor del replay y cualquier avance del replay (cursor no nulo)
+  descarta la sesión de test-forward. Asimetría aceptada: el gráfico nunca muestra futuro.
+- **La sesión no auto-guarda experimentos** (riesgo §): su resultado es el log + equity de la
+  pestaña; el test de App lo fija (`experiments.list() === 0` tras iniciar).
+- **Controles de nivel**: solo aparecen si la estrategia declara el nivel (§1.5); muestran el
+  valor efectivo (manual / expresión automática / desactivado) y los tres modos del plan
+  (fijar, revertir a auto, desactivar).
+
 ---
 
 ## Orden de implementación (TDD por rondas)

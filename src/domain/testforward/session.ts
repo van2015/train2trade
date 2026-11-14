@@ -209,6 +209,16 @@ export class TestForwardSession {
     return [...this.pointsValue]
   }
 
+  /** Estrategia en ejecución (declara `takeProfit`/`stopLoss` para los controles, §2.3). */
+  get strategy(): Strategy {
+    return this.strategyValue
+  }
+
+  /** Overrides de niveles (undefined = automático, null = desactivado, número = manual). */
+  get levelOverrides(): { sl: number | null | undefined; tp: number | null | undefined } {
+    return { sl: this.strategyValue.slOverride, tp: this.strategyValue.tpOverride }
+  }
+
   /** Log de decisiones (§2.1), en orden; copia estable para la UI. */
   get log(): readonly TestForwardLogEntry[] {
     return [...this.logEntries]

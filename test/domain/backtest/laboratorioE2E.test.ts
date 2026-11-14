@@ -3,8 +3,6 @@ import { compareExperiments, rankBy } from '@/domain/backtest/compare'
 import { Experiment } from '@/domain/backtest/experiment'
 import { runOptimization } from '@/domain/backtest/optimization'
 import { analyzeRobustness } from '@/domain/backtest/robustness'
-import { splitCandles } from '@/domain/backtest/split'
-import { runTestForward } from '@/domain/backtest/testForward'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
@@ -99,7 +97,6 @@ function laboratory() {
   repository.save(snapshot)
   repository.save(Experiment.run(base({ instrument: Instrument.of('BTC', 'USDT') })).toSnapshot())
 
-  const testForward = runTestForward({ ...base(), cutTime: t0 + 6 * stepMs })
   const optimization = runOptimization({
     buildStrategy,
     grid: { fast: [2, 10], slow: [3, 30] },
@@ -118,7 +115,6 @@ function laboratory() {
     experiment,
     snapshot,
     stored: repository.list(),
-    testForward,
     optimization,
     robustness,
     comparison,
@@ -144,35 +140,7 @@ describe('Laboratorio Fase 6 — E2E (§9/§12C/§13)', () => {
     expect(repository.find(snapshot.id)).toEqual(snapshot)
   })
 
-  it('2. split + test-forward con deltas verificados a mano', () => {
-    const cutTime = t0 + 6 * stepMs
-    const split = splitCandles(CANDLES, cutTime)
-    expect(split.development).toHaveLength(6)
-    expect(split.evaluation).toHaveLength(3)
-
-    const run = runTestForward({ ...base(), cutTime })
-    expect(run.development.period.to).toBe(t0 + 5 * stepMs)
-    expect(run.evaluation.period.from).toBe(cutTime)
-
-    // Verificado a mano: el desarrollo entra en i4 y termina con la posición
-    // abierta marcada al mismo precio (equity plano en 1 000 → sin trades);
-    // la evaluación [130, 100, 100] no llega a cruzar → ambos lados neutros.
-    expect(run.development.result.trades).toHaveLength(0)
-    expect(run.development.result.metrics.netProfit).toBe(0)
-    expect(run.development.result.metrics.maxDrawdown).toBe(0)
-    expect(run.development.result.metrics.sharpe).toBeNull()
-    expect(run.evaluation.result.trades).toHaveLength(0)
-    expect(run.evaluation.result.metrics.netProfit).toBe(0)
-
-    expect(run.deltas.netProfit).toBe(0)
-    expect(run.deltas.roi).toBe(0)
-    expect(run.deltas.maxDrawdown).toBe(0)
-    expect(run.deltas.winRate).toBeUndefined()
-    expect(run.deltas.sharpe).toBeUndefined()
-    expect(run.deltas.profitFactor).toBeUndefined()
-  })
-
-  it('3. optimización 2×2 y robustez verificadas a mano sobre la misma serie', () => {
+  it('2. optimización 2×2 y robustez verificadas a mano sobre la misma serie', () => {
     const optimization = runOptimization({
       buildStrategy,
       grid: { fast: [2, 10], slow: [3, 30] },
@@ -215,7 +183,7 @@ describe('Laboratorio Fase 6 — E2E (§9/§12C/§13)', () => {
     expect(robustness.aboveThreshold).toEqual({ threshold: 0, count: 0, fraction: 0 })
   })
 
-  it('4. comparación de experimentos con differences (§9/§12C)', () => {
+  it('3. comparación de experimentos con differences (§9/§12C)', () => {
     const btc = Experiment.run(base({ instrument: Instrument.of('BTC', 'USDT') })).toSnapshot()
     const eth = Experiment.run(
       base({ instrument: Instrument.of('ETH', 'USDT'), timeframe: Timeframe.FOUR_HOURS }),
@@ -235,14 +203,13 @@ describe('Laboratorio Fase 6 — E2E (§9/§12C/§13)', () => {
     expect(rankBy(table.rows, 'roi').map((row) => row.instrument)).toEqual(['BTC/USDT', 'ETH/USDT'])
   })
 
-  it('5. determinismo extremo a extremo: el pipeline completo se repite idéntico (§12C)', () => {
+  it('4. determinismo extremo a extremo: el pipeline completo se repite idéntico (§12C)', () => {
     const first = laboratory()
     const second = laboratory()
 
     expect(second.experiment).toEqual(first.experiment)
     expect(second.snapshot).toEqual(first.snapshot)
     expect(second.stored).toEqual(first.stored)
-    expect(second.testForward).toEqual(first.testForward)
     expect(second.optimization).toEqual(first.optimization)
     expect(second.robustness).toEqual(first.robustness)
     expect(second.comparison).toEqual(first.comparison)
