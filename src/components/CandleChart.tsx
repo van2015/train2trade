@@ -4,8 +4,6 @@ import {
   ColorType,
   CrosshairMode,
   HistogramSeries,
-  LineSeries,
-  LineStyle,
   createChart,
   type IChartApi,
   type ISeriesApi,
@@ -19,33 +17,13 @@ import {
   priceFormatFor,
   toChartTime,
   toCandlestickData,
-  toLineData,
   toVolumeData,
 } from './chartData'
-
-const LOWER_PANE_INDEX = 1
+import { syncLineSeries } from './lineSeries'
 
 export interface CandleChartProps {
   candles: readonly Candle[]
   lines: readonly ChartLine[]
-}
-
-function lineOptions(line: ChartLine) {
-  const range = line.fixedRange
-  return {
-    color: line.color,
-    lineWidth: 2 as const,
-    priceLineVisible: false,
-    lastValueVisible: true,
-    title: line.label,
-    ...(range === undefined
-      ? {}
-      : {
-          autoscaleInfoProvider: () => ({
-            priceRange: { minValue: range.min, maxValue: range.max },
-          }),
-        }),
-  }
 }
 
 /**
@@ -148,39 +126,7 @@ export function CandleChart({ candles, lines }: CandleChartProps) {
     const chart = chartRef.current
     if (chart === null) return
 
-    const wanted = new Map(lines.map((line) => [line.id, line]))
-
-    for (const [id, series] of [...lineSeriesRef.current]) {
-      if (!wanted.has(id)) {
-        chart.removeSeries(series)
-        lineSeriesRef.current.delete(id)
-      }
-    }
-
-    for (const line of lines) {
-      let series = lineSeriesRef.current.get(line.id)
-      if (series === undefined) {
-        series = chart.addSeries(
-          LineSeries,
-          lineOptions(line),
-          line.pane === 'lower' ? LOWER_PANE_INDEX : 0,
-        )
-        lineSeriesRef.current.set(line.id, series)
-        for (const price of line.referenceLines ?? []) {
-          series.createPriceLine({
-            price,
-            color: line.color,
-            lineStyle: LineStyle.Dashed,
-            lineWidth: 1,
-            axisLabelVisible: true,
-            title: '',
-          })
-        }
-      } else {
-        series.applyOptions({ color: line.color, title: line.label })
-      }
-      series.setData(toLineData(line.values))
-    }
+    syncLineSeries(chart, lineSeriesRef.current, lines)
   }, [lines])
 
   const lastCandle = candles[candles.length - 1]
