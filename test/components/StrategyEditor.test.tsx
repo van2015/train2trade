@@ -5,6 +5,27 @@ import { Candle } from '@/domain/candles/candle'
 import { minus, series } from '@/domain/strategies/priceExpr'
 import { StrategySpec } from '@/domain/strategies/spec'
 
+// El editor monta el minichart (lightweight-charts no corre en jsdom).
+vi.mock('lightweight-charts', () => ({
+  createChart: vi.fn(() => ({
+    addSeries: vi.fn(() => ({
+      setData: vi.fn(),
+      applyOptions: vi.fn(),
+      createPriceLine: vi.fn(() => ({ applyOptions: vi.fn(), options: vi.fn(() => ({})) })),
+      removePriceLine: vi.fn(),
+      priceScale: vi.fn(() => ({ applyOptions: vi.fn() })),
+    })),
+    removeSeries: vi.fn(),
+    remove: vi.fn(),
+    timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
+    subscribeCrosshairMove: vi.fn(),
+  })),
+  CandlestickSeries: 'CandlestickSeries',
+  LineSeries: 'LineSeries',
+  ColorType: { Solid: 'solid' },
+  LineStyle: { Solid: 0, Dotted: 1, Dashed: 2 },
+}))
+
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
 
@@ -326,5 +347,52 @@ describe('StrategyEditor — deshacer', () => {
     fireEvent.click(undo)
     expect(screen.getByLabelText('Nombre')).toHaveValue('demo')
     expect(undo).toBeDisabled()
+  })
+})
+
+describe('StrategyEditor — previsualización (plan strategy-preview)', () => {
+  it('monta el minichart bajo el título con las velas y el draft', () => {
+    renderEditor()
+
+    const editor = screen.getByTestId('strategy-editor')
+    const preview = within(editor).getByTestId('strategy-preview')
+    expect(preview).toBeInTheDocument()
+    // Draft válido + velas cargadas → sin nota ni vacío.
+    expect(within(editor).queryByTestId('preview-note')).not.toBeInTheDocument()
+    expect(within(editor).queryByTestId('preview-empty')).not.toBeInTheDocument()
+  })
+
+  it('refleja en el preview los cambios del draft (periodo inválido → nota)', () => {
+    renderEditor()
+
+    expect(screen.queryByTestId('preview-note')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Indicador 1 periodo'), {
+      target: { value: '0' },
+    })
+
+    const note = screen.getByTestId('preview-note')
+    expect(note).toHaveTextContent('Omitidos:')
+    expect(note).toHaveTextContent('indicador fast')
+  })
+
+  it('draft con regla rota sigue previsualizando (sin bloquear por buildStrategy)', () => {
+    renderEditor({
+      ...SPEC,
+      entry: {
+        rule: { kind: 'condition', op: '>', a: 'fantasma', b: 'fast' },
+        execution: 'market',
+      },
+    })
+
+    // Sin issues (reglas no se evalúan en el preview) → sin nota.
+    expect(screen.queryByTestId('preview-note')).not.toBeInTheDocument()
+    expect(screen.getByTestId('strategy-preview')).toBeInTheDocument()
+  })
+
+  it('sin velas cargadas muestra el estado vacío del preview', () => {
+    renderEditor(SPEC, [])
+
+    expect(screen.getByTestId('preview-empty')).toHaveTextContent('Sin datos para previsualizar')
   })
 })

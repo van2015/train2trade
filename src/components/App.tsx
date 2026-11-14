@@ -372,7 +372,10 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
           {/*
             Replay: siempre montado (oculto fuera de su pestaña) para no perder
             la sesión; el gráfico solo se monta mientras la pestaña está activa
-            (evita dos instancias de lightweight-charts).
+            (evita dos instancias de lightweight-charts). Excepción deliberada:
+            el minichart del editor de estrategias (StrategyPreviewChart) puede
+            convivir con este gráfico mientras el editor está abierto (plan
+            strategy-preview-plan, decisión cerrada con el usuario).
           */}
           <div
             className="app__view app__view--replay"

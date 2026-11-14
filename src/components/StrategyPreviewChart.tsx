@@ -138,7 +138,7 @@ export function StrategyPreviewChart({ candles, spec }: StrategyPreviewChartProp
   }, [preview.levels])
 
   return (
-    <div className="strategy-preview">
+    <div className="strategy-preview" data-testid="strategy-preview">
       <div className="strategy-preview__canvas" ref={containerRef} />
       {candles.length === 0 ? (
         <div className="strategy-preview__empty" data-testid="preview-empty">

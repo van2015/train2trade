@@ -1,9 +1,30 @@
 import { useState } from 'react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { StrategyPanel } from '@/components/StrategyPanel'
 import { StrategySpec } from '@/domain/strategies/spec'
 import { StrategyRepository } from '@/storage/strategyRepository'
+
+// El panel monta el editor, que monta el minichart (lightweight-charts no corre en jsdom).
+vi.mock('lightweight-charts', () => ({
+  createChart: vi.fn(() => ({
+    addSeries: vi.fn(() => ({
+      setData: vi.fn(),
+      applyOptions: vi.fn(),
+      createPriceLine: vi.fn(() => ({ applyOptions: vi.fn(), options: vi.fn(() => ({})) })),
+      removePriceLine: vi.fn(),
+      priceScale: vi.fn(() => ({ applyOptions: vi.fn() })),
+    })),
+    removeSeries: vi.fn(),
+    remove: vi.fn(),
+    timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
+    subscribeCrosshairMove: vi.fn(),
+  })),
+  CandlestickSeries: 'CandlestickSeries',
+  LineSeries: 'LineSeries',
+  ColorType: { Solid: 'solid' },
+  LineStyle: { Solid: 0, Dotted: 1, Dashed: 2 },
+}))
 
 class MemoryStorage implements Storage {
   private readonly store = new Map<string, string>()

@@ -15,6 +15,7 @@ import {
 } from '@/domain/strategies/spec'
 import { PriceExprEditor } from './PriceExprEditor'
 import { RuleEditor, defaultCondition } from './RuleEditor'
+import { StrategyPreviewChart } from './StrategyPreviewChart'
 
 export interface StrategyEditorProps {
   /** Título del editor: "Crear estrategia" o "Editar <name>@<version>". */
@@ -339,6 +340,8 @@ export function StrategyEditor({
       aria-label="Editor de estrategia"
     >
       <h3 className="panel-title">{title}</h3>
+
+      <StrategyPreviewChart candles={candles} spec={draft} />
 
       <div className="panel-form">
         <label className="field">
