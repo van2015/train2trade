@@ -2,6 +2,11 @@
 
 > Fuentes: `AGENTS.md` (§4, §7C), `docs/proyectstate.md`, exploración del código.
 >
+> **Estado: completado (2026-11-14)** — rondas A–I en verde
+> (`pnpm test && pnpm typecheck && pnpm format:check`); el inventario final vive en
+> [`proyectstate.md`](./proyectstate.md). Este documento queda como registro de decisiones
+> (enmiendas 1–16 y notas de implementación §2.5/§2.6).
+>
 > Decisiones del usuario (2026-11):
 
 1. **Editor de plantilla** (no editor libre de reglas anidadas arbitrarias por el usuario… ver 12).
