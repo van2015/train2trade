@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
-import { Sma } from '@/domain/indicators/sma'
 import { MarketReplayEngine } from '@/domain/replay/replayEngine'
 import { REPLAY_SPEEDS, replayIntervalMs } from '@/domain/replay/speed'
-import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
-import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { buildStrategy, StrategySpec } from '@/domain/strategies/spec'
 import { StrategyState } from '@/domain/strategies/strategyInstance'
 import { DEFAULT_PARAMS, Params, validate } from './backtestForm'
 import { formatChartPrice, formatChartTime } from './chartData'
@@ -15,6 +13,8 @@ export interface ReplayPanelProps {
   candles: readonly Candle[]
   /** Base del intervalo de reproducción (1× = tiempo real, §7B). */
   timeframe: Timeframe
+  /** Estrategia activa (selector único, §1.9); los indicadores/periodos viven en la spec. */
+  strategy: StrategySpec | null
   /** Cursor tras cada avance (o null al descartar la sesión): App recorta el gráfico. */
   onProgress: (cursor: number | null) => void
 }
@@ -41,7 +41,7 @@ function describeError(error: unknown): string {
  * solo coordina el estado de React y un temporizador de `setTimeout`
  * encadenado (sin solapes). El cursor notificado a `App` recorta el gráfico.
  */
-export function ReplayPanel({ candles, timeframe, onProgress }: ReplayPanelProps) {
+export function ReplayPanel({ candles, timeframe, strategy, onProgress }: ReplayPanelProps) {
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS)
   const [engine, setEngine] = useState<MarketReplayEngine | null>(null)
   const [speed, setSpeed] = useState(1)
@@ -81,6 +81,7 @@ export function ReplayPanel({ candles, timeframe, onProgress }: ReplayPanelProps
   }, [engine, speed, timeframe, onProgress, tick])
 
   const handleStart = () => {
+    if (strategy === null) return
     const parsed = validate(params)
     if (!parsed.ok) {
       setError(parsed.error)
@@ -88,16 +89,8 @@ export function ReplayPanel({ candles, timeframe, onProgress }: ReplayPanelProps
     }
 
     try {
-      const strategy = new Strategy({
-        name: 'sma-cross',
-        indicators: { fast: new Sma(parsed.fast), slow: new Sma(parsed.slow) },
-        signals: [
-          new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-          new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-        ],
-      })
       const next = new MarketReplayEngine({
-        strategy,
+        strategy: buildStrategy(strategy),
         candles,
         timeframe,
         initialCapital: parsed.capital,
@@ -188,6 +181,16 @@ export function ReplayPanel({ candles, timeframe, onProgress }: ReplayPanelProps
         </p>
       )}
 
+      {strategy === null ? (
+        <p className="panel-hint" data-testid="replay-no-strategy">
+          Sin estrategia seleccionada: elige una en "Estrategia".
+        </p>
+      ) : (
+        <p className="panel-hint" data-testid="replay-strategy-hint">
+          Estrategia: {strategy.name}@{strategy.version}
+        </p>
+      )}
+
       <div className="replay-form">
         <label className="field">
           <span>Capital inicial</span>
@@ -219,33 +222,13 @@ export function ReplayPanel({ candles, timeframe, onProgress }: ReplayPanelProps
             onChange={(event) => update('slippageBps', event.target.value)}
           />
         </label>
-        <label className="field">
-          <span>SMA rápida</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={params.fast}
-            onChange={(event) => update('fast', event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>SMA lenta</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={params.slow}
-            onChange={(event) => update('slow', event.target.value)}
-          />
-        </label>
       </div>
 
       <button
         type="button"
         className="button"
         onClick={handleStart}
-        disabled={candles.length === 0}
+        disabled={candles.length === 0 || strategy === null}
       >
         {engine === null ? 'Iniciar sesión' : 'Nueva sesión'}
       </button>

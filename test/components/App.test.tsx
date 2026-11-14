@@ -8,6 +8,8 @@ import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
 import { CandleRepository } from '@/storage/candleRepository'
 import { ExperimentRepository } from '@/storage/experimentRepository'
+import { StrategyRepository } from '@/storage/strategyRepository'
+import type { StrategySpec } from '@/domain/strategies/spec'
 
 const { chartMock, seriesMock } = vi.hoisted(() => {
   const makeSeries = () => ({
@@ -102,7 +104,35 @@ function kline(openTime: number, close = '105') {
 
 let repository: CandleRepository
 let experiments: ExperimentRepository
+let strategies: StrategyRepository
 let uiStorage: MemoryStorage
+
+/** Estrategia sma-cross(2/3): la misma que los E2E (cruces en i4/i7). */
+const SPEC: StrategySpec = {
+  name: 'sma-cross',
+  version: 1,
+  indicators: [
+    { alias: 'fast', kind: 'sma', period: 2 },
+    { alias: 'slow', kind: 'sma', period: 3 },
+  ],
+  entry: {
+    rule: { kind: 'condition', op: 'crosses_above', a: 'fast', b: 'slow' },
+    execution: 'market',
+  },
+  exitRule: { kind: 'condition', op: 'crosses_below', a: 'fast', b: 'slow' },
+}
+
+/** Segunda estrategia para el selector único (§1.9). */
+const ALPHA_SPEC: StrategySpec = {
+  name: 'alpha',
+  version: 1,
+  indicators: [{ alias: 'fast', kind: 'sma', period: 5 }],
+  entry: {
+    rule: { kind: 'condition', op: '>', a: 'close', b: 'fast' },
+    execution: 'market',
+  },
+  exitRule: { kind: 'condition', op: '<', a: 'close', b: 'fast' },
+}
 
 function renderApp(provider?: MarketDataProvider) {
   const fetchImpl = vi.fn<(url: string) => Promise<Response>>(async () =>
@@ -115,6 +145,7 @@ function renderApp(provider?: MarketDataProvider) {
       repository={repository}
       provider={marketProvider}
       experiments={experiments}
+      strategies={strategies}
       uiStorage={uiStorage}
     />,
   )
@@ -139,6 +170,8 @@ beforeEach(() => {
   seriesMock.created.length = 0
   repository = new CandleRepository(new MemoryStorage())
   experiments = new ExperimentRepository(new MemoryStorage())
+  strategies = new StrategyRepository(new MemoryStorage())
+  strategies.save(SPEC)
   uiStorage = new MemoryStorage()
 })
 
@@ -237,6 +270,32 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Ejecutar backtest' })).toBeDisabled()
   })
 
+  it('un único selector de estrategia comparte la selección con todos los paneles (§1.9)', () => {
+    strategies.save(ALPHA_SPEC)
+    const smaId = strategies.save(SPEC)
+    renderApp()
+    openSection('Experimentos')
+
+    const select = screen.getByRole('combobox', { name: 'Estrategia' })
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual([
+      'alpha@1', // orden name ascendente → la primera es la selección inicial
+      'sma-cross@1',
+    ])
+    const tf = within(screen.getByRole('region', { name: 'Test-Forward' }))
+    expect(backtestPanel().getByTestId('backtest-strategy-hint')).toHaveTextContent('alpha@1')
+    expect(tf.getByTestId('tf-strategy-hint')).toHaveTextContent('alpha@1')
+
+    // Cambiar la selección actualiza TODOS los paneles a la vez.
+    fireEvent.change(select, { target: { value: smaId } })
+    expect(backtestPanel().getByTestId('backtest-strategy-hint')).toHaveTextContent('sma-cross@1')
+    expect(tf.getByTestId('tf-strategy-hint')).toHaveTextContent('sma-cross@1')
+    expect(screen.queryByTestId('opt-no-params')).not.toBeInTheDocument()
+  })
+
   it('incluye la pestaña Replay (controles sin datos) y el subtítulo de la fase', () => {
     renderApp()
     fireEvent.click(screen.getByRole('tab', { name: 'Replay' }))
@@ -273,8 +332,6 @@ describe('App', () => {
     openSection('Experimentos')
 
     expect(screen.queryByTestId('history-table')).not.toBeInTheDocument()
-    fireEvent.change(backtestPanel().getByLabelText('SMA rápida'), { target: { value: '2' } })
-    fireEvent.change(backtestPanel().getByLabelText('SMA lenta'), { target: { value: '3' } })
     fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
 
     const history = screen.getByTestId('history-table')
@@ -296,8 +353,6 @@ describe('App', () => {
 
     renderApp()
     openSection('Experimentos')
-    fireEvent.change(backtestPanel().getByLabelText('SMA rápida'), { target: { value: '2' } })
-    fireEvent.change(backtestPanel().getByLabelText('SMA lenta'), { target: { value: '3' } })
     fireEvent.click(screen.getByRole('button', { name: 'Ejecutar backtest' }))
 
     // Auto-conmutación (plan UI): los resultados abren su pestaña en el área principal.
@@ -319,8 +374,6 @@ describe('App', () => {
 
     // Hay dos formularios con los mismos labels: acotar al panel Test-Forward.
     const tf = within(screen.getByRole('region', { name: 'Test-Forward' }))
-    fireEvent.change(tf.getByLabelText('SMA rápida'), { target: { value: '2' } })
-    fireEvent.change(tf.getByLabelText('SMA lenta'), { target: { value: '3' } })
     fireEvent.change(tf.getByLabelText('Corte (UTC)'), { target: { value: '2023-11-15T02:00' } })
     fireEvent.click(tf.getByRole('button', { name: 'Ejecutar test-forward' }))
 
@@ -344,7 +397,7 @@ describe('App', () => {
     renderApp()
     openSection('Experimentos')
 
-    // Rejilla por defecto (9 × 8 = 72 combinaciones) sobre las 9 velas.
+    // Rejilla por defecto centrada en la spec (6 × 7 = 42 combinaciones) sobre las 9 velas.
     fireEvent.click(screen.getByRole('button', { name: 'Ejecutar optimización' }))
 
     expect(screen.getByRole('tab', { name: 'Optimización' })).toHaveAttribute(

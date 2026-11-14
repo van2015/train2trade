@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { ReplayPanel } from '@/components/ReplayPanel'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
+import { StrategySpec } from '@/domain/strategies/spec'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -21,16 +22,31 @@ const CANDLES = PRICES.map((price, index) =>
   }),
 )
 
-function renderPanel(candles: readonly Candle[] = CANDLES, onProgress = vi.fn()) {
-  const view = render(
-    <ReplayPanel candles={candles} timeframe={Timeframe.HOUR} onProgress={onProgress} />,
-  )
-  return { ...view, onProgress }
+/** Estrategia activa por defecto en los tests: sma-cross(2/3) (§1.9). */
+const SPEC: StrategySpec = {
+  name: 'sma-cross',
+  version: 1,
+  indicators: [
+    { alias: 'fast', kind: 'sma', period: 2 },
+    { alias: 'slow', kind: 'sma', period: 3 },
+  ],
+  entry: {
+    rule: { kind: 'condition', op: 'crosses_above', a: 'fast', b: 'slow' },
+    execution: 'market',
+  },
+  exitRule: { kind: 'condition', op: 'crosses_below', a: 'fast', b: 'slow' },
 }
 
-function setCrossPeriods() {
-  fireEvent.change(screen.getByLabelText('SMA rápida'), { target: { value: '2' } })
-  fireEvent.change(screen.getByLabelText('SMA lenta'), { target: { value: '3' } })
+function renderPanel(candles: readonly Candle[] = CANDLES, onProgress = vi.fn()) {
+  const view = render(
+    <ReplayPanel
+      candles={candles}
+      timeframe={Timeframe.HOUR}
+      strategy={SPEC}
+      onProgress={onProgress}
+    />,
+  )
+  return { ...view, onProgress }
 }
 
 function startSession() {
@@ -46,14 +62,13 @@ afterEach(() => {
 })
 
 describe('ReplayPanel — parámetros', () => {
-  it('muestra los parámetros por defecto (misma demo sma-cross que el backtest)', () => {
+  it('muestra los parámetros por defecto y la estrategia activa', () => {
     renderPanel()
 
     expect(screen.getByLabelText('Capital inicial')).toHaveValue(1000)
     expect(screen.getByLabelText('Comisión (bps)')).toHaveValue(0)
     expect(screen.getByLabelText('Slippage (bps)')).toHaveValue(0)
-    expect(screen.getByLabelText('SMA rápida')).toHaveValue(10)
-    expect(screen.getByLabelText('SMA lenta')).toHaveValue(30)
+    expect(screen.getByTestId('replay-strategy-hint')).toHaveTextContent('sma-cross@1')
     expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeInTheDocument()
   })
 
@@ -64,21 +79,26 @@ describe('ReplayPanel — parámetros', () => {
     expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeDisabled()
   })
 
+  it('sin estrategia activa muestra el aviso y deshabilita el inicio', () => {
+    render(
+      <ReplayPanel
+        candles={CANDLES}
+        timeframe={Timeframe.HOUR}
+        strategy={null}
+        onProgress={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('replay-no-strategy')).toHaveTextContent('Estrategia')
+    expect(screen.getByRole('button', { name: 'Iniciar sesión' })).toBeDisabled()
+  })
+
   it('valida el capital antes de iniciar', () => {
     renderPanel()
     fireEvent.change(screen.getByLabelText('Capital inicial'), { target: { value: '0' } })
     startSession()
 
     expect(screen.getByTestId('replay-error')).toHaveTextContent('Capital inicial')
-    expect(screen.queryByTestId('replay-progress')).not.toBeInTheDocument()
-  })
-
-  it('valida que los periodos sean enteros >= 1', () => {
-    renderPanel()
-    fireEvent.change(screen.getByLabelText('SMA rápida'), { target: { value: '2.5' } })
-    startSession()
-
-    expect(screen.getByTestId('replay-error')).toHaveTextContent('SMA rápida')
     expect(screen.queryByTestId('replay-progress')).not.toBeInTheDocument()
   })
 })
@@ -118,7 +138,6 @@ describe('ReplayPanel — sesión', () => {
 
   it('las decisiones y operaciones de la estrategia aparecen en el log', () => {
     renderPanel()
-    setCrossPeriods()
     startSession()
 
     for (let i = 0; i < 6; i++) stepOnce() // entrada en i4, relleno en i5
@@ -180,7 +199,6 @@ describe('ReplayPanel — sesión', () => {
 
   it('Reiniciar vuelve al inicio con el log vacío', () => {
     const { onProgress } = renderPanel()
-    setCrossPeriods()
     startSession()
     stepOnce()
     stepOnce()
@@ -211,6 +229,7 @@ describe('ReplayPanel — sesión', () => {
           }),
         ]}
         timeframe={Timeframe.HOUR}
+        strategy={SPEC}
         onProgress={onProgress}
       />,
     )

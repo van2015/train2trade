@@ -7,9 +7,7 @@ import { Experiment } from '@/domain/backtest/experiment'
 import { runTestForward, type TestForwardRun } from '@/domain/backtest/testForward'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
-import { Sma } from '@/domain/indicators/sma'
-import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
-import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { buildStrategy, StrategySpec } from '@/domain/strategies/spec'
 import { formatMetric } from '@/components/backtestForm'
 
 const t0 = 1_700_000_000_000 // 2023-11-14 22:13 UTC
@@ -30,28 +28,34 @@ const CANDLES = PRICES.map((price, index) =>
 /** Corte válido: 22:17 entre i3 (22:16:20) e i4 (22:17:20) — velas de 1 minuto. */
 const VALID_CUT = '2023-11-14T22:17'
 
-function crossStrategy(): Strategy {
-  return new Strategy({
-    name: 'sma-cross',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
+/** Estrategia activa por defecto en los tests: sma-cross(2/3) (§1.9). */
+const SPEC: StrategySpec = {
+  name: 'sma-cross',
+  version: 1,
+  indicators: [
+    { alias: 'fast', kind: 'sma', period: 2 },
+    { alias: 'slow', kind: 'sma', period: 3 },
+  ],
+  entry: {
+    rule: { kind: 'condition', op: 'crosses_above', a: 'fast', b: 'slow' },
+    execution: 'market',
+  },
+  exitRule: { kind: 'condition', op: 'crosses_below', a: 'fast', b: 'slow' },
 }
 
 function renderPanel(
   candles: readonly Candle[] = CANDLES,
   props: Partial<TestForwardPanelProps> = {},
 ) {
+  const { strategy = SPEC, ...rest } = props
   const onExperiment = vi.fn()
   const view = render(
     <TestForwardPanel
       candles={candles}
       timeframe={Timeframe.HOUR}
+      strategy={strategy}
       onExperiment={onExperiment}
-      {...props}
+      {...rest}
     />,
   )
   return { ...view, onExperiment }
@@ -66,6 +70,7 @@ function renderWithResults(candles: readonly Candle[] = CANDLES) {
         <TestForwardPanel
           candles={candles}
           timeframe={Timeframe.HOUR}
+          strategy={SPEC}
           onExperiment={vi.fn()}
           onResult={setRun}
         />
@@ -80,11 +85,6 @@ function setCut(value: string): void {
   fireEvent.change(screen.getByLabelText('Corte (UTC)'), { target: { value } })
 }
 
-function setCrossoverPeriods(): void {
-  fireEvent.change(screen.getByLabelText('SMA rápida'), { target: { value: '2' } })
-  fireEvent.change(screen.getByLabelText('SMA lenta'), { target: { value: '3' } })
-}
-
 function run(): void {
   fireEvent.click(screen.getByRole('button', { name: 'Ejecutar test-forward' }))
 }
@@ -94,6 +94,13 @@ describe('TestForwardPanel — parámetros y validación', () => {
     renderPanel([])
 
     expect(screen.getByTestId('tf-empty')).toHaveTextContent('descarga o importa')
+    expect(screen.getByRole('button', { name: 'Ejecutar test-forward' })).toBeDisabled()
+  })
+
+  it('sin estrategia activa → aviso y botón deshabilitado', () => {
+    renderPanel(CANDLES, { strategy: null })
+
+    expect(screen.getByTestId('tf-no-strategy')).toHaveTextContent('Estrategia')
     expect(screen.getByRole('button', { name: 'Ejecutar test-forward' })).toBeDisabled()
   })
 
@@ -116,11 +123,11 @@ describe('TestForwardPanel — parámetros y validación', () => {
   it('parámetros inválidos → error del formulario compartido', () => {
     renderPanel()
     setCut(VALID_CUT)
-    fireEvent.change(screen.getByLabelText('SMA rápida'), { target: { value: '2.5' } })
+    fireEvent.change(screen.getByLabelText('Capital inicial'), { target: { value: '0' } })
 
     run()
 
-    expect(screen.getByTestId('tf-error')).toHaveTextContent('SMA rápida')
+    expect(screen.getByTestId('tf-error')).toHaveTextContent('Capital inicial')
     expect(screen.queryByTestId('tf-table')).not.toBeInTheDocument()
   })
 })
@@ -129,11 +136,10 @@ describe('TestForwardPanel — resultados (integración con TestForwardResults, 
   it('ejecutar pinta resumen y tabla dev/eval/Δ con los valores de runTestForward', () => {
     renderWithResults()
     setCut(VALID_CUT)
-    setCrossoverPeriods()
     run()
 
     const expected = runTestForward({
-      strategy: crossStrategy(),
+      strategy: buildStrategy(SPEC),
       candles: CANDLES,
       timeframe: Timeframe.HOUR,
       initialCapital: 1_000,
@@ -165,7 +171,6 @@ describe('TestForwardPanel — resultados (integración con TestForwardResults, 
     const onResult = vi.fn()
     const { onExperiment } = renderPanel(CANDLES, { onResult })
     setCut(VALID_CUT)
-    setCrossoverPeriods()
     run()
 
     expect(onExperiment).toHaveBeenCalledTimes(2)

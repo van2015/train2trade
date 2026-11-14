@@ -7,6 +7,7 @@ import type { TestForwardRun } from '@/domain/backtest/testForward'
 import { Instrument } from '@/domain/instruments/instrument'
 import { CandleRepository } from '@/storage/candleRepository'
 import { ExperimentRepository } from '@/storage/experimentRepository'
+import { StrategyRepository, StrategySnapshot } from '@/storage/strategyRepository'
 import { loadOpenSection, saveOpenSection } from '@/storage/sidebarState'
 import { CandleChart } from './CandleChart'
 import { BacktestPanel } from './BacktestPanel'
@@ -20,6 +21,7 @@ import { OptimizationResults, type OptimizationViewState } from './OptimizationR
 import { CsvImportPanel } from './CsvImportPanel'
 import { DataControls } from './DataControls'
 import { IndicatorPanel } from './IndicatorPanel'
+import { StrategySelect } from './StrategySelect'
 import { MainTabs, type MainViewId } from './MainTabs'
 import { isSidebarSectionId, SidebarSection, type SidebarSectionId } from './SidebarSection'
 import {
@@ -34,6 +36,8 @@ export interface AppProps {
   provider: MarketDataProvider
   /** Experimentos persistidos en localStorage (Fase 6, §9). */
   experiments: ExperimentRepository
+  /** Estrategias persistidas (§1.7); la selección es única para todos los paneles (§1.9). */
+  strategies: StrategyRepository
   /** Storage de la UI (sección abierta del sidebar); por defecto, localStorage. */
   uiStorage?: Storage | null
 }
@@ -60,7 +64,7 @@ function browserStorage(): Storage | null {
  * el área principal conmuta entre 6 pestañas por estado (plan UI, sin router):
  * Gráfico · Backtest · Replay · Test-Forward · Optimización · Historial.
  */
-export function App({ repository, provider, experiments, uiStorage }: AppProps) {
+export function App({ repository, provider, experiments, strategies, uiStorage }: AppProps) {
   const storage = uiStorage === undefined ? browserStorage() : uiStorage
   const [instrument, setInstrument] = useState<Instrument>(() => Instrument.of('BTC', 'USDT'))
   const [timeframe, setTimeframe] = useState<Timeframe>(Timeframe.HOUR)
@@ -74,6 +78,14 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
   const [snapshots, setSnapshots] = useState<readonly ExperimentSnapshot[]>(() =>
     experiments.list(),
   )
+  // Estrategias persistidas + selección única (§1.9): si la seleccionada se
+  // borra, se cae a la primera de la lista.
+  const [strategiesList, setStrategiesList] = useState<readonly StrategySnapshot[]>(() =>
+    strategies.list(),
+  )
+  const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null)
+  const selectedStrategy =
+    strategiesList.find((strategy) => strategy.id === selectedStrategyId) ?? strategiesList[0]
   // Sección abierta del acordeón (plan UI, T1); id desconocido en storage → default.
   const [openSection, setOpenSection] = useState<SidebarSectionId | null>(() => {
     const stored = loadOpenSection(storage)
@@ -237,10 +249,17 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
             open={openSection === 'experimentos'}
             onToggle={handleToggleSection}
           >
+            <StrategySelect
+              strategies={strategiesList}
+              selectedId={selectedStrategy?.id ?? null}
+              onChange={setSelectedStrategyId}
+            />
+
             <BacktestPanel
               candles={candles}
               timeframe={timeframe}
               instrument={instrument}
+              strategy={selectedStrategy ?? null}
               onExperiment={handleExperiment}
               onResult={handleBacktestResult}
             />
@@ -248,6 +267,7 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
             <TestForwardPanel
               candles={candles}
               timeframe={timeframe}
+              strategy={selectedStrategy ?? null}
               onExperiment={handleExperiment}
               onResult={handleTestForwardResult}
             />
@@ -255,6 +275,7 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
             <OptimizationPanel
               candles={candles}
               timeframe={timeframe}
+              strategy={selectedStrategy ?? null}
               onResult={handleOptimizationResult}
             />
           </SidebarSection>
@@ -311,7 +332,12 @@ export function App({ repository, provider, experiments, uiStorage }: AppProps) 
             aria-labelledby="main-tab-replay"
             hidden={mainView !== 'replay'}
           >
-            <ReplayPanel candles={candles} timeframe={timeframe} onProgress={setReplayCursor} />
+            <ReplayPanel
+              candles={candles}
+              timeframe={timeframe}
+              strategy={selectedStrategy ?? null}
+              onProgress={setReplayCursor}
+            />
             {mainView === 'replay' && <CandleChart candles={visible} lines={lines} />}
           </div>
 

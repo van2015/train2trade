@@ -6,9 +6,7 @@ import { OptimizationResults, type OptimizationViewState } from '@/components/Op
 import { runOptimization } from '@/domain/backtest/optimization'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
-import { Sma } from '@/domain/indicators/sma'
-import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
-import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { buildStrategy, StrategySpec } from '@/domain/strategies/spec'
 import { formatMetric } from '@/components/backtestForm'
 
 const t0 = 1_700_000_000_000
@@ -26,11 +24,58 @@ const CANDLES = PRICES.map((price, index) =>
   }),
 )
 
+/** Estrategia activa por defecto en los tests (§1.9): periodos 10/30 como la demo. */
+const SPEC: StrategySpec = {
+  name: 'sma-cross',
+  version: 1,
+  indicators: [
+    { alias: 'fast', kind: 'sma', period: 10 },
+    { alias: 'slow', kind: 'sma', period: 30 },
+  ],
+  entry: {
+    rule: { kind: 'condition', op: 'crosses_above', a: 'fast', b: 'slow' },
+    execution: 'market',
+  },
+  exitRule: { kind: 'condition', op: 'crosses_below', a: 'fast', b: 'slow' },
+}
+
+/** Estrategia sin indicadores con periodo (solo constantes) → nada que optimizar. */
+const CONST_SPEC: StrategySpec = {
+  name: 'const-only',
+  version: 1,
+  indicators: [{ alias: 'umbral', kind: 'const', value: 30 }],
+  entry: {
+    rule: { kind: 'condition', op: '>', a: 'close', b: 'umbral' },
+    execution: 'market',
+  },
+}
+
+/** Fábrica esperada: la spec elegida con los periodos de la rejilla (§13). */
+const expectedFactory = (
+  params: Readonly<Record<string, number>>,
+): ReturnType<typeof buildStrategy> =>
+  buildStrategy({
+    ...SPEC,
+    indicators: SPEC.indicators.map((indicator) =>
+      indicator.kind === 'const'
+        ? indicator
+        : { ...indicator, period: params[indicator.alias] ?? indicator.period },
+    ),
+  })
+
 function renderPanel(
   candles: readonly Candle[] = CANDLES,
   props: Partial<OptimizationPanelProps> = {},
 ) {
-  return render(<OptimizationPanel candles={candles} timeframe={Timeframe.HOUR} {...props} />)
+  const { strategy = SPEC, ...rest } = props
+  return render(
+    <OptimizationPanel
+      candles={candles}
+      timeframe={Timeframe.HOUR}
+      strategy={strategy}
+      {...rest}
+    />,
+  )
 }
 
 /** Formulario + resultados cableados como en App (onResult → OptimizationResults). */
@@ -39,7 +84,12 @@ function renderWithResults(candles: readonly Candle[] = CANDLES) {
     const [view, setView] = useState<OptimizationViewState | null>(null)
     return (
       <>
-        <OptimizationPanel candles={candles} timeframe={Timeframe.HOUR} onResult={setView} />
+        <OptimizationPanel
+          candles={candles}
+          timeframe={Timeframe.HOUR}
+          strategy={SPEC}
+          onResult={setView}
+        />
         <OptimizationResults view={view} />
       </>
     )
@@ -55,48 +105,71 @@ function run(): void {
   fireEvent.click(screen.getByRole('button', { name: 'Ejecutar optimización' }))
 }
 
+/** Deja los rangos en fast [2,3] × slow [3,4] (4 combinaciones). */
+function setSmallGrid(): void {
+  setField('fast desde', '2')
+  setField('fast hasta', '3')
+  setField('slow desde', '3')
+  setField('slow hasta', '4')
+}
+
 describe('OptimizationPanel — parámetros y cap (§13)', () => {
-  it('sin velas → aviso, botón deshabilitado y defaults correctos', () => {
+  it('sin velas → aviso, botón deshabilitado y defaults centrados en la spec', () => {
     renderPanel([])
 
     expect(screen.getByTestId('opt-empty')).toHaveTextContent('descarga o importa')
     expect(screen.getByRole('button', { name: 'Ejecutar optimización' })).toBeDisabled()
-    expect(screen.getByLabelText('SMA rápida desde')).toHaveValue(2)
-    expect(screen.getByLabelText('SMA lenta hasta')).toHaveValue(40)
+    expect(screen.getByLabelText('fast desde')).toHaveValue(6) // 10 ± 4
+    expect(screen.getByLabelText('fast hasta')).toHaveValue(14)
+    expect(screen.getByLabelText('slow desde')).toHaveValue(26) // 30 ± 4
+    expect(screen.getByLabelText('slow hasta')).toHaveValue(34)
     expect(screen.getByLabelText('Métrica a optimizar')).toHaveValue('netProfit')
     expect(screen.queryByTestId('opt-cap')).not.toBeInTheDocument()
+  })
+
+  it('sin estrategia activa → aviso, sin rangos y botón deshabilitado', () => {
+    renderPanel(CANDLES, { strategy: null })
+
+    expect(screen.getByTestId('opt-no-strategy')).toHaveTextContent('Estrategia')
+    expect(screen.queryByLabelText('fast desde')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ejecutar optimización' })).toBeDisabled()
+  })
+
+  it('estrategia sin indicadores con periodo → aviso y botón deshabilitado', () => {
+    renderPanel(CANDLES, { strategy: CONST_SPEC })
+
+    expect(screen.getByTestId('opt-no-params')).toHaveTextContent('periodo')
+    expect(screen.getByRole('button', { name: 'Ejecutar optimización' })).toBeDisabled()
   })
 
   it('rangos inválidos → error sin resultados', () => {
     renderPanel()
 
-    setField('SMA rápida desde', '10')
-    setField('SMA rápida hasta', '2')
+    setField('fast desde', '10')
+    setField('fast hasta', '2')
     run()
-    expect(screen.getByTestId('opt-error')).toHaveTextContent('SMA rápida')
+    expect(screen.getByTestId('opt-error')).toHaveTextContent('fast')
     expect(screen.queryByTestId('opt-runs')).not.toBeInTheDocument()
 
-    setField('SMA rápida desde', '2')
-    setField('SMA rápida hasta', '10')
-    setField('SMA rápida paso', '0')
+    setField('fast desde', '2')
+    setField('fast hasta', '10')
+    setField('fast paso', '0')
     run()
     expect(screen.getByTestId('opt-error')).toHaveTextContent('paso')
 
-    setField('SMA rápida paso', '1')
-    setField('SMA lenta desde', '1.5')
+    setField('fast paso', '1')
+    setField('slow desde', '1.5')
     run()
-    expect(screen.getByTestId('opt-error')).toHaveTextContent('SMA lenta')
+    expect(screen.getByTestId('opt-error')).toHaveTextContent('slow')
   })
 
   it('el cap se avisa ANTES de ejecutar y deshabilita el botón', () => {
     renderPanel()
 
-    setField('SMA rápida desde', '1')
-    setField('SMA rápida hasta', '40')
-    setField('SMA rápida paso', '1')
-    setField('SMA lenta desde', '1')
-    setField('SMA lenta hasta', '40')
-    setField('SMA lenta paso', '1')
+    setField('fast desde', '1')
+    setField('fast hasta', '40')
+    setField('slow desde', '1')
+    setField('slow hasta', '40')
 
     const aviso = screen.getByTestId('opt-cap')
     expect(aviso).toHaveTextContent('1600')
@@ -109,22 +182,11 @@ describe('OptimizationPanel — parámetros y cap (§13)', () => {
 describe('OptimizationPanel — resultados (integración con OptimizationResults)', () => {
   it('ejecutar pinta la tabla de runs ordenada y el informe de robustez', () => {
     renderWithResults()
-    setField('SMA rápida hasta', '3')
-    setField('SMA lenta desde', '3')
-    setField('SMA lenta hasta', '4')
-    setField('SMA lenta paso', '1')
+    setSmallGrid()
     run()
 
     const expected = runOptimization({
-      buildStrategy: (params) =>
-        new Strategy({
-          name: 'sma-cross',
-          indicators: { fast: new Sma(params.fast ?? 10), slow: new Sma(params.slow ?? 30) },
-          signals: [
-            new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-            new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-          ],
-        }),
+      buildStrategy: expectedFactory,
       grid: { fast: [2, 3], slow: [3, 4] },
       metric: 'netProfit',
       base: { candles: CANDLES, timeframe: Timeframe.HOUR, initialCapital: 1_000 },
@@ -151,10 +213,7 @@ describe('OptimizationPanel — resultados (integración con OptimizationResults
 
   it('el selector de métrica cambia la columna mostrada (al re-ejecutar)', () => {
     renderWithResults()
-    setField('SMA rápida hasta', '3')
-    setField('SMA lenta desde', '3')
-    setField('SMA lenta hasta', '4')
-    setField('SMA lenta paso', '1')
+    setSmallGrid()
     run()
 
     expect(screen.getByTestId('opt-runs')).toHaveTextContent('Beneficio neto')
@@ -167,10 +226,7 @@ describe('OptimizationPanel — resultados (integración con OptimizationResults
   it('onResult recibe la vista de resultados', () => {
     const onResult = vi.fn()
     renderPanel(CANDLES, { onResult })
-    setField('SMA rápida hasta', '3')
-    setField('SMA lenta desde', '3')
-    setField('SMA lenta hasta', '4')
-    setField('SMA lenta paso', '1')
+    setSmallGrid()
     run()
 
     expect(onResult).toHaveBeenCalledTimes(1)

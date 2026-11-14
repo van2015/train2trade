@@ -3,9 +3,7 @@ import { Experiment } from '@/domain/backtest/experiment'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
-import { Sma } from '@/domain/indicators/sma'
-import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
-import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { buildStrategy, StrategySpec } from '@/domain/strategies/spec'
 import { DEFAULT_PARAMS, Params, validate } from './backtestForm'
 
 export interface BacktestPanelProps {
@@ -15,6 +13,8 @@ export interface BacktestPanelProps {
   timeframe: Timeframe
   /** Instrumento registrado en el experimento (§12C). */
   instrument?: Instrument
+  /** Estrategia activa (selector único, §1.9); los indicadores/periodos viven en la spec. */
+  strategy: StrategySpec | null
   /** Auto-guardo (Fase 6): App lo guarda como snapshot en el historial. */
   onExperiment?: (experiment: Experiment) => void
   /** Último resultado (plan UI, T3): App lo muestra en la pestaña Backtest. */
@@ -22,15 +22,18 @@ export interface BacktestPanelProps {
 }
 
 /**
- * Panel de backtest (Fase 4): parámetros + estrategia demo de cruce de SMA y
- * botón de ejecución. Los resultados se muestran en el área principal
- * (`BacktestResults`, plan UI T3); aquí solo viven el formulario y los errores.
- * Toda la lógica vive en el dominio (`Experiment.run`).
+ * Panel de backtest (Fase 4): parámetros del experimento (capital/costes) y
+ * botón de ejecución sobre la **estrategia activa** (§1.9): los indicadores,
+ * reglas y precios viven en la `StrategySpec`, no en este formulario. Los
+ * resultados se muestran en el área principal (`BacktestResults`); aquí solo
+ * viven el formulario y los errores. Toda la lógica vive en el dominio
+ * (`buildStrategy` + `Experiment.run`).
  */
 export function BacktestPanel({
   candles,
   timeframe,
   instrument,
+  strategy,
   onExperiment,
   onResult,
 }: BacktestPanelProps) {
@@ -42,6 +45,7 @@ export function BacktestPanel({
     setParams((prev) => ({ ...prev, [key]: value }))
 
   const handleRun = () => {
+    if (strategy === null) return
     const parsed = validate(params)
     if (!parsed.ok) {
       setError(parsed.error)
@@ -49,16 +53,8 @@ export function BacktestPanel({
     }
 
     try {
-      const strategy = new Strategy({
-        name: 'sma-cross',
-        indicators: { fast: new Sma(parsed.fast), slow: new Sma(parsed.slow) },
-        signals: [
-          new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-          new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-        ],
-      })
       const next = Experiment.run({
-        strategy,
+        strategy: buildStrategy(strategy),
         candles,
         timeframe,
         initialCapital: parsed.capital,
@@ -81,6 +77,16 @@ export function BacktestPanel({
       {candles.length === 0 && (
         <p className="backtest-panel__hint" data-testid="backtest-empty">
           Sin velas: descarga o importa datos para ejecutar un backtest.
+        </p>
+      )}
+
+      {strategy === null ? (
+        <p className="panel-hint" data-testid="backtest-no-strategy">
+          Sin estrategia seleccionada: elige una en "Estrategia".
+        </p>
+      ) : (
+        <p className="panel-hint" data-testid="backtest-strategy-hint">
+          Estrategia: {strategy.name}@{strategy.version}
         </p>
       )}
 
@@ -115,26 +121,6 @@ export function BacktestPanel({
             onChange={(event) => update('slippageBps', event.target.value)}
           />
         </label>
-        <label className="field">
-          <span>SMA rápida</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={params.fast}
-            onChange={(event) => update('fast', event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>SMA lenta</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={params.slow}
-            onChange={(event) => update('slow', event.target.value)}
-          />
-        </label>
       </div>
 
       <div className="field field--check">
@@ -148,7 +134,12 @@ export function BacktestPanel({
         </label>
       </div>
 
-      <button type="button" className="button" onClick={handleRun} disabled={candles.length === 0}>
+      <button
+        type="button"
+        className="button"
+        onClick={handleRun}
+        disabled={candles.length === 0 || strategy === null}
+      >
         Ejecutar backtest
       </button>
 

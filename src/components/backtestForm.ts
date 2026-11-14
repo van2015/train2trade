@@ -3,31 +3,29 @@ import { formatChartPrice } from './chartData'
 
 /**
  * Formulario y controles compartidos de los paneles (Fase 6): parámetros del
- * backtest (Backtest, Replay y Test-Forward reutilizan `validate`) y las
+ * experimento (Backtest, Replay y Test-Forward reutilizan `validate`) y las
  * filas/formato de métricas (tablas de resultados, ranking y optimización).
  * Fuente única: `BacktestPanel` dejó de definirlos localmente.
+ *
+ * Los indicadores de la estrategia (periodos SMA/EMA/RSI) **no** son
+ * parámetros del experimento: viven en la `StrategySpec` elegida (§1.9).
  */
 export interface Params {
   capital: string
   feeBps: string
   slippageBps: string
-  fast: string
-  slow: string
 }
 
 export const DEFAULT_PARAMS: Params = {
   capital: '1000',
   feeBps: '0',
   slippageBps: '0',
-  fast: '10',
-  slow: '30',
 }
 
 export type ValidationResult =
-  | { ok: true; capital: number; feeBps: number; slippageBps: number; fast: number; slow: number }
-  | { ok: false; error: string }
+  { ok: true; capital: number; feeBps: number; slippageBps: number } | { ok: false; error: string }
 
-/** Valida los campos del formulario (capital > 0, bps >= 0, periodos enteros >= 1). */
+/** Valida los campos del formulario (capital > 0, bps >= 0). */
 export function validate(params: Params): ValidationResult {
   const capital = Number(params.capital)
   if (params.capital.trim() === '' || !Number.isFinite(capital) || capital <= 0) {
@@ -44,17 +42,7 @@ export function validate(params: Params): ValidationResult {
     return { ok: false, error: 'Slippage (bps): debe ser un número >= 0' }
   }
 
-  const fast = Number(params.fast)
-  if (!Number.isInteger(fast) || fast < 1) {
-    return { ok: false, error: 'SMA rápida: debe ser un entero >= 1' }
-  }
-
-  const slow = Number(params.slow)
-  if (!Number.isInteger(slow) || slow < 1) {
-    return { ok: false, error: 'SMA lenta: debe ser un entero >= 1' }
-  }
-
-  return { ok: true, capital, feeBps, slippageBps, fast, slow }
+  return { ok: true, capital, feeBps, slippageBps }
 }
 
 /** Fila de métrica: clave, etiqueta en español y formato de visualización. */

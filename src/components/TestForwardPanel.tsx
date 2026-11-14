@@ -3,14 +3,14 @@ import { Experiment } from '@/domain/backtest/experiment'
 import { TestForwardRun, runTestForward } from '@/domain/backtest/testForward'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
-import { Sma } from '@/domain/indicators/sma'
-import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
-import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { buildStrategy, StrategySpec } from '@/domain/strategies/spec'
 import { DEFAULT_PARAMS, Params, validate } from './backtestForm'
 
 export interface TestForwardPanelProps {
   candles: readonly Candle[]
   timeframe: Timeframe
+  /** Estrategia activa (selector único, §1.9); los indicadores/periodos viven en la spec. */
+  strategy: StrategySpec | null
   /** Cada experimento ejecutado (desarrollo primero) → App lo guarda como snapshot. */
   onExperiment: (experiment: Experiment) => void
   /** Último run (plan UI, Fase 3): App lo muestra en la pestaña Test-Forward. */
@@ -44,6 +44,7 @@ function toDateTimeLocal(ms: number): string {
 export function TestForwardPanel({
   candles,
   timeframe,
+  strategy,
   onExperiment,
   onResult,
 }: TestForwardPanelProps) {
@@ -58,6 +59,7 @@ export function TestForwardPanel({
     setParams((previous) => ({ ...previous, [key]: value }))
 
   const handleRun = () => {
+    if (strategy === null) return
     const parsed = validate(params)
     if (!parsed.ok) {
       setError(parsed.error)
@@ -77,14 +79,7 @@ export function TestForwardPanel({
 
     try {
       const run = runTestForward({
-        strategy: new Strategy({
-          name: 'sma-cross',
-          indicators: { fast: new Sma(parsed.fast), slow: new Sma(parsed.slow) },
-          signals: [
-            new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-            new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-          ],
-        }),
+        strategy: buildStrategy(strategy),
         candles,
         timeframe,
         initialCapital: parsed.capital,
@@ -107,6 +102,16 @@ export function TestForwardPanel({
       {candles.length === 0 && (
         <p className="panel-hint" data-testid="tf-empty">
           Sin velas: descarga o importa datos para ejecutar un test-forward.
+        </p>
+      )}
+
+      {strategy === null ? (
+        <p className="panel-hint" data-testid="tf-no-strategy">
+          Sin estrategia seleccionada: elige una en "Estrategia".
+        </p>
+      ) : (
+        <p className="panel-hint" data-testid="tf-strategy-hint">
+          Estrategia: {strategy.name}@{strategy.version}
         </p>
       )}
 
@@ -142,26 +147,6 @@ export function TestForwardPanel({
           />
         </label>
         <label className="field">
-          <span>SMA rápida</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={params.fast}
-            onChange={(event) => update('fast', event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>SMA lenta</span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            value={params.slow}
-            onChange={(event) => update('slow', event.target.value)}
-          />
-        </label>
-        <label className="field">
           <span>Corte (UTC)</span>
           <input
             type="datetime-local"
@@ -173,7 +158,12 @@ export function TestForwardPanel({
         </label>
       </div>
 
-      <button type="button" className="button" onClick={handleRun} disabled={candles.length === 0}>
+      <button
+        type="button"
+        className="button"
+        onClick={handleRun}
+        disabled={candles.length === 0 || strategy === null}
+      >
         Ejecutar test-forward
       </button>
 
