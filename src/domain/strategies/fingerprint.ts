@@ -57,28 +57,38 @@ function stringify(value: unknown): string {
       return 'null'
   }
 
-  if (Array.isArray(value)) {
-    const items: string[] = []
-    for (const item of value) {
-      if (typeof item === 'function' || item === undefined) continue
-      items.push(stringify(item))
-    }
-    return `[${items.join(',')}]`
-  }
+  if (Array.isArray(value)) return stringifyArray(value)
 
   if (value instanceof Date) {
     return JSON.stringify(Number.isNaN(value.getTime()) ? null : value.toISOString())
   }
 
-  if (value instanceof Map) {
-    const entries = [...value.entries()]
-      .filter(([, entryValue]) => isSerializable(entryValue))
-      .map(([key, entryValue]) => [String(key), entryValue] as const)
-      .sort(([a], [b]) => compareKeys(a, b))
-      .map(([key, entryValue]) => `${JSON.stringify(key)}:${stringify(entryValue)}`)
-    return `{${entries.join(',')}}`
-  }
+  if (value instanceof Map) return stringifyMap(value)
+  return stringifyObject(value)
+}
 
+/** Arrays: los elementos no serializables se omiten y el orden se conserva. */
+function stringifyArray(value: unknown[]): string {
+  const items: string[] = []
+  for (const item of value) {
+    if (typeof item === 'function' || item === undefined) continue
+    items.push(stringify(item))
+  }
+  return `[${items.join(',')}]`
+}
+
+/** Map: registro JSON con claves ordenadas (no `{}`). */
+function stringifyMap(value: Map<unknown, unknown>): string {
+  const entries = [...value.entries()]
+    .filter(([, entryValue]) => isSerializable(entryValue))
+    .map(([key, entryValue]) => [String(key), entryValue] as const)
+    .sort(([a], [b]) => compareKeys(a, b))
+    .map(([key, entryValue]) => `${JSON.stringify(key)}:${stringify(entryValue)}`)
+  return `{${entries.join(',')}}`
+}
+
+/** Objeto plano: props serializables con claves ordenadas alfabéticamente. */
+function stringifyObject(value: object): string {
   const entries = Object.entries(value as Record<string, unknown>)
     .filter(([, entryValue]) => isSerializable(entryValue))
     .sort(([a], [b]) => compareKeys(a, b))

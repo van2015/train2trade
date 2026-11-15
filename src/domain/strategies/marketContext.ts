@@ -154,30 +154,36 @@ export class MarketContext {
       throw new RangeError(`back debe ser un entero >= 0 (recibido: ${back})`)
     }
 
-    const index = this.base - back
     const series = this.series[id]
     // El alias registrado tiene prioridad sobre el de operación y el builtin.
-    if (series !== undefined) {
-      if (index < 0) return null
-      return series[index]?.value ?? null
-    }
-
-    // Alias de operación (entry/sl/tp): solo valor actual, sin histórico, y
-    // solo en la vela real del contexto (una vista desplazada los ve como null).
-    if (id === 'entry' || id === 'sl' || id === 'tp') {
-      if (back > 0 || this.base !== this.visibleCandles.length - 1) return null
-      return this.levelsValue[id] ?? null
-    }
-
-    // Series builtin de la vela actual (close/open/high/low): clase `price`.
-    if (BUILTIN_FIELDS.includes(id as BuiltinField)) {
-      if (index < 0) return null
-      const candle = this.visibleCandles[index]
-      if (candle === undefined) return null
-      return candle[id as BuiltinField]
-    }
+    if (series !== undefined) return this.valueFromSeries(series, back)
+    if (id === 'entry' || id === 'sl' || id === 'tp') return this.valueFromLevel(id, back)
+    if (BUILTIN_FIELDS.includes(id as BuiltinField)) return this.valueFromCandle(id, back)
 
     throw new MarketContextError('el indicador no está registrado', id)
+  }
+
+  /** Serie del alias registrado; fuera de la ventana visible → `null` (calentamiento). */
+  private valueFromSeries(series: readonly IndicatorValue[], back: number): number | null {
+    const value = series[this.base - back]
+    if (value === undefined) return null
+    return value.value
+  }
+
+  /**
+   * Alias de operación (entry/sl/tp): solo valor actual, sin histórico, y
+   * solo en la vela real del contexto (una vista desplazada los ve como null).
+   */
+  private valueFromLevel(id: 'entry' | 'sl' | 'tp', back: number): number | null {
+    if (back > 0 || this.base !== this.visibleCandles.length - 1) return null
+    return this.levelsValue[id] ?? null
+  }
+
+  /** Series builtin de la vela actual (close/open/high/low): clase `price`. */
+  private valueFromCandle(id: string, back: number): number | null {
+    const candle = this.visibleCandles[this.base - back]
+    if (candle === undefined) return null
+    return candle[id as BuiltinField]
   }
 }
 

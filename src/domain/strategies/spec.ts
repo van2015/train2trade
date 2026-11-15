@@ -303,17 +303,7 @@ export function assertStrategySpec(value: unknown): asserts value is StrategySpe
     throw new InvalidStrategyDefinitionError('la spec debe ser un objeto', value)
   }
 
-  const {
-    name,
-    version,
-    indicators,
-    entry,
-    takeProfit,
-    stopLoss,
-    triggers,
-    exitRule,
-    invalidation,
-  } = value
+  const { name, version, indicators, entry, exitRule, invalidation } = value
 
   if (typeof name !== 'string' || name.trim() === '') {
     throw new InvalidStrategyDefinitionError('el name no puede estar vacío', name)
@@ -321,17 +311,32 @@ export function assertStrategySpec(value: unknown): asserts value is StrategySpe
   if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
     throw new InvalidStrategyDefinitionError('la version debe ser un entero >= 1', version)
   }
-  if (!Array.isArray(indicators)) {
-    throw new InvalidStrategyDefinitionError('indicators debe ser un array', indicators)
-  }
-  const seen = new Set<string>()
-  for (const indicator of indicators) assertIndicatorSpec(indicator, seen)
+
+  assertIndicatorsSpec(indicators)
 
   if (!isRecord(entry)) {
     throw new InvalidStrategyDefinitionError('entry debe ser un objeto', entry)
   }
   assertEntrySpec(entry)
 
+  assertLevelsSpec(value)
+  assertTriggersSpec(value.triggers)
+
+  if (exitRule !== undefined) assertRuleSpec(exitRule)
+  if (invalidation !== undefined) assertRuleSpec(invalidation)
+}
+
+/** Forma de `indicators`: array con alias únicos/no reservados y kind/period válidos. */
+function assertIndicatorsSpec(indicators: unknown): void {
+  if (!Array.isArray(indicators)) {
+    throw new InvalidStrategyDefinitionError('indicators debe ser un array', indicators)
+  }
+  const seen = new Set<string>()
+  for (const indicator of indicators) assertIndicatorSpec(indicator, seen)
+}
+
+/** Forma de los niveles TP/SL: `price` obligatoria + ejecución conocida (§1.4). */
+function assertLevelsSpec(value: Record<string, unknown>): void {
   for (const key of ['takeProfit', 'stopLoss'] as const) {
     const level = value[key]
     if (level === undefined) continue
@@ -344,16 +349,15 @@ export function assertStrategySpec(value: unknown): asserts value is StrategySpe
     assertPriceExpr(level.price)
     assertExecution(level.execution, `${key}.execution`)
   }
+}
 
-  if (triggers !== undefined) {
-    if (!Array.isArray(triggers)) {
-      throw new InvalidStrategyDefinitionError('triggers debe ser un array', triggers)
-    }
-    for (const trigger of triggers) assertTriggerSpec(trigger)
+/** Forma de `triggers`: array con price/action/execution/fraction válidos (§1.4). */
+function assertTriggersSpec(triggers: unknown): void {
+  if (triggers === undefined) return
+  if (!Array.isArray(triggers)) {
+    throw new InvalidStrategyDefinitionError('triggers debe ser un array', triggers)
   }
-
-  if (exitRule !== undefined) assertRuleSpec(exitRule)
-  if (invalidation !== undefined) assertRuleSpec(invalidation)
+  for (const trigger of triggers) assertTriggerSpec(trigger)
 }
 
 /** `parseStrategySpec`: alias de `assertStrategySpec` para la persistencia. */
@@ -414,75 +418,20 @@ export function buildStrategy(spec: StrategySpec): Strategy {
   const parsed = parseStrategySpec(spec)
 
   // 1. Indicadores → instancia + mapa de clases.
-  const indicators: Record<string, Indicator> = {}
-  const classes: Record<string, SeriesClass> = {}
-  for (const indicator of parsed.indicators) {
-    indicators[indicator.alias] = buildIndicator(indicator)
-    classes[indicator.alias] = classOfKind(indicator.kind)
-  }
+  const { indicators, classes } = buildIndicators(parsed)
   const allClasses: SeriesClasses = { ...BUILTIN_CLASSES, ...classes }
 
-  // 2. Reglas: operandos de operación según contexto (§1.1) + clases (§1.2).
-  assertRuleOperations(parsed.entry.rule, operationAliases('entry.rule'), 'entry.rule')
-  const entryRule = buildRule(parsed.entry.rule, classes)
-
-  // 3. Señales: entry (limit adjunta price; market no) + exitRule (market).
-  const entryConfig: { price?: PriceExpr } = {}
-  if (parsed.entry.execution === 'limit') {
-    assertPriceOperands(
-      parsed.entry.price,
-      allClasses,
-      operationAliases('entry.price'),
-      'entry.price',
-    )
-    entryConfig.price = parsed.entry.price
-  }
-  const signals: Signal[] = [new Signal(StrategyAction.RequestEntry, entryRule, entryConfig)]
-
-  if (parsed.exitRule !== undefined) {
-    assertRuleOperations(parsed.exitRule, operationAliases('exitRule'), 'exitRule')
-    signals.push(new Signal(StrategyAction.RequestExit, buildRule(parsed.exitRule, classes)))
-  }
+  // 2-3. Señales: entry (limit adjunta price; market no) + exitRule (market).
+  const signals = buildSignals(parsed, classes, allClasses)
 
   // 4. Niveles TP/SL: `entry` disponible, `sl`/`tp` sin auto-referencia (§1.1).
-  let takeProfit: PriceLevel | undefined
-  if (parsed.takeProfit !== undefined) {
-    assertPriceOperands(
-      parsed.takeProfit.price,
-      allClasses,
-      operationAliases('takeProfit'),
-      'takeProfit.price',
-    )
-    takeProfit = parsed.takeProfit
-  }
-  let stopLoss: PriceLevel | undefined
-  if (parsed.stopLoss !== undefined) {
-    assertPriceOperands(
-      parsed.stopLoss.price,
-      allClasses,
-      operationAliases('stopLoss'),
-      'stopLoss.price',
-    )
-    stopLoss = parsed.stopLoss
-  }
+  const { takeProfit, stopLoss } = buildLevels(parsed, allClasses)
 
   // 5. Triggers: los tres alias de operación disponibles (§1.1).
-  const triggers = parsed.triggers?.map((trigger) => {
-    assertPriceOperands(trigger.price, allClasses, operationAliases('trigger'), 'trigger.price')
-    return new Trigger({
-      price: trigger.price,
-      action: TRIGGER_ACTIONS[trigger.action],
-      execution: trigger.execution,
-      fraction: trigger.fraction,
-    })
-  })
+  const triggers = buildTriggers(parsed, allClasses)
 
   // 6. Veto: sin alias de operación (mismo criterio que entry.rule).
-  let invalidationRule: Rule | undefined
-  if (parsed.invalidation !== undefined) {
-    assertRuleOperations(parsed.invalidation, operationAliases('invalidation'), 'invalidation')
-    invalidationRule = buildRule(parsed.invalidation, classes)
-  }
+  const invalidationRule = buildInvalidation(parsed, classes)
 
   return new Strategy({
     name: parsed.name,
@@ -494,6 +443,96 @@ export function buildStrategy(spec: StrategySpec): Strategy {
     stopLoss,
     triggers,
   })
+}
+
+/** 1. Indicadores → instancia por alias + su clase de serie. */
+function buildIndicators(spec: StrategySpec): {
+  indicators: Record<string, Indicator>
+  classes: Record<string, SeriesClass>
+} {
+  const indicators: Record<string, Indicator> = {}
+  const classes: Record<string, SeriesClass> = {}
+  for (const indicator of spec.indicators) {
+    indicators[indicator.alias] = buildIndicator(indicator)
+    classes[indicator.alias] = classOfKind(indicator.kind)
+  }
+  return { indicators, classes }
+}
+
+/** 2-3. Entrada + salida por regla: operandos de operación según contexto (§1.1) + clases (§1.2). */
+function buildSignals(
+  spec: StrategySpec,
+  classes: SeriesClasses,
+  allClasses: SeriesClasses,
+): Signal[] {
+  assertRuleOperations(spec.entry.rule, operationAliases('entry.rule'), 'entry.rule')
+  const entryRule = buildRule(spec.entry.rule, classes)
+
+  const entryConfig: { price?: PriceExpr } = {}
+  if (spec.entry.execution === 'limit') {
+    assertPriceOperands(
+      spec.entry.price,
+      allClasses,
+      operationAliases('entry.price'),
+      'entry.price',
+    )
+    entryConfig.price = spec.entry.price
+  }
+  const signals: Signal[] = [new Signal(StrategyAction.RequestEntry, entryRule, entryConfig)]
+
+  if (spec.exitRule !== undefined) {
+    assertRuleOperations(spec.exitRule, operationAliases('exitRule'), 'exitRule')
+    signals.push(new Signal(StrategyAction.RequestExit, buildRule(spec.exitRule, classes)))
+  }
+  return signals
+}
+
+/** 4. Take-profit/stop-loss declarados, con sus operandos validados por contexto. */
+function buildLevels(
+  spec: StrategySpec,
+  allClasses: SeriesClasses,
+): { takeProfit?: PriceLevel; stopLoss?: PriceLevel } {
+  let takeProfit: PriceLevel | undefined
+  if (spec.takeProfit !== undefined) {
+    assertPriceOperands(
+      spec.takeProfit.price,
+      allClasses,
+      operationAliases('takeProfit'),
+      'takeProfit.price',
+    )
+    takeProfit = spec.takeProfit
+  }
+  let stopLoss: PriceLevel | undefined
+  if (spec.stopLoss !== undefined) {
+    assertPriceOperands(
+      spec.stopLoss.price,
+      allClasses,
+      operationAliases('stopLoss'),
+      'stopLoss.price',
+    )
+    stopLoss = spec.stopLoss
+  }
+  return { takeProfit, stopLoss }
+}
+
+/** 5. Disparadores por toque de precio (acción + ejecución + fracción). */
+function buildTriggers(spec: StrategySpec, allClasses: SeriesClasses): Trigger[] | undefined {
+  return spec.triggers?.map((trigger) => {
+    assertPriceOperands(trigger.price, allClasses, operationAliases('trigger'), 'trigger.price')
+    return new Trigger({
+      price: trigger.price,
+      action: TRIGGER_ACTIONS[trigger.action],
+      execution: trigger.execution,
+      fraction: trigger.fraction,
+    })
+  })
+}
+
+/** 6. Regla de veto (mismo criterio de operandos que `entry.rule`). */
+function buildInvalidation(spec: StrategySpec, classes: SeriesClasses): Rule | undefined {
+  if (spec.invalidation === undefined) return undefined
+  assertRuleOperations(spec.invalidation, operationAliases('invalidation'), 'invalidation')
+  return buildRule(spec.invalidation, classes)
 }
 
 /** Forma del indicador: alias no reservado/único + kind/period/value válidos. */

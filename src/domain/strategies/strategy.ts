@@ -267,37 +267,63 @@ export class Strategy {
     if (vetoReason !== null && !open) return invalidated(vetoReason)
     const vetoed = vetoReason !== null
 
-    // 1. SL (solo con posición; el veto nunca bloquea cerrar): toque `low <= sl`.
-    if (levels.sl !== null && levels.sl !== undefined && ctx.current.low <= levels.sl) {
-      return levelExit('stop_loss', levels.sl, this.stopLoss?.execution ?? 'market')
-    }
-    // 2. TP: toque `high >= tp`. Antes que las reglas (prioridad §1.5).
-    if (levels.tp !== null && levels.tp !== undefined && ctx.current.high >= levels.tp) {
-      return levelExit('take_profit', levels.tp, this.takeProfit?.execution ?? 'market')
-    }
+    const levelExitDecision = this.firstLevelExit(ctx, levels)
+    if (levelExitDecision !== null) return levelExitDecision
 
-    const fired = this.firstFiringSignal(ctx, open, vetoed)
-    if (fired !== null) {
-      return {
-        action: fired.signal.action,
-        fraction: fired.signal.config.fraction ?? null,
-        price: fired.price,
-        reason: fired.signal.name,
-      }
-    }
+    const signal = this.firstSignalDecision(ctx, open, vetoed)
+    if (signal !== null) return signal
 
-    const trigger = this.firstFiringTrigger(ctx, open, vetoed)
-    if (trigger !== null) {
-      return {
-        action: trigger.trigger.action,
-        fraction: trigger.trigger.fraction,
-        price: trigger.trigger.execution === 'limit' ? trigger.price : null,
-        reason: trigger.trigger.name,
-      }
-    }
+    const trigger = this.firstTriggerDecision(ctx, open, vetoed)
+    if (trigger !== null) return trigger
 
     if (vetoReason !== null) return invalidated(vetoReason)
     return { action: StrategyAction.None, fraction: null, price: null, reason: null }
+  }
+
+  /**
+   * 1. SL (solo con posición; el veto nunca bloquea cerrar): toque `low <= sl`.
+   * 2. TP: toque `high >= tp`. Antes que las reglas (prioridad §1.5).
+   */
+  private firstLevelExit(context: MarketContext, levels: OperationLevels): StrategyDecision | null {
+    if (levels.sl !== null && levels.sl !== undefined && context.current.low <= levels.sl) {
+      return levelExit('stop_loss', levels.sl, this.stopLoss?.execution ?? 'market')
+    }
+    if (levels.tp !== null && levels.tp !== undefined && context.current.high >= levels.tp) {
+      return levelExit('take_profit', levels.tp, this.takeProfit?.execution ?? 'market')
+    }
+    return null
+  }
+
+  /** Decisión de la primera señal aplicable que dispara; `null` si ninguna. */
+  private firstSignalDecision(
+    context: MarketContext,
+    open: boolean,
+    vetoed: boolean,
+  ): StrategyDecision | null {
+    const fired = this.firstFiringSignal(context, open, vetoed)
+    if (fired === null) return null
+    return {
+      action: fired.signal.action,
+      fraction: fired.signal.config.fraction ?? null,
+      price: fired.price,
+      reason: fired.signal.name,
+    }
+  }
+
+  /** Decisión del primer trigger por toque direccional; `null` si ninguno. */
+  private firstTriggerDecision(
+    context: MarketContext,
+    open: boolean,
+    vetoed: boolean,
+  ): StrategyDecision | null {
+    const fired = this.firstFiringTrigger(context, open, vetoed)
+    if (fired === null) return null
+    return {
+      action: fired.trigger.action,
+      fraction: fired.trigger.fraction,
+      price: fired.trigger.execution === 'limit' ? fired.price : null,
+      reason: fired.trigger.name,
+    }
   }
 
   /**
