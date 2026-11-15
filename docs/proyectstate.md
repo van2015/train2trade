@@ -55,7 +55,7 @@ queda nada válido, se re-siembra la demo.
 | `CandleChart.tsx`    | `lightweight-charts`: velas, volumen overlay, líneas de indicador, leyenda OHLCV  |
 | `DataControls.tsx`   | Instrumento (con sugerencias), timeframe, rango de fechas, botón de descarga      |
 | `CsvImportPanel.tsx` | Lectura de `File` → `CsvCandlesImporter` → entrega de velas validadas             |
-| `IndicatorPanel.tsx` | Activación y periodo de SMA/EMA/RSI (valida enteros ≥ 1)                          |
+| `IndicatorPanel.tsx` | Activación y periodo de SMA/EMA/RSI/Mínimo (valida enteros ≥ 1)                   |
 | `chartData.ts`       | Mappers puros a datos de lightweight-charts + `buildLines` + ajustes de indicador |
 
 El arranque es `src/main.tsx` (fija `CandleRepository(localStorage)` y `BinanceProvider`), servido
@@ -72,8 +72,9 @@ por `index.html` + `vite.config.ts`. Comandos: `pnpm dev`, `pnpm build`, `pnpm p
 
 ### Indicadores (reutilizables por gráfico y estrategias)
 
-`src/domain/indicators/` — contrato `Indicator`/`IndicatorValue` + `Sma`, `Ema`, `Rsi` (Wilder), con
-`null` durante el calentamiento y salida alineada con las velas. 27 tests.
+`src/domain/indicators/` — contrato `Indicator`/`IndicatorValue` + `Sma`, `Ema`, `Rsi` (Wilder) y
+`LowestLow` (mínimo `low` de los últimos x periodos), con `null` durante el calentamiento y salida
+alineada con las velas. 43 tests.
 
 ### Resultado de Fase 2 cumplido
 

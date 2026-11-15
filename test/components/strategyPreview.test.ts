@@ -144,6 +144,21 @@ describe('buildPreviewLines', () => {
     expect(lines[0]?.label).toBe('EMA 9')
   })
 
+  it('lowestLow → panel de precio, color canónico y label "Mínimo N" sin alias', () => {
+    const spec = baseSpec({ indicators: [{ alias: '', kind: 'lowestLow', period: 3 }] })
+
+    const { lines } = buildPreviewLines(candles(), spec)
+
+    expect(lines[0]).toMatchObject({
+      label: 'Mínimo 3',
+      color: CHART_COLORS.lowestLow,
+      pane: 'price',
+    })
+    // Calentamiento en las 2 primeras velas y mínimo de lows = 90 a partir de la 3.ª.
+    expect(lines[0]?.values[1]?.value).toBeNull()
+    expect(lines[0]?.values[2]?.value).toBe(90)
+  })
+
   it('sin velas → listas vacías y sin issues', () => {
     const { lines, issues } = buildPreviewLines([], baseSpec())
 

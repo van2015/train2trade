@@ -127,6 +127,18 @@ describe('StrategyEditor — indicadores (§1.8)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(saved(onSave).indicators[0]).toEqual({ alias: 'fast', kind: 'const', value: 30 })
   })
+
+  it('lowestLow es un tipo de precio con periodo', () => {
+    const { onSave } = renderEditor()
+
+    fireEvent.change(screen.getByLabelText('Indicador 1 tipo'), { target: { value: 'lowestLow' } })
+    fireEvent.change(screen.getByLabelText('Indicador 1 periodo'), { target: { value: '20' } })
+
+    expect(screen.getByLabelText('Indicador 1 periodo')).toHaveValue(20)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    expect(saved(onSave).indicators[0]).toEqual({ alias: 'fast', kind: 'lowestLow', period: 20 })
+  })
 })
 
 describe('StrategyEditor — entrada', () => {

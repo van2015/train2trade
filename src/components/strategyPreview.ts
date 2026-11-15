@@ -3,7 +3,13 @@ import { IndicatorValue } from '@/domain/indicators/indicator'
 import { MarketContext } from '@/domain/strategies/marketContext'
 import { evaluatePriceExpr, PriceExpr } from '@/domain/strategies/priceExpr'
 import { buildIndicator, IndicatorSpec, StrategySpec } from '@/domain/strategies/spec'
-import { CHART_COLORS, ChartLine, ChartLinePane } from './chartData'
+import {
+  CHART_COLORS,
+  ChartLine,
+  ChartLinePane,
+  INDICATOR_KIND_NAMES,
+  indicatorKindLabel,
+} from './chartData'
 
 /**
  * Previsualización del editor de estrategias (plan `strategy-preview-plan.md`):
@@ -86,7 +92,7 @@ function windowTarget(spec: StrategySpec): number {
 
 /** Indicador determinante de la ventana (mayor período válido), p. ej. `"SMA 30"`. */
 function windowDriver(spec: StrategySpec): string | null {
-  let best: { kind: 'sma' | 'ema' | 'rsi'; period: number } | null = null
+  let best: { kind: Exclude<IndicatorSpec['kind'], 'const'>; period: number } | null = null
   for (const indicator of spec.indicators) {
     if (indicator.kind === 'const') continue
     if (!Number.isInteger(indicator.period) || indicator.period < 1) continue
@@ -94,7 +100,8 @@ function windowDriver(spec: StrategySpec): string | null {
       best = { kind: indicator.kind, period: indicator.period }
     }
   }
-  return best === null ? null : `${best.kind.toUpperCase()} ${best.period}`
+  if (best === null) return null
+  return `${INDICATOR_KIND_NAMES[best.kind].toUpperCase()} ${best.period}`
 }
 
 function windowLegend(range: PreviewWindow, spec: StrategySpec): string | null {
@@ -110,6 +117,7 @@ const KIND_COLORS: Record<IndicatorSpec['kind'], string> = {
   sma: CHART_COLORS.sma,
   ema: CHART_COLORS.ema,
   rsi: CHART_COLORS.rsi,
+  lowestLow: CHART_COLORS.lowestLow,
   const: CHART_COLORS.constant,
 }
 
@@ -314,9 +322,7 @@ function indicatorName(spec: IndicatorSpec, index: number): string {
 
 /** Label de línea: alias si tiene; si no, descripción del kind (`EMA 9`). */
 function lineLabel(spec: IndicatorSpec): string {
-  if (spec.alias !== '') return spec.alias
-  if (spec.kind === 'const') return `Constante ${spec.value}`
-  return `${spec.kind.toUpperCase()} ${spec.period}`
+  return spec.alias !== '' ? spec.alias : indicatorKindLabel(spec)
 }
 
 /** Primer color canónico no usado; paleta agotada → canónico aunque repita. */

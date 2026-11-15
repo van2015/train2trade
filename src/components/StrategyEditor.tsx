@@ -142,6 +142,7 @@ export function StrategyEditor({
           <option value="sma">SMA</option>
           <option value="ema">EMA</option>
           <option value="rsi">RSI</option>
+          <option value="lowestLow">Mínimo (lowest low)</option>
           <option value="const">Constante</option>
         </select>
       </label>
@@ -365,7 +366,7 @@ export function StrategyEditor({
       <h4 className="strategy-editor__block">Indicadores</h4>
       {indicatorGroup(
         'price',
-        'Indicadores de precio (SMA/EMA)',
+        'Indicadores de precio (SMA/EMA/Mínimo)',
         'Añadir indicador de precio',
         () => ({ alias: '', kind: 'sma', period: 20 }),
       )}

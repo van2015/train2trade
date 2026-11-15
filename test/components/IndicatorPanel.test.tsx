@@ -10,16 +10,18 @@ function renderPanel(settings: IndicatorSettings = DEFAULT_INDICATOR_SETTINGS) {
 }
 
 describe('IndicatorPanel', () => {
-  it('muestra los tres indicadores con sus periodos por defecto', () => {
+  it('muestra los cuatro indicadores con sus periodos por defecto', () => {
     renderPanel()
 
     expect(screen.getByRole('checkbox', { name: /SMA/ })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: /EMA/ })).not.toBeChecked()
     expect(screen.getByRole('checkbox', { name: /RSI/ })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /Mínimo/ })).not.toBeChecked()
 
     expect(screen.getByLabelText('Periodo de SMA')).toHaveValue(20)
     expect(screen.getByLabelText('Periodo de EMA')).toHaveValue(20)
     expect(screen.getByLabelText('Periodo de RSI')).toHaveValue(14)
+    expect(screen.getByLabelText('Periodo de Mínimo')).toHaveValue(20)
   })
 
   it('notifica al activar un indicador', () => {
@@ -31,6 +33,17 @@ describe('IndicatorPanel', () => {
     expect(onChange).toHaveBeenCalledWith({
       ...DEFAULT_INDICATOR_SETTINGS,
       rsi: { enabled: true, period: 14 },
+    })
+  })
+
+  it('notifica al activar el mínimo con su periodo por defecto', () => {
+    const { onChange } = renderPanel()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Mínimo/ }))
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...DEFAULT_INDICATOR_SETTINGS,
+      lowestLow: { enabled: true, period: 20 },
     })
   })
 
@@ -80,12 +93,14 @@ describe('IndicatorPanel', () => {
       sma: { enabled: true, period: 7 },
       ema: { enabled: true, period: 21 },
       rsi: { enabled: true, period: 9 },
+      lowestLow: { enabled: true, period: 50 },
     }
     renderPanel(settings)
 
     expect(screen.getByLabelText('Periodo de SMA')).toHaveValue(7)
     expect(screen.getByLabelText('Periodo de EMA')).toHaveValue(21)
     expect(screen.getByLabelText('Periodo de RSI')).toHaveValue(9)
+    expect(screen.getByLabelText('Periodo de Mínimo')).toHaveValue(50)
     expect(screen.getByRole('checkbox', { name: /EMA/ })).toBeChecked()
   })
 })

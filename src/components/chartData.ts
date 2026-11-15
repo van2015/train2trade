@@ -10,8 +10,10 @@ import { EquityPoint } from '@/domain/backtest/metrics'
 import { Candle } from '@/domain/candles/candle'
 import { IndicatorValue } from '@/domain/indicators/indicator'
 import { Ema } from '@/domain/indicators/ema'
+import { LowestLow } from '@/domain/indicators/lowestLow'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
+import { IndicatorSpec } from '@/domain/strategies/spec'
 
 /** Paleta del gráfico (tema oscuro). */
 export const CHART_COLORS = {
@@ -26,14 +28,30 @@ export const CHART_COLORS = {
   sma: '#2962ff',
   ema: '#ff9800',
   rsi: '#ab47bc',
+  lowestLow: '#26c6da',
   constant: '#787b86',
   equity: '#7e57c2',
 } as const
 
+/** Nombre visible por kind de indicador (leyendas del gráfico y del preview). */
+export const INDICATOR_KIND_NAMES: Record<IndicatorSpec['kind'], string> = {
+  sma: 'SMA',
+  ema: 'EMA',
+  rsi: 'RSI',
+  lowestLow: 'Mínimo',
+  const: 'Constante',
+}
+
+/** Label de línea de un indicador (`SMA 20`, `Mínimo 20`, `Constante 30`). */
+export function indicatorKindLabel(spec: IndicatorSpec): string {
+  if (spec.kind === 'const') return `${INDICATOR_KIND_NAMES.const} ${spec.value}`
+  return `${INDICATOR_KIND_NAMES[spec.kind]} ${spec.period}`
+}
+
 export type ChartLinePane = 'price' | 'lower'
 
 export interface ChartLine {
-  /** Identificador estable (`sma`, `ema`, `rsi`); la UI lo usa para sincronizar series. */
+  /** Identificador estable (`sma`, `ema`, `rsi`, `lowestLow`); la UI lo sincroniza. */
   id: string
   label: string
   color: string
@@ -113,12 +131,14 @@ export interface IndicatorSettings {
   sma: IndicatorToggle
   ema: IndicatorToggle
   rsi: IndicatorToggle
+  lowestLow: IndicatorToggle
 }
 
 export const DEFAULT_INDICATOR_SETTINGS: IndicatorSettings = {
   sma: { enabled: true, period: 20 },
   ema: { enabled: false, period: 20 },
   rsi: { enabled: false, period: 14 },
+  lowestLow: { enabled: false, period: 20 },
 }
 
 /** Calcula las líneas de indicador activas (periodos inválidos → `InvalidPeriodError`). */
@@ -128,7 +148,7 @@ export function buildLines(candles: readonly Candle[], settings: IndicatorSettin
   if (settings.sma.enabled) {
     lines.push({
       id: 'sma',
-      label: `SMA ${settings.sma.period}`,
+      label: `${INDICATOR_KIND_NAMES.sma} ${settings.sma.period}`,
       color: CHART_COLORS.sma,
       values: new Sma(settings.sma.period).calculate(candles),
       pane: 'price',
@@ -138,7 +158,7 @@ export function buildLines(candles: readonly Candle[], settings: IndicatorSettin
   if (settings.ema.enabled) {
     lines.push({
       id: 'ema',
-      label: `EMA ${settings.ema.period}`,
+      label: `${INDICATOR_KIND_NAMES.ema} ${settings.ema.period}`,
       color: CHART_COLORS.ema,
       values: new Ema(settings.ema.period).calculate(candles),
       pane: 'price',
@@ -148,12 +168,22 @@ export function buildLines(candles: readonly Candle[], settings: IndicatorSettin
   if (settings.rsi.enabled) {
     lines.push({
       id: 'rsi',
-      label: `RSI ${settings.rsi.period}`,
+      label: `${INDICATOR_KIND_NAMES.rsi} ${settings.rsi.period}`,
       color: CHART_COLORS.rsi,
       values: new Rsi(settings.rsi.period).calculate(candles),
       pane: 'lower',
       fixedRange: { min: 0, max: 100 },
       referenceLines: [30, 70],
+    })
+  }
+
+  if (settings.lowestLow.enabled) {
+    lines.push({
+      id: 'lowestLow',
+      label: `${INDICATOR_KIND_NAMES.lowestLow} ${settings.lowestLow.period}`,
+      color: CHART_COLORS.lowestLow,
+      values: new LowestLow(settings.lowestLow.period).calculate(candles),
+      pane: 'price',
     })
   }
 

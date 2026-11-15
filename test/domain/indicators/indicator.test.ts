@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { Indicator } from '@/domain/indicators/indicator'
 import { Ema } from '@/domain/indicators/ema'
+import { LowestLow } from '@/domain/indicators/lowestLow'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
 
@@ -23,6 +24,7 @@ describe('contrato Indicator', () => {
     ['Sma(3)', new Sma(3), 'sma'],
     ['Ema(3)', new Ema(3), 'ema'],
     ['Rsi(3)', new Rsi(3), 'rsi'],
+    ['LowestLow(3)', new LowestLow(3), 'lowestLow'],
   ] as const)('%s: salida alineada con la entrada y name estable', (_label, indicator, name) => {
     const candles = candlesFrom([5, 3, 8, 1, 9, 4, 7])
     const result: Indicator = indicator
@@ -40,6 +42,7 @@ describe('contrato Indicator', () => {
     ['Sma(3)', new Sma(3)],
     ['Ema(3)', new Ema(3)],
     ['Rsi(3)', new Rsi(3)],
+    ['LowestLow(3)', new LowestLow(3)],
   ] as const)('%s: la entrada vacía produce []', (_label, indicator) => {
     expect(indicator.calculate([])).toEqual([])
   })

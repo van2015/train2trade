@@ -1,6 +1,7 @@
 import { Constant } from '@/domain/indicators/constant'
 import { Ema } from '@/domain/indicators/ema'
 import { Indicator } from '@/domain/indicators/indicator'
+import { LowestLow } from '@/domain/indicators/lowestLow'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
 import { assertPriceExpr, PriceExpr } from '@/domain/strategies/priceExpr'
@@ -48,9 +49,9 @@ export type RuleSpec =
   | { kind: 'or'; rules: RuleSpec[] }
   | { kind: 'not'; rule: RuleSpec }
 
-/** Indicador serializable (§1.4): catálogo actual SMA/EMA/RSI + constante. */
+/** Indicador serializable (§1.4): catálogo SMA/EMA/RSI/mínimo + constante. */
 export type IndicatorSpec =
-  | { alias: string; kind: 'sma' | 'ema' | 'rsi'; period: number }
+  | { alias: string; kind: 'sma' | 'ema' | 'rsi' | 'lowestLow'; period: number }
   | { alias: string; kind: 'const'; value: number }
 
 /** Acciones de trigger (§1.4): las cuatro acciones de señal como string. */
@@ -500,9 +501,9 @@ function assertIndicatorSpec(value: unknown, seen: Set<string>): void {
     }
     return
   }
-  if (kind !== 'sma' && kind !== 'ema' && kind !== 'rsi') {
+  if (kind !== 'sma' && kind !== 'ema' && kind !== 'rsi' && kind !== 'lowestLow') {
     throw new InvalidStrategyDefinitionError(
-      'kind de indicador desconocido (sma/ema/rsi/const)',
+      'kind de indicador desconocido (sma/ema/rsi/lowestLow/const)',
       kind,
     )
   }
@@ -656,12 +657,14 @@ export function buildIndicator(spec: IndicatorSpec): Indicator {
       return new Ema(spec.period)
     case 'rsi':
       return new Rsi(spec.period)
+    case 'lowestLow':
+      return new LowestLow(spec.period)
     case 'const':
       return new Constant(spec.value)
   }
 }
 
-/** Clase del indicador (§1.3): SMA/EMA sobre precio, RSI oscilador, const. */
+/** Clase del indicador (§1.3): SMA/EMA/mínimo sobre precio, RSI oscilador, const. */
 function classOfKind(kind: IndicatorSpec['kind']): SeriesClass {
   if (kind === 'rsi') return 'oscillator'
   if (kind === 'const') return 'constant'

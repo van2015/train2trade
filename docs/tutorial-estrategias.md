@@ -26,7 +26,8 @@ Optimización, Replay). Es decir: guardas una vez y todos los experimentos la us
    SL, triggers) se expresa con **indicadores y relaciones entre ellos**. Los números solo entran
    como **indicadores constantes** (alias + valor, p. ej. `umbral30 = 30`).
 2. **Tres clases de series**, que no se mezclan a la ligera:
-   - **precio**: SMA/EMA y las series de la vela `close`, `open`, `high`, `low`
+   - **precio**: SMA/EMA, el mínimo de las últimas velas (Mínimo, _lowest low_) y las series de la
+     vela `close`, `open`, `high`, `low`
    - **oscilador**: RSI
    - **constante**: lo que declares con tipo "Constante"
 
@@ -66,15 +67,15 @@ Texto libre (no vacío). La versión **no** se edita: la asigna el panel al guar
 
 ### 3.2 Indicadores (tres grupos)
 
-| Grupo                               | Tipos     | Parámetro                | Botón de alta                              |
-| ----------------------------------- | --------- | ------------------------ | ------------------------------------------ |
-| **Indicadores de precio (SMA/EMA)** | SMA / EMA | Periodo (entero ≥ 1)     | "Añadir indicador de precio" (crea SMA 20) |
-| **Osciladores (RSI)**               | RSI       | Periodo                  | "Añadir oscilador" (crea RSI 14)           |
-| **Constantes**                      | Constante | **Valor** (número libre) | "Añadir constante" (crea valor 30)         |
+| Grupo                                      | Tipos              | Parámetro                | Botón de alta                              |
+| ------------------------------------------ | ------------------ | ------------------------ | ------------------------------------------ |
+| **Indicadores de precio (SMA/EMA/Mínimo)** | SMA / EMA / Mínimo | Periodo (entero ≥ 1)     | "Añadir indicador de precio" (crea SMA 20) |
+| **Osciladores (RSI)**                      | RSI                | Periodo                  | "Añadir oscilador" (crea RSI 14)           |
+| **Constantes**                             | Constante          | **Valor** (número libre) | "Añadir constante" (crea valor 30)         |
 
 Cada fila: **Alias** (el nombre con el que lo referenciarás en reglas y precios), **Tipo**
-(cambiarlo conmuta el parámetro: SMA→Constante pasa a valor 30; Constante→RSI pasa a periodo 14) y
-el parámetro. "✕" quita la fila.
+(cambiarlo conmuta el parámetro: SMA→Constante pasa a valor 30; Constante→RSI pasa a periodo 14; el
+Mínimo, como SMA/EMA/RSI, lleva periodo) y el parámetro. "✕" quita la fila.
 
 ### 3.3 Entrada
 

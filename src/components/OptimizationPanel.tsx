@@ -32,7 +32,7 @@ type RangeState = Record<string, RangeFields>
 
 type RangeResult = { ok: true; values: number[] } | { ok: false; error: string }
 
-/** Indicadores con periodo optimizable (SMA/EMA/RSI; no las constantes). */
+/** Indicadores con periodo optimizable (SMA/EMA/RSI/mínimo; no las constantes). */
 function parametricIndicators(
   spec: StrategySpec | null,
 ): readonly { alias: string; period: number }[] {

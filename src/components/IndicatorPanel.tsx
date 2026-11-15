@@ -15,6 +15,7 @@ const ROWS: readonly IndicatorRow[] = [
   { key: 'sma', label: 'SMA', hint: 'Media móvil simple' },
   { key: 'ema', label: 'EMA', hint: 'Media móvil exponencial' },
   { key: 'rsi', label: 'RSI', hint: 'Índice de fuerza relativa (panel inferior)' },
+  { key: 'lowestLow', label: 'Mínimo', hint: 'Mínimo de las últimas velas (lowest low)' },
 ]
 
 function clampPeriod(raw: string): number | null {

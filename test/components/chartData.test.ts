@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import {
+  buildLines,
   CHART_COLORS,
+  DEFAULT_INDICATOR_SETTINGS,
   priceFormatFor,
   toCandlestickData,
   toChartTime,
@@ -117,6 +119,37 @@ describe('priceFormatFor', () => {
 
   it('usa el valor absoluto (también funciona con precios negativos)', () => {
     expect(priceFormatFor(-5_000)).toEqual({ precision: 2, minMove: 0.01 })
+  })
+})
+
+describe('buildLines', () => {
+  const candles = [
+    Candle.from({ time: 1000, open: 100, high: 110, low: 90, close: 105, volume: 1 }),
+    Candle.from({ time: 61_000, open: 100, high: 120, low: 80, close: 110, volume: 1 }),
+    Candle.from({ time: 121_000, open: 100, high: 130, low: 70, close: 120, volume: 1 }),
+  ]
+  const off = { enabled: false, period: 20 }
+
+  it('incluye el mínimo con su periodo, color y panel cuando está activo', () => {
+    const lines = buildLines(candles, {
+      sma: off,
+      ema: off,
+      rsi: off,
+      lowestLow: { enabled: true, period: 2 },
+    })
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatchObject({
+      id: 'lowestLow',
+      label: 'Mínimo 2',
+      color: CHART_COLORS.lowestLow,
+      pane: 'price',
+    })
+    expect(lines[0]?.values.map((entry) => entry.value)).toEqual([null, 80, 70])
+  })
+
+  it('sin indicadores activos → []', () => {
+    expect(buildLines(candles, { sma: off, ema: off, rsi: off, lowestLow: off })).toEqual([])
   })
 })
 

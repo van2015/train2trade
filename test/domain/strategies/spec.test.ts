@@ -3,6 +3,7 @@ import { Candle } from '@/domain/candles/candle'
 import { Constant } from '@/domain/indicators/constant'
 import { Ema } from '@/domain/indicators/ema'
 import { IndicatorValue, InvalidPeriodError } from '@/domain/indicators/indicator'
+import { LowestLow } from '@/domain/indicators/lowestLow'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
 import { MarketContext } from '@/domain/strategies/marketContext'
@@ -633,6 +634,21 @@ describe('API para el editor (enmienda 16)', () => {
     expect(seriesClasses(draft).x).toBe('price')
   })
 
+  it('lowestLow se acepta en la spec y se clasifica como serie de precio', () => {
+    const base = validSpec()
+    const spec: StrategySpec = {
+      ...base,
+      indicators: [...base.indicators, { alias: 'min20', kind: 'lowestLow', period: 20 }],
+    }
+
+    expect(parseStrategySpec(spec).indicators.at(-1)).toEqual({
+      alias: 'min20',
+      kind: 'lowestLow',
+      period: 20,
+    })
+    expect(seriesClasses(spec).min20).toBe('price')
+  })
+
   it('operationAliases devuelve los alias disponibles por contexto (§1.1)', () => {
     expect(operationAliases('entry.rule')).toEqual([])
     expect(operationAliases('invalidation')).toEqual([])
@@ -692,6 +708,7 @@ describe('buildIndicator (export para el preview)', () => {
     expect(buildIndicator({ alias: 'a', kind: 'sma', period: 5 })).toBeInstanceOf(Sma)
     expect(buildIndicator({ alias: 'a', kind: 'ema', period: 5 })).toBeInstanceOf(Ema)
     expect(buildIndicator({ alias: 'a', kind: 'rsi', period: 14 })).toBeInstanceOf(Rsi)
+    expect(buildIndicator({ alias: 'a', kind: 'lowestLow', period: 20 })).toBeInstanceOf(LowestLow)
     expect(buildIndicator({ alias: 'a', kind: 'const', value: 30 })).toBeInstanceOf(Constant)
   })
 
