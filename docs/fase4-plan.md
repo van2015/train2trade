@@ -115,14 +115,14 @@ final **no** se cierra a mercado, ver puntos abiertos).
 
 ### T2 — Trade (registro de operaciones)
 
-- **Archivos:** `src/domain/backtest/trade.ts` ↔ `test/domain/backtest/trade.test.ts`
+- **Archivos:** `src/domain/execution/trade.ts` ↔ `test/domain/execution/trade.test.ts`
 - `Trade` inmutable con validación (`InvalidTradeError`); `win` (pnl > 0), `durationMs`.
 - **Aceptación:** `pnl` neto de fees de salida; invariantes de construcción (qty > 0, tiempos
   ordenados, exit >= 0).
 
 ### T3 — RecordingBroker (decorador)
 
-- **Archivos:** `src/domain/backtest/recordingBroker.ts` ↔ `test/domain/backtest/recordingBroker.test.ts`
+- **Archivos:** `src/domain/execution/recordingBroker.ts` ↔ `test/domain/execution/recordingBroker.test.ts`
 - Envuelve cualquier `Broker` + `Account`: delega `submitOrder`/`cancelOrder`/`advance`/consultas y,
   por cada vela, **snapshot de la posición antes de delegar** → al llegar un `fill` `sell` construye
   el `Trade` (parcial o total) y lo registra. Órdenes enviadas se apilan con su estado final.

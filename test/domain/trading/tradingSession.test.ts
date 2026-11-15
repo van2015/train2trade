@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RecordingBroker } from '@/domain/backtest/recordingBroker'
+import { RecordingBroker } from '@/domain/execution/recordingBroker'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { MarketContextError } from '@/domain/strategies/marketContext'

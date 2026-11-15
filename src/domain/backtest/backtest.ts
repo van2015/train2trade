@@ -1,6 +1,6 @@
 import { computeMetrics, EquityPoint, Metrics } from '@/domain/backtest/metrics'
-import { RecordingBroker } from '@/domain/backtest/recordingBroker'
-import { Trade } from '@/domain/backtest/trade'
+import { RecordingBroker } from '@/domain/execution/recordingBroker'
+import { Trade } from '@/domain/execution/trade'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { DomainError, invalidMessage } from '@/domain/errors'

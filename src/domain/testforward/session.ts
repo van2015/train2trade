@@ -1,4 +1,4 @@
-import { RecordingBroker } from '@/domain/backtest/recordingBroker'
+import { RecordingBroker } from '@/domain/execution/recordingBroker'
 import { Candle } from '@/domain/candles/candle'
 import { DomainError, invalidMessage } from '@/domain/errors'
 import { Account } from '@/domain/execution/account'
@@ -8,6 +8,7 @@ import { Order, OrderSide, OrderStatus, OrderType } from '@/domain/execution/ord
 import { MarketContext, OperationLevels } from '@/domain/strategies/marketContext'
 import { Strategy, StrategyAction, StrategyDecision } from '@/domain/strategies/strategy'
 import { StrategyState } from '@/domain/strategies/strategyInstance'
+import { formatFill, formatOrderSent } from '@/domain/trading/logFormat'
 import { TradingSession, TradingSessionConfig } from '@/domain/trading/tradingSession'
 import { confirmationPoints } from './confirmationPoints'
 
@@ -136,11 +137,6 @@ export class TestForwardBroker extends RecordingBroker {
     for (const fill of fills) this.onFillHook(fill)
     return fills
   }
-}
-
-/** Cantidad/precio legibles: 8 decimales sin ceros sobrantes (texto de log). */
-function formatAmount(value: number): string {
-  return String(Number(value.toFixed(8)))
 }
 
 /**
@@ -417,8 +413,7 @@ export class TestForwardSession {
     if (isEntry) this.strategyValue.entryBlocked = true
     else this.strategyValue.exitBlocked = true
 
-    const verb = isEntry ? 'comprar' : 'vender'
-    this.pushLog('order', `Orden enviada: ${verb} ${formatAmount(qty)} (${order.id})`)
+    this.pushLog('order', formatOrderSent(order))
   }
 
   /**
@@ -462,11 +457,7 @@ export class TestForwardSession {
       const fill = this.takeFill
       this.takeFill = null
       if (fill !== null) {
-        const subject = fill.side === OrderSide.Buy ? 'Compra' : 'Venta'
-        this.pushLog(
-          'fill',
-          `${subject} rellenada: ${formatAmount(fill.qty)} @ ${formatAmount(fill.price)} (${fill.orderId})`,
-        )
+        this.pushLog('fill', formatFill(fill))
       }
     } else {
       const reason = pending.order.rejectReason ?? pending.order.status

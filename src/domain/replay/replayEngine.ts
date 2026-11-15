@@ -1,9 +1,16 @@
-import { RecordingBroker } from '@/domain/backtest/recordingBroker'
+import { RecordingBroker } from '@/domain/execution/recordingBroker'
 import { DomainError, invalidMessage } from '@/domain/errors'
 import { Account } from '@/domain/execution/account'
 import { Broker } from '@/domain/execution/broker'
 import { Fill } from '@/domain/execution/fill'
 import { Order, OrderSide, OrderStatus, OrderType } from '@/domain/execution/order'
+import {
+  formatFill,
+  formatManualOrderSent,
+  formatOrderCancelled,
+  formatOrderRejected,
+  formatOrderSent,
+} from '@/domain/trading/logFormat'
 import { ExecutionEvent } from '@/domain/trading/strategyRunner'
 import { TradingSession, TradingSessionConfig } from '@/domain/trading/tradingSession'
 
@@ -39,11 +46,6 @@ export class ReplayError extends DomainError {
   constructor(reason: string, raw?: unknown) {
     super('ReplayError', invalidMessage('Replay inválido', reason, raw))
   }
-}
-
-/** Cantidad/precio legibles: 8 decimales sin ceros sobrantes (texto de log). */
-function formatAmount(value: number): string {
-  return String(Number(value.toFixed(8)))
 }
 
 /**
@@ -94,11 +96,10 @@ class ReplayLog {
     this.ordersLogged += 1
     this.manualIds.add(order.id)
 
-    const verb = order.side === OrderSide.Buy ? 'comprar' : 'vender'
     this.entries.push({
       time,
       kind: 'manual',
-      text: `Orden manual enviada: ${verb} ${formatAmount(order.qty)} (${order.id})`,
+      text: formatManualOrderSent(order),
       orderId: order.id,
     })
   }
@@ -133,16 +134,14 @@ class ReplayLog {
         this.entries.push({
           time,
           kind: manual ? 'manual' : 'rejection',
-          text: manual
-            ? `Orden manual rechazada (${order.id}): ${reason}`
-            : `Orden rechazada (${order.id}): ${reason}`,
+          text: formatOrderRejected(order.id, reason, manual),
           orderId: order.id,
         })
       } else {
         this.entries.push({
           time,
           kind: 'order',
-          text: `Orden cancelada (${order.id})`,
+          text: formatOrderCancelled(order.id),
           orderId: order.id,
         })
       }
@@ -179,11 +178,10 @@ class ReplayLog {
     if (order === undefined) return
     this.ordersLogged += 1
 
-    const verb = order.side === OrderSide.Buy ? 'comprar' : 'vender'
     this.entries.push({
       time,
       kind: 'order',
-      text: `Orden enviada: ${verb} ${formatAmount(order.qty)} (${order.id})`,
+      text: formatOrderSent(order),
       orderId: order.id,
     })
   }
@@ -195,11 +193,10 @@ class ReplayLog {
     this.fillsLogged += 1
 
     const manual = this.manualIds.has(fill.orderId)
-    const subject = `${fill.side === OrderSide.Buy ? 'Compra' : 'Venta'}${manual ? ' manual' : ''} rellenada`
     this.entries.push({
       time,
       kind: manual ? 'manual' : 'fill',
-      text: `${subject}: ${formatAmount(fill.qty)} @ ${formatAmount(fill.price)} (${fill.orderId})`,
+      text: formatFill(fill, manual),
       orderId: fill.orderId,
     })
   }

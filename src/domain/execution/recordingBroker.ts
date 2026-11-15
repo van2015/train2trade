@@ -1,4 +1,4 @@
-import { Trade } from '@/domain/backtest/trade'
+import { Trade } from '@/domain/execution/trade'
 import { Candle } from '@/domain/candles/candle'
 import { Account } from '@/domain/execution/account'
 import { Broker } from '@/domain/execution/broker'

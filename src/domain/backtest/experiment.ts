@@ -5,7 +5,7 @@ import {
   runBacktest,
 } from '@/domain/backtest/backtest'
 import { EquityPoint, Metrics } from '@/domain/backtest/metrics'
-import { Trade } from '@/domain/backtest/trade'
+import { Trade } from '@/domain/execution/trade'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { DomainError, invalidMessage } from '@/domain/errors'
 import { ExecutionModelConfig } from '@/domain/execution/executionModel'

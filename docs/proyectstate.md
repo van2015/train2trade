@@ -121,8 +121,8 @@ memoria (persistencia → Fase 6) y ≤ 1000 velas (sin paginación).
 | Módulo                                                                                                          | Archivos                                                                         | Tests |
 | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----- |
 | `MarketClock` (§12A) — tiempo de simulación estrictamente creciente, sin `Date.now`                             | `src/domain/time/marketClock.ts`                                                 | 12    |
-| `Trade` — un registro por cierre (parcial/total), pnl neto; `Σ pnl = realizedPnl`                               | `src/domain/backtest/trade.ts`                                                   | 16    |
-| `RecordingBroker` — decorador de `Broker`: registra órdenes y construye trades con el snapshot **previo**       | `src/domain/backtest/recordingBroker.ts`                                         | 9     |
+| `Trade` — un registro por cierre (parcial/total), pnl neto; `Σ pnl = realizedPnl`                               | `src/domain/execution/trade.ts`                                                  | 16    |
+| `RecordingBroker` — decorador de `Broker`: registra órdenes y construye trades con el snapshot **previo**       | `src/domain/execution/recordingBroker.ts`                                        | 9     |
 | Métricas §9 (mínimo): Net Profit, ROI, Max DD, Sharpe, Profit Factor, Win Rate, Avg Trade, Expectancy           | `src/domain/backtest/metrics.ts`                                                 | 16    |
 | `runBacktest` — ejecución automática (Portfolio + Risk + Broker + Runner + Clock), determinista                 | `src/domain/backtest/backtest.ts`                                                | 7     |
 | `Experiment` (§9/§12C) — registro completo: `name@version`, periodo, capital, ejecución y riesgo                | `src/domain/backtest/experiment.ts`                                              | 6     |
@@ -148,7 +148,7 @@ estrategias).
 | `TradingSession` — motor de reproducción compartido (§7): stack de Fase 3 vela a vela; `findConfigProblem` se muda aquí (re-export en `backtest.ts`) | `src/domain/trading/tradingSession.ts`      | 11    |
 | `MarketReplayEngine` — estados `ready/playing/finished`, `step`/`reset`, manuales por fracción, log por paso (§7B/§12D)                              | `src/domain/replay/replayEngine.ts`         | 21    |
 | Velocidad `replayIntervalMs` — multiplicador en tiempo real, acotada (§7B)                                                                           | `src/domain/replay/speed.ts`                | 5     |
-| `RecordingBroker.fills` — payload de rellenos para el log (§12D)                                                                                     | `src/domain/backtest/recordingBroker.ts`    | +3    |
+| `RecordingBroker.fills` — payload de rellenos para el log (§12D)                                                                                     | `src/domain/execution/recordingBroker.ts`   | +3    |
 | `runBacktest` — refactor a bucle sobre `TradingSession` (mismo comportamiento, sin tocar sus tests)                                                  | `src/domain/backtest/backtest.ts`           | —     |
 | UI: `ReplayPanel` (transporte, velocidad, manuales, log) + `App` con `replayCursor` y gráfico recortado                                              | `src/components/ReplayPanel.tsx`, `App.tsx` | 16    |
 | E2E: replay paso a paso ≡ backtest, manuales con invariantes, reset §12C, cierre manual                                                              | `test/domain/replay/replayE2E.test.ts`      | 4     |
@@ -170,7 +170,7 @@ runs individuales.
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ----- |
 | `canonicalJson`/`strategyFingerprint`/`canonicalHash` — huella reproducible de definición y de contenido (§12C)                                                | `src/domain/strategies/fingerprint.ts`             | 11    |
 | Cierre opcional `closePositionAtEnd` + `instrument` en la config del backtest (pendiente de Fase 4)                                                            | `src/domain/backtest/backtest.ts`, `experiment.ts` | +6    |
-| `Trade.toJSON/from` — roundtrip de persistencia validado                                                                                                       | `src/domain/backtest/trade.ts`                     | +3    |
+| `Trade.toJSON/from` — roundtrip de persistencia validado                                                                                                       | `src/domain/execution/trade.ts`                    | +3    |
 | `ExperimentSnapshot` + `toSnapshot()` — id = hash del contenido **sin** id, sin orders/events                                                                  | `src/domain/backtest/experiment.ts`                | +4    |
 | `ExperimentRepository` — `Storage` inyectado, clave `experiments:<id>`, orden determinista; `CorruptedStorageError` compartido                                 | `src/storage/experimentRepository.ts`, `errors.ts` | 9     |
 | `compareExperiments`/`rankBy` + `sortByMetricDesc` como semántica única de ordenación (§9)                                                                     | `src/domain/backtest/compare.ts`, `metrics.ts`     | 10    |

@@ -1,5 +1,5 @@
 import { ExperimentSnapshot } from '@/domain/backtest/experiment'
-import { Trade, TradeData } from '@/domain/backtest/trade'
+import { Trade, TradeData } from '@/domain/execution/trade'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { CorruptedStorageError } from '@/storage/errors'
 

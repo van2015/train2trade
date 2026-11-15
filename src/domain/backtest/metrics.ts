@@ -1,5 +1,5 @@
 import { Timeframe } from '@/domain/candles/timeframe'
-import { Trade } from '@/domain/backtest/trade'
+import { Trade } from '@/domain/execution/trade'
 import { DomainError, invalidMessage } from '@/domain/errors'
 
 /** Un punto de la curva de equity: un cierre de vela (ms UTC + equity marcado). */

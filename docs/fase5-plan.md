@@ -185,7 +185,7 @@ session.advance()` → `computeMetrics` sobre los datos de la sesión (la curva 
 ### T2 — `MarketReplayEngine`: estados, manuales y log (§7B)
 
 - **Archivos:** `src/domain/replay/replayEngine.ts` ↔ `test/domain/replay/replayEngine.test.ts`;
-  `src/domain/backtest/recordingBroker.ts` (+ `fills`, test ampliado). La sesión **no** crece: el
+  `src/domain/execution/recordingBroker.ts` (+ `fills`, test ampliado). La sesión **no** crece: el
   motor usa `session.broker` directamente (el genérico lo tipa como `RecordingBroker`).
 - Estados y transiciones (`play`/`pause`/`step`/`reset`) según contrato; `reset` reconstruye el
   stack con la config guardada (la `Strategy` es reutilizable, es estadoless).

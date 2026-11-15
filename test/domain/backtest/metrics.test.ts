@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Trade } from '@/domain/backtest/trade'
+import { Trade } from '@/domain/execution/trade'
 import {
   avgTrade,
   computeMetrics,

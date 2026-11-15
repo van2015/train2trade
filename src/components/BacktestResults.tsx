@@ -1,5 +1,5 @@
 import { Experiment } from '@/domain/backtest/experiment'
-import { Trade } from '@/domain/backtest/trade'
+import { Trade } from '@/domain/execution/trade'
 import { EquityChart } from './EquityChart'
 import { formatMetric, METRIC_ROWS } from './backtestForm'
 import { formatChartPrice, formatChartTime } from './chartData'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { InvalidTradeError, Trade, TradeData } from '@/domain/backtest/trade'
+import { InvalidTradeError, Trade, TradeData } from '@/domain/execution/trade'
 
 const entryTime = 1_700_000_000_000
 const exitTime = entryTime + 60_000
