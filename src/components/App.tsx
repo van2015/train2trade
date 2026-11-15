@@ -105,6 +105,18 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
   // Draft del editor de estrategias (plan strategy-preview, ampliación): mientras
   // no sea null, la pestaña Gráfico muestra el preview en lugar del chart normal.
   const [editingSpec, setEditingSpec] = useState<StrategySpec | null>(null)
+  // Entradas ilegibles en el storage (arranque tolerante, incidente 2026-11-15):
+  // list() las omite, aquí se avisa y se ofrecen para reparar sin devtools.
+  const [corruptedStrategies, setCorruptedStrategies] = useState<readonly string[]>(() =>
+    strategies.corruptedKeys(),
+  )
+
+  /** Elimina las claves corruptas, re-siembra la demo si no queda nada y refresca. */
+  const handleRepairStrategies = () => {
+    strategies.repair()
+    setCorruptedStrategies([])
+    setStrategiesList(strategies.list())
+  }
 
   const handleToggleSection = (id: SidebarSectionId) => {
     const next = openSection === id ? null : id
@@ -269,6 +281,19 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
 
       <div className="app__body">
         <aside className="app__sidebar">
+          {corruptedStrategies.length > 0 && (
+            <div className="storage-warning" role="alert" data-testid="storage-warning">
+              <span>
+                {corruptedStrategies.length === 1
+                  ? '1 estrategia ignorada'
+                  : `${corruptedStrategies.length} estrategias ignoradas`}{' '}
+                (datos corruptos en el almacenamiento)
+              </span>
+              <button type="button" className="button" onClick={handleRepairStrategies}>
+                Reparar
+              </button>
+            </div>
+          )}
           <SidebarSection
             id="datos"
             title="Datos"

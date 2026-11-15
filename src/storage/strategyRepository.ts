@@ -39,7 +39,11 @@ export const DEMO_STRATEGY_SPEC: StrategySpec = {
  *
  * - Escritura inválida (spec malformado) → `InvalidStrategyDefinitionError`
  *   (error del llamante, no datos corruptos).
- * - Lectura corrupta (JSON o forma) → `CorruptedStorageError`.
+ * - Lectura puntual (`find`) corrupta → `CorruptedStorageError` (estricta:
+ *   el llamante pidió esa entrada).
+ * - **Arranque tolerante**: `list()` omite entradas corruptas (una entrada
+ *   mala no puede tumbar la app — incidente 2026-11-15); `corruptedKeys()`
+ *   las reporta y `repair()` las elimina re-siemblando si no queda nada.
  */
 export class StrategyRepository {
   private readonly storage: Storage
@@ -90,17 +94,52 @@ export class StrategyRepository {
     return { id, ...parseSpec(raw, key) }
   }
 
-  /** Todos los snapshots: `name` ascendente, `version` descendente; empate por `id`. */
+  /**
+   * Todos los snapshots: `name` ascendente, `version` descendente; empate por
+   * `id`. **Tolerante**: las entradas corruptas se omiten (el arranque no
+   * puede tumbarse por un dato malo); `corruptedKeys()` las reporta.
+   */
   list(): StrategySnapshot[] {
     const snapshots: StrategySnapshot[] = []
     for (const key of this.keys()) {
       if (!key.startsWith(KEY_PREFIX)) continue
       const raw = this.storage.getItem(key)
       if (raw === null) continue
-      const id = key.slice(KEY_PREFIX.length)
-      snapshots.push({ id, ...parseSpec(raw, key) })
+      try {
+        snapshots.push({ id: key.slice(KEY_PREFIX.length), ...parseSpec(raw, key) })
+      } catch {
+        // Corrupta: se omite aquí; la ve corruptedKeys() y la retira repair().
+      }
     }
     return snapshots.sort(byNameThenVersion)
+  }
+
+  /** Claves de estrategias ilegibles (JSON o forma), en orden de storage. */
+  corruptedKeys(): string[] {
+    const corrupted: string[] = []
+    for (const key of this.keys()) {
+      if (!key.startsWith(KEY_PREFIX)) continue
+      const raw = this.storage.getItem(key)
+      if (raw === null) continue
+      try {
+        parseSpec(raw, key)
+      } catch {
+        corrupted.push(key)
+      }
+    }
+    return corrupted
+  }
+
+  /**
+   * Recuperación sin devtools: elimina las entradas corruptas y, si no queda
+   * ninguna estrategia válida, re-siembra la demo. Devuelve las claves
+   * retiradas (para el aviso/tests).
+   */
+  repair(): string[] {
+    const removed = this.corruptedKeys()
+    for (const key of removed) this.storage.removeItem(key)
+    this.seedIfEmpty()
+    return removed
   }
 
   /** Borra la clave. `true` si había un snapshot. */

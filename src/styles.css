@@ -89,6 +89,21 @@ body {
   gap: 16px;
 }
 
+/* Aviso de storage de estrategias corrupto (arranque tolerante): el usuario
+   lo repara sin abrir las devtools. */
+.storage-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(210, 153, 34, 0.12);
+  border: 1px solid #d29922;
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text);
+}
+
 .app__main {
   flex: 1;
   min-width: 0;

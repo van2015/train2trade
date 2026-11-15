@@ -105,6 +105,7 @@ function kline(openTime: number, close = '105') {
 let repository: CandleRepository
 let experiments: ExperimentRepository
 let strategies: StrategyRepository
+let strategiesStorage: MemoryStorage
 let uiStorage: MemoryStorage
 
 /** Estrategia sma-cross(2/3): la misma que los E2E (cruces en i4/i7). */
@@ -170,7 +171,8 @@ beforeEach(() => {
   seriesMock.created.length = 0
   repository = new CandleRepository(new MemoryStorage())
   experiments = new ExperimentRepository(new MemoryStorage())
-  strategies = new StrategyRepository(new MemoryStorage())
+  strategiesStorage = new MemoryStorage()
+  strategies = new StrategyRepository(strategiesStorage)
   strategies.save(SPEC)
   uiStorage = new MemoryStorage()
 })
@@ -675,6 +677,53 @@ describe('App', () => {
 
       expect(screen.getByRole('tab', { name: 'Backtest' })).toHaveAttribute('aria-selected', 'true')
       expect(screen.queryByTestId('strategy-preview')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('storage de estrategias corrupto (arranque tolerante)', () => {
+    /** Simula el caso real: spec legado guardado sin campo `name`. */
+    function corruptOne() {
+      strategiesStorage.setItem('strategies:legacy', JSON.stringify({ version: 1 }))
+    }
+
+    it('una entrada corrupta no tumba la app: arranca, avisa y lista las válidas', () => {
+      corruptOne()
+      renderApp()
+
+      // La app arranca (antes: excepción no capturada en useState → pantalla blanca).
+      expect(screen.getByTestId('chart-empty')).toBeInTheDocument()
+      const warning = screen.getByTestId('storage-warning')
+      expect(warning).toHaveTextContent('1 estrategia ignorada')
+      // La estrategia válida sigue disponible.
+      expect(screen.getByTestId('strategy-list')).toHaveTextContent('sma-cross@1')
+    })
+
+    it('Reparar elimina la clave corrupta y retira el aviso', () => {
+      corruptOne()
+      renderApp()
+
+      fireEvent.click(
+        within(screen.getByTestId('storage-warning')).getByRole('button', { name: 'Reparar' }),
+      )
+
+      expect(screen.queryByTestId('storage-warning')).not.toBeInTheDocument()
+      expect(strategiesStorage.getItem('strategies:legacy')).toBeNull()
+      expect(screen.getByTestId('strategy-list')).toHaveTextContent('sma-cross@1')
+    })
+
+    it('solo entradas corruptas → Reparar re-siembra la demo', () => {
+      strategiesStorage.clear()
+      corruptOne()
+      renderApp()
+
+      expect(screen.getByTestId('storage-warning')).toHaveTextContent('1 estrategia ignorada')
+
+      fireEvent.click(
+        within(screen.getByTestId('storage-warning')).getByRole('button', { name: 'Reparar' }),
+      )
+
+      expect(screen.queryByTestId('storage-warning')).not.toBeInTheDocument()
+      expect(screen.getByTestId('strategy-list')).toHaveTextContent('sma-cross@1')
     })
   })
 })

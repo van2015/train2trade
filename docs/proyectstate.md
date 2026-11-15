@@ -3,8 +3,8 @@
 > Resumen de implementado y lo pendiente. Fuente de verdad de requisitos: [`AGENTS.md`](../AGENTS.md)
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
-> Última actualización: 2026-11-14 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**1026 tests**, 77 archivos). `pnpm build` compila sin errores.
+> Última actualización: 2026-11-15 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
+> (**1053 tests**, 77 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
@@ -22,9 +22,13 @@ compuestas AND/OR/NOT, TP/SL por toque, triggers, spec serializable validada), *
 estrategias con CRUD por UI** (editor por bloques + selector único compartido por los paneles) y
 **test-forward interactivo** (puntos de confirmación aleatorios, decisiones del usuario, overrides
 de TP/SL) que sustituyó por completo al split dev/eval automático. Además, la **previsualización
-del editor** (minichart de estrategia): módulo puro `strategyPreview` (velas + indicadores del
-draft + niveles entrada/TP/SL/triggers evaluados en la última vela, degradación por drafts rotos)
-y componente `StrategyPreviewChart` montado en el editor.
+de estrategia**: módulo puro `strategyPreview` (velas + indicadores del draft + niveles
+entrada/TP/SL/triggers evaluados en la última vela, degradación por drafts rotos, ventana ajustada
+a los períodos de indicador + leyenda) y `StrategyPreviewChart`, que la pinta **en la pestaña
+Gráfico mientras el editor está abierto** (se sustituye al chart normal, ampliación 2026-11-14/15).
+Finalmente, el **arranque es tolerante a storage de estrategias corrupto** (2026-11-15): `list()`
+omite entradas ilegibles, un aviso en el sidebar permite **repararlas sin devtools** y, si no
+queda nada válido, se re-siembra la demo.
 
 ## Implementado
 
@@ -350,6 +354,33 @@ ilegible. Decisiones cerradas con el usuario (tras presentar 4 opciones): **A �
 **Pendiente relacionado**: posible follow-up — botón de expandir (overlay) o "últimas N velas"
 si la densidad de ~1000 velas en ancho completo resulta intensa; verificar en dev el coste real
 de la 2ª instancia ya no aplica (ahora es 1 instancia).
+
+## Robustez: arranque tolerante a storage corrupto (completa, 2026-11-15)
+
+**Incidente**: `strategies.list()` se ejecuta en un `useState` inicial de `App` → una sola entrada
+corrupta en localStorage (`strategies:EMA y pivotes:1`, un spec legado sin campo `name`) lanzaba
+`CorruptedStorageError` **no capturada** → React desmontaba todo el árbol → pantalla blanca;
+`seedIfEmpty()` no protegía (la clave corrupta ya existía) y no había Error Boundary. El usuario
+se recuperó vaciando el storage a mano.
+
+**Análisis**: el dato no lo escribe el código actual (`save()` exige `name` vía
+`parseStrategySpec` _antes_ de `setItem`, y las claves son hash-fnv1a, no `nombre:versión`) —
+era externo (devtools u otro origen). Pero el **modo de fallo** era del repo: fail-loud en el
+arranque sin ruta de recuperación.
+
+| Decisión          | Elección                                                                                                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list()`          | **Tolerante**: omite entradas corruptas (el arranque nunca truena). El fail-loud se queda en `find()` (lectura puntual: el llamante pidió esa entrada).                       |
+| `corruptedKeys()` | Nuevo: reporta las claves ilegibles (JSON o forma) sin lanzar.                                                                                                                |
+| `repair()`        | Nuevo: elimina las corruptas, **re-siembra la demo si no queda nada válido** y devuelve las claves retiradas. Recuperación sin devtools.                                      |
+| UI                | Banner `storage-warning` (role=alert) al inicio del sidebar con el recuento + botón **Reparar**; `App` guarda `corruptedStrategies` en estado y refresca la lista al reparar. |
+| Riesgo aceptado   | La entrada mala queda oculta para `nextVersion`/`assertUniqueLabel` (ambos usan `list()`); documentado — la visibilidad la da el banner.                                      |
+
+- Tests: **+8 netos** (1053 total): 5 en `strategyRepository.test` (list tolerante,
+  `corruptedKeys` ×2, `repair` ×2 — incluye re-siembra) y 3 en `App.test` (arranca + aviso +
+  válidas visibles, Reparar retira clave y aviso, solo-corruptas → demo re-siembra). El test
+  existente "JSON inválido → CorruptedStorageError (find y list)" se **dividió**: `find`
+  sigue estricto, `list` ahora documenta la tolerancia (cambio de contrato deliberado).
 
 ## Pendiente
 

@@ -130,11 +130,20 @@ describe('StrategyRepository — remove y clear', () => {
 })
 
 describe('StrategyRepository — datos corruptos (lectura)', () => {
-  it('JSON inválido → CorruptedStorageError (find y list)', () => {
+  it('find: JSON inválido → CorruptedStorageError (lectura puntual, estricta)', () => {
     storage.setItem('strategies:bad', '{oops')
 
     expect(() => repository.find('bad')).toThrow(CorruptedStorageError)
-    expect(() => repository.list()).toThrow(CorruptedStorageError)
+  })
+
+  it('list: omite la entrada corrupta y devuelve solo las válidas (arranque tolerante)', () => {
+    repository.save(spec())
+    storage.setItem('strategies:bad', '{oops')
+
+    const listed = repository.list()
+
+    expect(listed).toHaveLength(1)
+    expect(listed[0]?.name).toBe('demo')
   })
 
   it('spec con forma inválida → CorruptedStorageError', () => {
@@ -151,6 +160,47 @@ describe('StrategyRepository — datos corruptos (lectura)', () => {
     storage.setItem('strategies:price', JSON.stringify(broken))
 
     expect(() => repository.find('price')).toThrow(CorruptedStorageError)
+  })
+})
+
+describe('StrategyRepository — corruptedKeys', () => {
+  it('lista las claves ilegibles (JSON y forma), sin las válidas ni las ajenas', () => {
+    repository.save(spec())
+    // El caso real: spec guardado sin `name` (el error era "recibido: undefined").
+    storage.setItem('strategies:legacy', JSON.stringify({ version: 1 }))
+    storage.setItem('strategies:bad-json', '{oops')
+    storage.setItem('candles:BTC/USDT:1h', '[]')
+
+    expect(repository.corruptedKeys().sort()).toEqual(['strategies:bad-json', 'strategies:legacy'])
+  })
+
+  it('sin entradas corruptas → lista vacía', () => {
+    repository.save(spec())
+
+    expect(repository.corruptedKeys()).toEqual([])
+  })
+})
+
+describe('StrategyRepository — repair (recuperación sin devtools)', () => {
+  it('elimina las corruptas, conserva las válidas y devuelve las claves retiradas', () => {
+    repository.save(spec())
+    storage.setItem('strategies:bad', '{oops')
+
+    const removed = repository.repair()
+
+    expect(removed).toEqual(['strategies:bad'])
+    expect(storage.getItem('strategies:bad')).toBeNull()
+    expect(repository.list()).toHaveLength(1)
+    expect(repository.corruptedKeys()).toEqual([])
+  })
+
+  it('sin estrategias válidas tras reparar → re-siembra la demo (app recuperada al instante)', () => {
+    storage.setItem('strategies:legacy', JSON.stringify({ version: 1 }))
+
+    const removed = repository.repair()
+
+    expect(removed).toEqual(['strategies:legacy'])
+    expect(repository.list().map((snapshot) => snapshot.name)).toEqual(['sma-cross'])
   })
 })
 
