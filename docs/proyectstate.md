@@ -325,6 +325,32 @@ Contratos:
   cerrar y no-robo de pestaña). Se retiraron 4 tests del editor que verificaban el minichart en la
   sidebar (movidos/reorientados a App) → neto +8 sobre 1026 = **1034 tests**.
 
+## Ampliación (2026-11-15): ventana ajustada + zoom + leyenda
+
+**Problema**: el preview repetía la ventana del chart de análisis (`fitContent` sobre hasta 1000
+velas) y tenía zoom desactivado → la última vela, donde viven los niveles, era inampliable e
+ilegible. Decisiones cerradas con el usuario (tras presentar 4 opciones): **A — ventana ajustada
+
+- zoom habilitados** y **leyenda de ventana**. Se descartó "componente nuevo desde cero" (el
+  render ya está ajustado; solo cambian datos e interacción).
+
+| Decisión           | Elección                                                                                                                                                                                                                                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ventana            | `previewWindow(candles, spec)`: últimas `clamp(3 × máximo período válido, 60, 300)` velas (default 120 sin períodos). Períodos inválidos de un draft a medio escribir (0/NaN/negativos) **no cuentan**. Es un **sufijo**: la última vela (donde viven los niveles) siempre está incluida.                                    |
+| Cálculo vs recorte | **Trampa evitada**: las líneas se calculan sobre el historial **completo** y se recortan _después_ a la ventana. EMA/RSI tienen memoria (semilla vela 1); calcularlos sobre el trozo cortado los falsearía (calentamiento falso + valores distintos). Test específico: RSI(14) sobre 100 velas recortado ≡ `full.slice(40)`. |
+| Zoom               | `handleScale/handleScroll: true` (antes false): el preview está en el área principal y la vista de gráfico no tiene scroll propio → la rueda no choca. `fitContent` solo corre cuando cambia la **ventana real** (slice memoizado por `from`/`to`), no en cada keystroke → **el zoom sobrevive al teclear** (testeado).      |
+| Leyenda            | `preview.legend` = `"últimas 90 velas · SMA 30"` (driver = mayor período válido) o `"100 velas"` si la ventana cubre el rango; null sin velas. Badge `preview-legend` en la esquina superior.                                                                                                                                |
+| Contrato           | `StrategyPreview` gana `window: {from, to}` y `legend: string \| null`.                                                                                                                                                                                                                                                      |
+
+- Tests: **+11 netos** (1045 total): 7 en `strategyPreview.test` (ventana: derivación/acotado,
+  default, períodos inválidos, sufijo; líneas ≡ recorte post-cálculo; leyenda ×3) y 4 en
+  `StrategyPreviewChart.test` (zoom habilitado —test existente adaptado—, `setData` recortado a
+  la ventana, zoom sobrevive al draft, re-encaje al cambiar período, leyenda).
+
+**Pendiente relacionado**: posible follow-up — botón de expandir (overlay) o "últimas N velas"
+si la densidad de ~1000 velas en ancho completo resulta intensa; verificar en dev el coste real
+de la 2ª instancia ya no aplica (ahora es 1 instancia).
+
 ## Pendiente
 
 ### Inmediato (siguiente paso natural)

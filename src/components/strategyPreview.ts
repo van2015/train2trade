@@ -27,10 +27,20 @@ export interface PreviewLevel {
 }
 
 export interface StrategyPreview {
+  /** Ventana visible (sufijo de las velas): la que hay que pintar. */
+  window: PreviewWindow
   lines: ChartLine[]
   levels: PreviewLevel[]
+  /** `"últimas 90 velas · SMA 30"` (driver = mayor período); null sin velas. */
+  legend: string | null
   /** Qué se omitió (`Omitidos: …`) o `"Sin datos para previsualizar"`; null = todo visible. */
   note: string | null
+}
+
+/** Sufijo visible de las velas `[from, to)`: la ventana del preview. */
+export interface PreviewWindow {
+  from: number
+  to: number
 }
 
 export interface PreviewLines {
@@ -41,6 +51,58 @@ export interface PreviewLines {
 export interface PreviewLevels {
   levels: PreviewLevel[]
   issues: string[]
+}
+
+const DEFAULT_WINDOW = 120
+const MIN_WINDOW = 60
+const MAX_WINDOW = 300
+
+/**
+ * Ventana ajustada a la estrategia: últimas `clamp(3 × máximo período, 60, 300)`
+ * velas (120 si no hay períodos válidos). Períodos inválidos de un draft a
+ * medio escribir (0, NaN, negativos) **no cuentan**: no rompen la ventana.
+ */
+export function previewWindow(candles: readonly Candle[], spec: StrategySpec): PreviewWindow {
+  return { from: Math.max(0, candles.length - windowTarget(spec)), to: candles.length }
+}
+
+/** Períodos enteros ≥ 1 de los indicadores que tienen (los `const` no). */
+function validPeriods(spec: StrategySpec): number[] {
+  const periods: number[] = []
+  for (const indicator of spec.indicators) {
+    if (indicator.kind === 'const') continue
+    if (Number.isInteger(indicator.period) && indicator.period >= 1) {
+      periods.push(indicator.period)
+    }
+  }
+  return periods
+}
+
+function windowTarget(spec: StrategySpec): number {
+  const periods = validPeriods(spec)
+  if (periods.length === 0) return DEFAULT_WINDOW
+  return Math.min(Math.max(Math.max(...periods) * 3, MIN_WINDOW), MAX_WINDOW)
+}
+
+/** Indicador determinante de la ventana (mayor período válido), p. ej. `"SMA 30"`. */
+function windowDriver(spec: StrategySpec): string | null {
+  let best: { kind: 'sma' | 'ema' | 'rsi'; period: number } | null = null
+  for (const indicator of spec.indicators) {
+    if (indicator.kind === 'const') continue
+    if (!Number.isInteger(indicator.period) || indicator.period < 1) continue
+    if (best === null || indicator.period > best.period) {
+      best = { kind: indicator.kind, period: indicator.period }
+    }
+  }
+  return best === null ? null : `${best.kind.toUpperCase()} ${best.period}`
+}
+
+function windowLegend(range: PreviewWindow, spec: StrategySpec): string | null {
+  const length = range.to - range.from
+  if (length === 0) return null
+  const base = range.from > 0 ? `últimas ${length} velas` : `${length} velas`
+  const driver = windowDriver(spec)
+  return driver === null ? base : `${base} · ${driver}`
 }
 
 /** Color canónico por kind de indicador (misma paleta que el gráfico principal). */
@@ -183,16 +245,29 @@ export function buildPreviewLevels(candles: readonly Candle[], spec: StrategySpe
 }
 
 /**
- * Preview completo: líneas + niveles + `note` con los issues **deduplicados**
- * (el mismo indicador roto falla al construir líneas y niveles con el mismo
- * mensaje). Sin velas ⇒ todo vacío con el note de datos.
+ * Preview completo: ventana + líneas + niveles + leyenda + `note` con los
+ * issues **deduplicados** (el mismo indicador roto falla al construir líneas y
+ * niveles con el mismo mensaje). Sin velas ⇒ todo vacío con el note de datos.
+ *
+ * Las líneas se calculan sobre el historial **COMPLETO** y se recortan después
+ * a la ventana: EMA/RSI tienen memoria (semilla de la vela 1) y calcularlos
+ * sobre el trozo cortado los falsearía (hueco de calentamiento al inicio de la
+ * ventana + valores distintos). Los niveles se evalúan en la última vela, que
+ * siempre cae dentro de la ventana (es un sufijo).
  */
 export function buildStrategyPreview(
   candles: readonly Candle[],
   spec: StrategySpec,
 ): StrategyPreview {
+  const range = previewWindow(candles, spec)
   if (candles.length === 0) {
-    return { lines: [], levels: [], note: 'Sin datos para previsualizar' }
+    return {
+      window: range,
+      lines: [],
+      levels: [],
+      legend: null,
+      note: 'Sin datos para previsualizar',
+    }
   }
 
   const { lines, issues: lineIssues } = buildPreviewLines(candles, spec)
@@ -200,8 +275,13 @@ export function buildStrategyPreview(
   const issues = [...new Set([...lineIssues, ...levelIssues])]
 
   return {
-    lines,
+    window: range,
+    lines: lines.map((line) => ({
+      ...line,
+      values: line.values.slice(range.from, range.to),
+    })),
     levels,
+    legend: windowLegend(range, spec),
     note: issues.length > 0 ? `Omitidos: ${issues.join(' · ')}` : null,
   }
 }

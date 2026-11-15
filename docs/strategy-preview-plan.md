@@ -258,3 +258,40 @@ useEffect(() => onDraftChange?.(draft), [draft]) // sin buildStrategy, sin excep
 - T4 del plan original queda **parcialmente sustituido**: el preview ya no se monta bajo el `<h3>`
   del editor ni anota una "excepción" de instancia; la integración ahora es vía
   `onEditingChange`/`editingSpec` en `App`.
+
+## Ampliación 2: ventana ajustada + zoom + leyenda (opción A, completada 2026-11-15)
+
+**Problema**: el preview repetía la ventana del chart de análisis (`fitContent` sobre hasta 1000
+velas) con zoom desactivado → la última vela (donde viven los niveles) era inampliable e ilegible.
+Decisiones cerradas tras presentar 4 opciones:
+
+| Decisión   | Elección                                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Superficie | **A — ventana ajustada + zoom habilitados** (descartado el componente nuevo desde cero: el render ya está ajustado, solo cambian datos e interacción). |
+| Leyenda    | Sí: badge `preview-legend` con `"últimas 90 velas · SMA 30"` (driver = mayor período válido).                                                          |
+
+```ts
+// strategyPreview.ts (puro):
+export interface PreviewWindow {
+  from: number
+  to: number
+} // sufijo [from, to)
+export function previewWindow(candles, spec): PreviewWindow
+//   N = clamp(3 × máximo período VÁLIDO, 60, 300); default 120 sin períodos.
+//   Períodos inválidos (0/NaN/negativos, draft a medio escribir) no cuentan.
+// StrategyPreview += window + legend: string | null
+// buildStrategyPreview: líneas calculadas sobre historial COMPLETO → slice(from, to)
+//   (EMA/RSI tienen memoria: calcularlos sobre el trozo los falsearía — test
+//    RSI(14)@100 velas ≡ full.slice(40))
+// StrategyPreviewChart:
+//   windowed = useMemo(candles.slice(from, to), [candles, from, to]) // identidad por primitivas
+//   effect velas deps [windowed] → setData + fitContent SOLO si cambia la ventana → zoom sobrevive
+//   handleScale/handleScroll: true (área principal: la vista de gráfico no tiene scroll propio)
+//   <div data-testid="preview-legend">{preview.legend}</div> + .strategy-preview__legend (CSS)
+```
+
+- Tests: **+11 netos** (1045 total): 7 `strategyPreview.test` (ventana ×4, líneas ≡
+  recorte-post-cálculo, leyenda ×3) + 4 `StrategyPreviewChart.test` (zoom habilitado —test
+  existente adaptado—, `setData` recortado, zoom sobrevive al draft, re-encaje al cambiar
+  período, leyenda). Un test de leyenda propio se corrigió en rojo (la expectativa inicial no
+  contemplaba el default 120 con períodos presentes).

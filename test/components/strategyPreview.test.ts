@@ -4,8 +4,10 @@ import {
   buildPreviewLevels,
   buildPreviewLines,
   buildStrategyPreview,
+  previewWindow,
 } from '@/components/strategyPreview'
 import { Candle } from '@/domain/candles/candle'
+import { Rsi } from '@/domain/indicators/rsi'
 import { minus, plus, series } from '@/domain/strategies/priceExpr'
 import {
   buildStrategy,
@@ -326,12 +328,14 @@ describe('buildStrategyPreview', () => {
     expect(preview.levels).toEqual([])
   })
 
-  it('sin velas → todo vacío con note de datos', () => {
+  it('sin velas → todo vacío con note de datos y ventana vacía', () => {
     const preview = buildStrategyPreview([], baseSpec())
 
     expect(preview).toEqual({
+      window: { from: 0, to: 0 },
       lines: [],
       levels: [],
+      legend: null,
       note: 'Sin datos para previsualizar',
     })
   })
@@ -353,5 +357,129 @@ describe('buildStrategyPreview', () => {
 
     expect(preview.note).toContain('#1')
     expect(preview.note).toContain('Periodo inválido')
+  })
+})
+
+describe('previewWindow (ventana ajustada a la estrategia)', () => {
+  it('deriva N del máximo período válido: 3×período, acotado a [60, 300]', () => {
+    // SMA 50 → 150 velas.
+    expect(
+      previewWindow(
+        candles(200),
+        baseSpec({ indicators: [{ alias: 'a', kind: 'sma', period: 50 }] }),
+      ),
+    ).toEqual({
+      from: 50,
+      to: 200,
+    })
+    // SMA 5 → 15 → sube al mínimo 60.
+    expect(
+      previewWindow(
+        candles(200),
+        baseSpec({ indicators: [{ alias: 'a', kind: 'sma', period: 5 }] }),
+      ),
+    ).toEqual({
+      from: 140,
+      to: 200,
+    })
+    // SMA 200 → 600 → baja al tope 300.
+    expect(
+      previewWindow(
+        candles(400),
+        baseSpec({ indicators: [{ alias: 'a', kind: 'sma', period: 200 }] }),
+      ),
+    ).toEqual({
+      from: 100,
+      to: 400,
+    })
+  })
+
+  it('sin períodos válidos usa 120 por defecto', () => {
+    const window = previewWindow(
+      candles(300),
+      baseSpec({ indicators: [{ alias: 'c', kind: 'const', value: 30 }] }),
+    )
+
+    expect(window).toEqual({ from: 180, to: 300 })
+  })
+
+  it('ignora períodos inválidos de un draft a medio escribir', () => {
+    // Number('') en el editor → period 0: no cuenta (default 120).
+    const onlyInvalid = previewWindow(
+      candles(300),
+      baseSpec({ indicators: [{ alias: 'a', kind: 'sma', period: 0 }] }),
+    )
+    expect(onlyInvalid).toEqual({ from: 180, to: 300 })
+
+    // Mezcla inválido + válido: manda el válido (3×20 = 60).
+    const mixed = previewWindow(
+      candles(300),
+      baseSpec({
+        indicators: [
+          { alias: 'a', kind: 'sma', period: 0 },
+          { alias: 'b', kind: 'ema', period: 20 },
+        ],
+      }),
+    )
+    expect(mixed).toEqual({ from: 240, to: 300 })
+  })
+
+  it('la ventana es un sufijo y nunca mayor que las velas cargadas', () => {
+    const window = previewWindow(
+      candles(10),
+      baseSpec({ indicators: [{ alias: 'a', kind: 'sma', period: 100 }] }),
+    )
+
+    expect(window).toEqual({ from: 0, to: 10 })
+  })
+})
+
+describe('buildStrategyPreview — ventana y leyenda', () => {
+  it('las líneas se calculan sobre el historial COMPLETO y se recortan después (sin falsear EMA/RSI)', () => {
+    const data = candles(100)
+    const spec = baseSpec({ indicators: [{ alias: 'r', kind: 'rsi', period: 14 }] })
+
+    const preview = buildStrategyPreview(data, spec)
+
+    // Ventana = clamp(3×14=42, 60, 300) = 60 → sufijo desde 40.
+    expect(preview.window).toEqual({ from: 40, to: 100 })
+    // Referencia: RSI de Wilder calculado sobre las 100 velas (con toda su
+    // memoria) y luego recortado. Si el preview calculase sobre el trozo
+    // cortado, el RSI re-calentaría y daría valores distintos (o null) al inicio.
+    const full = new Rsi(14).calculate(data)
+    expect(preview.lines[0]?.values).toEqual(full.slice(40))
+    expect(preview.lines[0]?.values).toHaveLength(60)
+  })
+
+  it('leyenda con la ventana y el indicador determinante (mayor período)', () => {
+    const preview = buildStrategyPreview(
+      candles(200),
+      baseSpec({
+        indicators: [
+          { alias: 'fast', kind: 'sma', period: 10 },
+          { alias: 'slow', kind: 'sma', period: 30 },
+        ],
+      }),
+    )
+
+    // Ventana = 90 (3×30) → sufijo desde 110.
+    expect(preview.legend).toBe('últimas 90 velas · SMA 30')
+  })
+
+  it('leyenda sin indicador determinante y sin velas', () => {
+    const noPeriods = buildStrategyPreview(
+      candles(200),
+      baseSpec({ indicators: [{ alias: 'c', kind: 'const', value: 30 }] }),
+    )
+    expect(noPeriods.legend).toBe('últimas 120 velas')
+
+    // Sin períodos y menos velas que la ventana por defecto → rango completo.
+    const fullRange = buildStrategyPreview(
+      candles(100),
+      baseSpec({ indicators: [{ alias: 'c', kind: 'const', value: 30 }] }),
+    )
+    expect(fullRange.legend).toBe('100 velas')
+
+    expect(buildStrategyPreview([], baseSpec()).legend).toBeNull()
   })
 })

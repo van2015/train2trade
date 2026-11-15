@@ -118,15 +118,83 @@ describe('StrategyPreviewChart', () => {
     ])
   })
 
-  it('crea el chart con handleScale/handleScroll desactivados', async () => {
+  it('crea el chart con handleScale/handleScroll habilitados (zoom en el área principal)', async () => {
     const { createChart } = await import('lightweight-charts')
 
     render(<StrategyPreviewChart candles={CANDLES} spec={spec()} />)
 
     expect(createChart).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ handleScale: false, handleScroll: false }),
+      expect.objectContaining({ handleScale: true, handleScroll: true }),
     )
+  })
+
+  it('recorta las velas a la ventana derivada de la estrategia', () => {
+    const many = Array.from({ length: 100 }, (_, index) => candle(index))
+
+    render(
+      <StrategyPreviewChart
+        candles={many}
+        spec={spec({ indicators: [{ alias: 'fast', kind: 'sma', period: 30 }] })}
+      />,
+    )
+
+    // Ventana = clamp(3×30 = 90, 60, 300) = 90 → sufijo desde la vela 10.
+    expect(candleSeries()?.setData).toHaveBeenCalledTimes(1)
+    const data = candleSeries()?.setData.mock.calls[0]?.[0] as unknown[]
+    expect(data).toHaveLength(90)
+    expect(data[0]).toMatchObject({ time: Math.floor(many[10]!.time / 1000) })
+  })
+
+  it('conserva el zoom: un cambio de draft que no mueve la ventana no re-encaja ni re-pinta velas', () => {
+    const many = Array.from({ length: 100 }, (_, index) => candle(index))
+    const { rerender } = render(
+      <StrategyPreviewChart candles={many} spec={spec({ name: 'antes' })} />,
+    )
+    expect(chartMock.timeScaleMock.fitContent).toHaveBeenCalledTimes(1)
+    expect(candleSeries()?.setData).toHaveBeenCalledTimes(1)
+
+    rerender(<StrategyPreviewChart candles={many} spec={spec({ name: 'después' })} />)
+
+    expect(chartMock.timeScaleMock.fitContent).toHaveBeenCalledTimes(1)
+    expect(candleSeries()?.setData).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-encaja al cambiar un período: la ventana crece y las velas se repintan', () => {
+    const many = Array.from({ length: 100 }, (_, index) => candle(index))
+    const { rerender } = render(
+      <StrategyPreviewChart
+        candles={many}
+        spec={spec({ indicators: [{ alias: 'fast', kind: 'sma', period: 10 }] })}
+      />,
+    )
+    // Ventana = clamp(30, 60, 300) = 60.
+    expect((candleSeries()?.setData.mock.calls[0]?.[0] as unknown[]) ?? []).toHaveLength(60)
+
+    rerender(
+      <StrategyPreviewChart
+        candles={many}
+        spec={spec({ indicators: [{ alias: 'fast', kind: 'sma', period: 30 }] })}
+      />,
+    )
+
+    // Ventana = 90: segunda pintura + re-encaje.
+    expect(candleSeries()?.setData).toHaveBeenCalledTimes(2)
+    expect((candleSeries()?.setData.mock.calls[1]?.[0] as unknown[]) ?? []).toHaveLength(90)
+    expect(chartMock.timeScaleMock.fitContent).toHaveBeenCalledTimes(2)
+  })
+
+  it('muestra la leyenda de ventana con el indicador determinante', () => {
+    const many = Array.from({ length: 100 }, (_, index) => candle(index))
+
+    render(
+      <StrategyPreviewChart
+        candles={many}
+        spec={spec({ indicators: [{ alias: 'fast', kind: 'sma', period: 30 }] })}
+      />,
+    )
+
+    expect(screen.getByTestId('preview-legend')).toHaveTextContent('últimas 90 velas · SMA 30')
   })
 
   it('pinta las velas del draft y encaja el contenido', () => {

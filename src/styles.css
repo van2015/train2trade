@@ -464,6 +464,20 @@ input[aria-invalid='true'] {
   inset: 0;
 }
 
+/* Ventana activa del preview: "últimas 90 velas · SMA 30" (esquina superior). */
+.strategy-preview__legend {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  padding: 4px 8px;
+  background: rgba(13, 17, 23, 0.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+
 .strategy-preview__note {
   position: absolute;
   left: 0;

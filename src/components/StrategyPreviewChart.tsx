@@ -33,11 +33,14 @@ function levelOptions(level: PreviewLevel): CreatePriceLineOptions {
 }
 
 /**
- * Minichart de previsualización del editor (plan `strategy-preview-plan.md`):
- * velas + indicadores del draft + niveles de operación evaluados en la última
- * vela. Sin leyenda, sin volumen y sin scroll/zoom (en la sidebar la rueda
- * debe seguir scrolleando). El cálculo es síncrono (~0.3ms, ver plan); la
- * degradación de drafts rotos vive en `strategyPreview`.
+ * Previsualización de estrategia en el área principal (plan
+ * `strategy-preview-plan.md`): velas + indicadores del draft + niveles de
+ * operación evaluados en la última vela, recortados a la **ventana ajustada**
+ * a la estrategia (últimas N velas derivadas de los períodos) con leyenda.
+ * Zoom/pan habilitados (la vista de gráfico no tiene scroll propio: la rueda
+ * no choca con nada) para poder ampliar la última parte, donde viven los
+ * niveles. El cálculo es síncrono (~0.3ms, ver plan); la degradación de
+ * drafts rotos vive en `strategyPreview`.
  */
 export function StrategyPreviewChart({ candles, spec }: StrategyPreviewChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -47,6 +50,14 @@ export function StrategyPreviewChart({ candles, spec }: StrategyPreviewChartProp
   const levelLinesRef = useRef(new Map<string, IPriceLine>())
 
   const preview = useMemo(() => buildStrategyPreview(candles, spec), [candles, spec])
+
+  // Velas de la ventana. Memo por primitivas (from/to): cambios de draft que
+  // no mueven la ventana preservan la identidad → el effect de abajo no
+  // re-encaja y el zoom del usuario sobrevive al teclear.
+  const windowed = useMemo(
+    () => candles.slice(preview.window.from, preview.window.to),
+    [candles, preview.window.from, preview.window.to],
+  )
 
   // 1) Creación y destrucción del chart.
   useEffect(() => {
@@ -66,9 +77,11 @@ export function StrategyPreviewChart({ candles, spec }: StrategyPreviewChartProp
       },
       rightPriceScale: { borderColor: CHART_COLORS.border },
       timeScale: { borderColor: CHART_COLORS.border, timeVisible: true, secondsVisible: false },
-      // Rueda del ratón sin capturar: en la sidebar debe scrollear el sidebar.
-      handleScale: false,
-      handleScroll: false,
+      // Zoom/pan habilitados: el preview está en el área principal (la vista
+      // de gráfico no tiene scroll propio, la rueda no choca) y el usuario
+      // necesita poder ampliar la última parte, donde viven los niveles.
+      handleScale: true,
+      handleScroll: true,
     })
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -93,17 +106,18 @@ export function StrategyPreviewChart({ candles, spec }: StrategyPreviewChartProp
     }
   }, [])
 
-  // 2) Velas (fitContent en cada cambio; sin zoom posterior).
+  // 2) Velas de la ventana: setData + fitContent SOLO cuando cambia la
+  //    ventana real (o las velas), para no resetear el zoom al teclear.
   useEffect(() => {
     const chart = chartRef.current
     const candleSeries = candleSeriesRef.current
     if (chart === null || candleSeries === null) return
 
-    const lastClose = candles[candles.length - 1]?.close ?? 0
+    const lastClose = windowed[windowed.length - 1]?.close ?? 0
     candleSeries.applyOptions({ priceFormat: { type: 'price', ...priceFormatFor(lastClose) } })
-    candleSeries.setData(toCandlestickData(candles))
+    candleSeries.setData(toCandlestickData(windowed))
     chart.timeScale().fitContent()
-  }, [candles])
+  }, [windowed])
 
   // 3) Series de indicadores del draft.
   useEffect(() => {
@@ -140,6 +154,11 @@ export function StrategyPreviewChart({ candles, spec }: StrategyPreviewChartProp
   return (
     <div className="strategy-preview" data-testid="strategy-preview">
       <div className="strategy-preview__canvas" ref={containerRef} />
+      {preview.legend !== null && (
+        <div className="strategy-preview__legend" data-testid="preview-legend">
+          {preview.legend}
+        </div>
+      )}
       {candles.length === 0 ? (
         <div className="strategy-preview__empty" data-testid="preview-empty">
           {preview.note ?? 'Sin datos para previsualizar'}
