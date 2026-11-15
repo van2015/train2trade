@@ -240,4 +240,82 @@ describe('MarketContext', () => {
       expect(() => context.value('fast', 1.5)).toThrow(RangeError)
     })
   })
+
+  describe('at(back) — vista desplazada hacia el pasado', () => {
+    const context = MarketContext.from({
+      candles: CANDLES,
+      indicators: { fast: FAST },
+      levels: { entry: 100, sl: 95 },
+    })
+
+    it('at(0) devuelve el mismo contexto', () => {
+      expect(context.at(0)).toBe(context)
+    })
+
+    it('desplaza current/previous/time/length a la vela pedida', () => {
+      const past = context.at(2)
+
+      expect(past.current).toEqual(CANDLES[1])
+      expect(past.previous).toEqual(CANDLES[0])
+      expect(past.time).toBe(2000)
+      expect(past.length).toBe(2) // velas visibles desde el inicio hasta esa vela
+    })
+
+    it('en la primera vela previous no existe y no se puede retroceder más', () => {
+      const first = context.at(3)
+
+      expect(first.current).toEqual(CANDLES[0])
+      expect(first.previous).toBeUndefined()
+      expect(first.length).toBe(1)
+      expect(() => first.at(1)).toThrow(MarketContextError)
+    })
+
+    it('candles devuelve el prefijo congelado hasta la vela actual (sin look-ahead)', () => {
+      const past = context.at(1)
+
+      expect(past.candles).toEqual(CANDLES.slice(0, 3))
+      expect(past.candles.some((entry) => entry.time === 4000)).toBe(false)
+      expect(past.candles).toBe(past.candles) // memoizado: misma referencia
+      expect(() => (past.candles as Candle[]).push(candle(5000, 14))).toThrow(TypeError)
+      expect(context.candles).toEqual(CANDLES) // el original no cambia
+    })
+
+    it('value resuelve builtins y series relativas a la vela desplazada', () => {
+      const past = context.at(2)
+
+      expect(past.value('close')).toBe(11)
+      expect(past.value('close', 1)).toBe(10)
+      expect(past.value('high', 1)).toBe(11)
+      expect(past.value('fast')).toBe(1.5)
+      expect(past.value('fast', 1)).toBeNull() // calentamiento en esa vela
+      expect(past.value('fast', 4)).toBeNull() // más allá del inicio → null
+    })
+
+    it('los alias de operación no tienen histórico: null en una vista desplazada', () => {
+      expect(context.value('entry')).toBe(100)
+      expect(context.value('sl')).toBe(95)
+      expect(context.at(1).value('entry')).toBeNull()
+      expect(context.at(1).value('sl')).toBeNull()
+    })
+
+    it('withLevels preserva el desplazamiento (en cualquier orden)', () => {
+      const shiftedWithLevels = context.at(2).withLevels({ tp: 110 })
+      const withLevelsShifted = context.withLevels({ tp: 110 }).at(2)
+
+      expect(shiftedWithLevels.value('close')).toBe(11)
+      expect(withLevelsShifted.value('close')).toBe(11)
+      // Los niveles pertenecen a la vela actual real: en una vista desplazada
+      // no tienen histórico, igual que `value('tp', 1)`.
+      expect(shiftedWithLevels.value('tp')).toBeNull()
+      expect(withLevelsShifted.value('tp')).toBeNull()
+      expect(context.withLevels({ tp: 110 }).value('tp')).toBe(110) // raíz sí los resuelve
+      expect(context.value('tp')).toBeNull() // el original no cambia
+    })
+
+    it('back no entero o negativo → RangeError; más allá del inicio → error de contexto', () => {
+      expect(() => context.at(-1)).toThrow(RangeError)
+      expect(() => context.at(1.5)).toThrow(RangeError)
+      expect(() => MarketContext.from({ candles: CANDLES }).at(4)).toThrow(MarketContextError)
+    })
+  })
 })

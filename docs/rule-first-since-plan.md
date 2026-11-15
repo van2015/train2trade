@@ -1,8 +1,11 @@
 # Plan: regla "primera vez desde que…" (secuencia con ancla)
 
-> **Estado: diseño cerrado con el usuario (2026-11-15) — pendiente de implementar.**
-> Decisiones cerradas: **ancla con `==`**, **nodo `first_since`**, **re-anclar en empates**
-> (ver §10). Sin implementar aún.
+> **Estado: implementado (2026-11-15) — T1…T6 completados con TDD.**
+> `pnpm test && pnpm typecheck && pnpm format:check` en verde (**1109 tests**, 79 archivos) y
+> `pnpm build` compila sin errores; `proyectstate.md` y `tutorial-estrategias.md` actualizados.
+> Decisiones cerradas con el usuario (§10): **ancla con `==`**, **nodo `first_since`**,
+> **re-anclar en empates**. Pendiente: aplicar los mensajes de commit sugeridos por tarea
+> (AGENTS.md §Git: el agente no hace commits).
 >
 > Objetivo: poder definir en el editor una confirmación de entrada **secuencial**, p. ej.
 > _"primera vela que cierra por encima de la EMA(15) a partir del mínimo de 100 velas"_.

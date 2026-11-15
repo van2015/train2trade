@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { RuleEditor } from '@/components/RuleEditor'
+import { RuleEditor, defaultCondition } from '@/components/RuleEditor'
 import { RuleSpec, SeriesClasses } from '@/domain/strategies/spec'
 
 const CLASSES: SeriesClasses = {
@@ -89,6 +89,16 @@ describe('RuleEditor — condición (operador y operandos)', () => {
 
     fireEvent.change(container.getByLabelText('Regla operando a'), { target: { value: 'fast' } })
     expect(onChange).toHaveBeenLastCalledWith({ ...CONDITION, op: '<', a: 'fast' })
+  })
+
+  it('ofrece el operador "es igual a" (==) y lo emite al elegirlo', () => {
+    const onChange = vi.fn()
+    const container = renderRule(CONDITION, undefined, onChange)
+
+    expect(optionsOf(container.getByLabelText('Regla operador'))).toContain('==')
+
+    fireEvent.change(container.getByLabelText('Regla operador'), { target: { value: '==' } })
+    expect(onChange).toHaveBeenLastCalledWith({ ...CONDITION, op: '==' })
   })
 
   it('el segundo operando solo ofrece aliados compatibles: misma clase o constante', () => {
@@ -192,6 +202,126 @@ describe('RuleEditor — grupos AND/OR y NOT (decisión 11)', () => {
   it('la raíz no tiene botón de quitar', () => {
     const container = renderRule(CONDITION)
     expect(container.queryByLabelText('Regla quitar')).not.toBeInTheDocument()
+  })
+})
+
+describe('RuleEditor — first_since (primera vez desde que)', () => {
+  const FIRST_SINCE: RuleSpec = {
+    kind: 'first_since',
+    since: { kind: 'condition', op: '==', a: 'fast', b: 'slow' },
+    then: { kind: 'condition', op: '>', a: 'close', b: 'slow' },
+  }
+
+  it('pinta el nodo con sus dos ranuras y sus condiciones', () => {
+    const container = renderRule(FIRST_SINCE)
+
+    expect(container.getByTestId('Regla-first-since')).toBeInTheDocument()
+    expect(container.getByText('Primera vez desde que…')).toBeInTheDocument()
+    expect(container.getByText('desde que (ancla)')).toBeInTheDocument()
+    expect(container.getByText('se cumple (primera vez)')).toBeInTheDocument()
+
+    expect(container.getByLabelText('Regla-since operador')).toHaveValue('==')
+    expect(container.getByLabelText('Regla-since operando a')).toHaveValue('fast')
+    expect(container.getByLabelText('Regla-then operador')).toHaveValue('>')
+    expect(container.getByLabelText('Regla-then operando b')).toHaveValue('slow')
+  })
+
+  it('editar la ranura del ancla emite el nodo con esa rama actualizada', () => {
+    const onChange = vi.fn()
+    const container = renderRule(FIRST_SINCE, undefined, onChange)
+
+    fireEvent.change(container.getByLabelText('Regla-since operador'), { target: { value: '<' } })
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      kind: 'first_since',
+      since: { kind: 'condition', op: '<', a: 'fast', b: 'slow' },
+      then: FIRST_SINCE.then,
+    })
+  })
+
+  it('editar la ranura de la condición emite el nodo con esa rama actualizada', () => {
+    const onChange = vi.fn()
+    const container = renderRule(FIRST_SINCE, undefined, onChange)
+
+    fireEvent.change(container.getByLabelText('Regla-then operando b'), {
+      target: { value: 'fast' },
+    })
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      kind: 'first_since',
+      since: FIRST_SINCE.since,
+      then: { kind: 'condition', op: '>', a: 'close', b: 'fast' },
+    })
+  })
+
+  it('las ranuras son obligatorias: tienen NOT pero no botón de quitar', () => {
+    const container = renderRule(FIRST_SINCE)
+
+    expect(container.getByLabelText('Regla-since alternar NOT')).toBeInTheDocument()
+    expect(container.getByLabelText('Regla-then alternar NOT')).toBeInTheDocument()
+    expect(container.queryByLabelText('Regla-since quitar')).not.toBeInTheDocument()
+    expect(container.queryByLabelText('Regla-then quitar')).not.toBeInTheDocument()
+  })
+
+  it('NOT envuelve el nodo completo', () => {
+    const onChange = vi.fn()
+    const container = renderRule(FIRST_SINCE, undefined, onChange)
+
+    fireEvent.click(container.getByLabelText('Regla alternar NOT'))
+
+    expect(onChange).toHaveBeenLastCalledWith({ kind: 'not', rule: FIRST_SINCE })
+  })
+
+  it('el botón desenvuelve un NOT sobre el nodo', () => {
+    const onChange = vi.fn()
+    const container = renderRule({ kind: 'not', rule: FIRST_SINCE }, undefined, onChange)
+
+    fireEvent.click(container.getByLabelText('Regla alternar NOT'))
+
+    expect(onChange).toHaveBeenLastCalledWith(FIRST_SINCE)
+  })
+
+  it('envuelve una condición existente con "+ primera desde que"', () => {
+    const onChange = vi.fn()
+    const container = renderRule(CONDITION, undefined, onChange)
+
+    fireEvent.click(container.getByLabelText('Regla envolver en primera vez desde que'))
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      kind: 'first_since',
+      since: defaultCondition(),
+      then: CONDITION,
+    })
+  })
+
+  it('desde un grupo, "+ primera desde que" añade el nodo con las dos ramas plantilla', () => {
+    const onChange = vi.fn()
+    const container = renderRule({ kind: 'and', rules: [CONDITION] }, undefined, onChange)
+
+    fireEvent.click(container.getByLabelText('Regla añadir primera desde que'))
+
+    const added = onChange.mock.calls.at(-1)?.[0] as Extract<RuleSpec, { kind: 'and' }>
+    expect(added.rules).toHaveLength(2)
+    const node = added.rules[1]
+    expect(node?.kind).toBe('first_since')
+    if (node?.kind === 'first_since') {
+      expect(node.since).toEqual(defaultCondition())
+      expect(node.then).toEqual(defaultCondition())
+    }
+  })
+
+  it('quitar el nodo desde el grupo lo elimina sin tocar el resto', () => {
+    const onChange = vi.fn()
+    const container = renderRule(
+      { kind: 'and', rules: [CONDITION, FIRST_SINCE] },
+      undefined,
+      onChange,
+    )
+
+    fireEvent.click(container.getByLabelText('Regla/2 quitar'))
+
+    const removed = onChange.mock.calls.at(-1)?.[0] as Extract<RuleSpec, { kind: 'and' }>
+    expect(removed.rules).toEqual([CONDITION])
   })
 })
 

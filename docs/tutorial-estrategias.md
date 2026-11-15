@@ -131,7 +131,9 @@ Una condición se ve así:
 [NOT]  [operador ▾]  [operando a ▾] [+c]  [operando b ▾] [+c]   [quitar]
 ```
 
-- **Operadores**: `cruza al alza`, `cruza a la baja`, `es mayor que`, `es menor que`.
+- **Operadores**: `cruza al alza`, `cruza a la baja`, `es mayor que`, `es menor que`, `es igual a`
+  (igualdad **exacta**, pensada para extremos de precio: `low = min100` = "esta vela marca el
+  mínimo"; no sirve para comparar cosas casi iguales).
 - **`a`** ofrece _todos_ los alias del contexto; **`b`** solo ofrece **aliados compatibles**
   (misma clase que `a` o constante, y nunca el propio `a`). Si cambias `a` y `b` queda
   incompatible, se reajusta solo.
@@ -139,10 +141,32 @@ Una condición se ve así:
   operandó. Cómodo para umbrales desechables; si quieres un nombre bonito, usa mejor el bloque
   _Constantes_ antes.
 - **`NOT`**: envuelve/desenvuelve ese nodo (otra vez el botón para quitarlo).
-- **Grupos**: dentro de un grupo hay botones **`+ condición`** y **`+ grupo`** (sub-AND/OR
-  anidable sin límite) y la cabecera indica `Y (todas)` u `O (alguna)`. Cada hijo tiene su botón
-  `quitar` (el nodo raíz no).
+- **Grupos**: dentro de un grupo hay botones **`+ condición`**, **`+ grupo`** y **`+ primera desde
+que`** (sub-AND/OR o un nodo de secuencia, anidable sin límite) y la cabecera indica `Y (todas)` u
+  `O (alguna)`. Cada hijo tiene su botón `quitar` (el nodo raíz no).
 - Todo se puede anidar: `(A y B) o (no C)`.
+
+### Nodo "primera vez desde que" (secuencia con ancla)
+
+Desde una condición, el botón **`+ primera desde que`** la envuelve en un nodo de secuencia; desde un
+grupo, añade uno nuevo. Se ve así:
+
+```
+[NOT]  Primera vez desde que…
+  desde que (ancla)          ← lo que marca el punto de partida
+  se cumple (primera vez)    ← lo que se espera a partir de ahí
+```
+
+- La regla solo es cierta en la **primera** vela en que la condición inferior se cumple **desde la
+  última vez** que se cumplió el ancla. Después ya no vuelve a ser cierta hasta que haya un ancla
+  nuevo: **una sola confirmación por ancla**, aunque el precio siga cumpliendo la condición.
+- Ambas ranuras aceptan cualquier nodo (condición, grupo, `NOT`) y son obligatorias: tienen `NOT`
+  pero no `quitar`.
+- **Ejemplo** (entrada): indicadores `ema15` (EMA 15) y `min100` (Mínimo 100), y la regla
+  _desde que_ `low` **es igual a** `min100` → _se cumple_ `close` **es mayor que** `ema15`:
+  entras en la primera vela que cierra sobre la EMA(15) a partir del mínimo de 100 velas.
+- La memoria está en el **histórico**, no en un estado oculto: la misma regla se evalúa igual en
+  backtest, replay, test-forward y preview, y nunca mira velas futuras.
 
 **Reglas prácticas:**
 

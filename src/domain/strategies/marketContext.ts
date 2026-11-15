@@ -43,15 +43,21 @@ export class MarketContext {
   private readonly visibleCandles: readonly Candle[]
   private readonly series: Readonly<Record<string, readonly IndicatorValue[]>>
   private readonly levelsValue: OperationLevels
+  /** Índice de la vela actual dentro de `visibleCandles` (`length - 1` por defecto). */
+  private readonly base: number
+  /** Prefijo congelado memoizado de una vista desplazada (null = contexto raíz). */
+  private displacedPrefix: readonly Candle[] | null = null
 
   private constructor(
     candles: readonly Candle[],
     series: Readonly<Record<string, readonly IndicatorValue[]>>,
     levels: OperationLevels,
+    base: number,
   ) {
     this.visibleCandles = candles
     this.series = series
     this.levelsValue = levels
+    this.base = base
   }
 
   /** Construye validando invariantes; idempotente sobre un contexto ya construido. */
@@ -64,6 +70,7 @@ export class MarketContext {
       Object.freeze([...candles]),
       buildFrozenSeries(indicators, candles),
       freezeLevels(validateLevels(levels)),
+      candles.length - 1,
     )
   }
 
@@ -73,23 +80,33 @@ export class MarketContext {
   }
 
   get current(): Candle {
-    const last = this.visibleCandles[this.visibleCandles.length - 1]
-    if (last === undefined) {
+    const current = this.visibleCandles[this.base]
+    if (current === undefined) {
       throw new MarketContextError('el contexto no tiene velas visibles')
     }
-    return last
+    return current
   }
 
   get previous(): Candle | undefined {
-    return this.visibleCandles[this.visibleCandles.length - 2]
+    return this.visibleCandles[this.base - 1]
   }
 
+  /** Velas visibles para esta vela actual (`base + 1`). */
   get length(): number {
-    return this.visibleCandles.length
+    return this.base + 1
   }
 
+  /**
+   * Ventana de velas hasta la vela actual. En un contexto raíz devuelve el
+   * mismo array congelado (compartido); en una vista desplazada, el prefijo
+   * congelado memoizado (misma referencia en cada llamada).
+   */
   get candles(): readonly Candle[] {
-    return this.visibleCandles
+    if (this.base === this.visibleCandles.length - 1) return this.visibleCandles
+    if (this.displacedPrefix === null) {
+      this.displacedPrefix = Object.freeze(this.visibleCandles.slice(0, this.base + 1))
+    }
+    return this.displacedPrefix
   }
 
   /** Niveles de operación actuales (congelados). */
@@ -108,7 +125,27 @@ export class MarketContext {
       this.visibleCandles,
       this.series,
       freezeLevels(validateLevels({ ...this.levelsValue, ...levels })),
+      this.base,
     )
+  }
+
+  /**
+   * Contexto cuya vela actual es la de hace `back` velas (0 = este contexto).
+   * **Solo retrocede**: una vista derivada nunca puede ver el futuro, y las
+   * series/velas se comparten (O(1), sin recalcular). Los alias de operación
+   * (`entry`/`sl`/`tp`) no tienen histórico → `null` en cualquier vista
+   * desplazada. `back` fuera de rango → error (no es un caso de uso, es un
+   * error de programación).
+   */
+  at(back: number): MarketContext {
+    if (!Number.isInteger(back) || back < 0) {
+      throw new RangeError(`back debe ser un entero >= 0 (recibido: ${back})`)
+    }
+    if (back > this.base) {
+      throw new MarketContextError('at() no puede retroceder más allá de la primera vela', back)
+    }
+    if (back === 0) return this
+    return new MarketContext(this.visibleCandles, this.series, this.levelsValue, this.base - back)
   }
 
   /** Valor del indicador `id` hace `back` velas (0 = actual); `null` en calentamiento. */
@@ -117,7 +154,7 @@ export class MarketContext {
       throw new RangeError(`back debe ser un entero >= 0 (recibido: ${back})`)
     }
 
-    const index = this.visibleCandles.length - 1 - back
+    const index = this.base - back
     const series = this.series[id]
     // El alias registrado tiene prioridad sobre el de operación y el builtin.
     if (series !== undefined) {
@@ -125,9 +162,10 @@ export class MarketContext {
       return series[index]?.value ?? null
     }
 
-    // Alias de operación (entry/sl/tp): solo valor actual, sin histórico.
+    // Alias de operación (entry/sl/tp): solo valor actual, sin histórico, y
+    // solo en la vela real del contexto (una vista desplazada los ve como null).
     if (id === 'entry' || id === 'sl' || id === 'tp') {
-      if (back > 0) return null
+      if (back > 0 || this.base !== this.visibleCandles.length - 1) return null
       return this.levelsValue[id] ?? null
     }
 

@@ -10,6 +10,8 @@ import {
   Any,
   CrossesAbove,
   CrossesBelow,
+  Equals,
+  FirstSince,
   Greater,
   Lower,
   Not,
@@ -35,19 +37,22 @@ export type SeriesClass = 'price' | 'oscillator' | 'constant'
 /** Mapa alias → clase (indicadores de la spec + series builtin + alias de operación). */
 export type SeriesClasses = Readonly<Record<string, SeriesClass>>
 
-/** Operador de una condición simple. */
-export type ConditionOp = 'crosses_above' | 'crosses_below' | '>' | '<'
+/** Operador de una condición simple. `==` = igualdad exacta (ver `Comparison`). */
+export type ConditionOp = 'crosses_above' | 'crosses_below' | '>' | '<' | '=='
 
 /**
  * Regla como árbol arbitrario de condiciones (decisión 11): `condition` es la
- * hoja binaria; `and`/`or` combinan ≥ 1 hijo; `not` invierte. Los operandos
- * son alias (sin literales numéricos: los umbrales son indicadores `const`).
+ * hoja binaria; `and`/`or` combinan ≥ 1 hijo; `not` invierte; `first_since`
+ * añade la secuencia con ancla ("primera vez que `then` desde la última vez
+ * que `since`"). Los operandos son alias (sin literales numéricos: los
+ * umbrales son indicadores `const`).
  */
 export type RuleSpec =
   | { kind: 'condition'; op: ConditionOp; a: string; b: string }
   | { kind: 'and'; rules: RuleSpec[] }
   | { kind: 'or'; rules: RuleSpec[] }
   | { kind: 'not'; rule: RuleSpec }
+  | { kind: 'first_since'; since: RuleSpec; then: RuleSpec }
 
 /** Indicador serializable (§1.4): catálogo SMA/EMA/RSI/mínimo + constante. */
 export type IndicatorSpec =
@@ -157,7 +162,13 @@ export function assertRuleSpec(value: unknown): asserts value is RuleSpec {
   switch (value.kind) {
     case 'condition': {
       const { op, a, b } = value
-      if (op !== 'crosses_above' && op !== 'crosses_below' && op !== '>' && op !== '<') {
+      if (
+        op !== 'crosses_above' &&
+        op !== 'crosses_below' &&
+        op !== '>' &&
+        op !== '<' &&
+        op !== '=='
+      ) {
         throw new InvalidStrategyDefinitionError('operador de condición desconocido', op)
       }
       assertAlias(a, 'a')
@@ -177,6 +188,16 @@ export function assertRuleSpec(value: unknown): asserts value is RuleSpec {
     }
     case 'not':
       assertRuleSpec(value.rule)
+      return
+    case 'first_since':
+      if (value.since === undefined || value.then === undefined) {
+        throw new InvalidStrategyDefinitionError(
+          '"first_since" requiere las ramas "since" y "then"',
+          value,
+        )
+      }
+      assertRuleSpec(value.since)
+      assertRuleSpec(value.then)
       return
     default:
       throw new InvalidStrategyDefinitionError('nodo de regla desconocido', value.kind)
@@ -206,6 +227,8 @@ function toRule(spec: RuleSpec, classes: SeriesClasses): Rule {
       return new Any(...spec.rules.map((rule) => toRule(rule, classes)))
     case 'not':
       return new Not(toRule(spec.rule, classes))
+    case 'first_since':
+      return new FirstSince(toRule(spec.since, classes), toRule(spec.then, classes))
   }
 }
 
@@ -228,6 +251,8 @@ function toCondition(spec: Extract<RuleSpec, { kind: 'condition' }>, classes: Se
       return new Greater(spec.a, spec.b)
     case '<':
       return new Lower(spec.a, spec.b)
+    case '==':
+      return new Equals(spec.a, spec.b)
   }
 }
 
@@ -637,6 +662,14 @@ function assertRuleOperations(spec: RuleSpec, allowed: readonly string[], where:
     assertRuleOperations(spec.rule, allowed, where)
     return
   }
+  if (spec.kind === 'first_since') {
+    // Ambas ramas heredan la restricción del contexto (p. ej. sin alias de
+    // operación en `entry.rule`): el nodo no es una valla para colar `entry`.
+    assertRuleOperations(spec.since, allowed, where)
+    assertRuleOperations(spec.then, allowed, where)
+    return
+  }
+  // and / or (el resto de kinds ya está cubierto: si no, TS falla aquí).
   for (const rule of spec.rules) assertRuleOperations(rule, allowed, where)
 }
 

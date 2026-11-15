@@ -4,7 +4,7 @@
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
 > Última actualización: 2026-11-15 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**1053 tests**, 77 archivos). `pnpm build` compila sin errores.
+> (**1109 tests**, 79 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
@@ -65,8 +65,8 @@ por `index.html` + `vite.config.ts`. Comandos: `pnpm dev`, `pnpm build`, `pnpm p
 
 | Módulo                                                                                                                                                                                                        | Archivos                                    | Tests |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----- |
-| `MarketContext` — qué ve la estrategia, sin look-ahead                                                                                                                                                        | `src/domain/strategies/marketContext.ts`    | 15    |
-| Reglas — `CrossesAbove/Below`, `Greater/Lower`, `All/Any/Not` (con núcleos `Crosses`/`Comparison`/`Logical`), `resolveRef`                                                                                    | `src/domain/strategies/rules.ts`            | 19    |
+| `MarketContext` — qué ve la estrategia, sin look-ahead; vista desplazada `at(back)` (solo retrocede)                                                                                                          | `src/domain/strategies/marketContext.ts`    | 36    |
+| Reglas — `CrossesAbove/Below`, `Greater/Lower`, `Equals`, `All/Any/Not` y `FirstSince` (secuencia con ancla; núcleos `Crosses`/`Comparison`/`Logical`), `resolveRef`                                          | `src/domain/strategies/rules.ts`            | 29    |
 | `Strategy` + `Signal` — señales priorizadas (`RequestEntry`/`RequestAdd`/`RequestReduce`/`RequestExit`), `limitPrice` por alias, regla de invalidación (veto → `Invalidate`), versionado `name@version`       | `src/domain/strategies/strategy.ts`         | 34    |
 | `StrategyInstance` — máquina de estados `WaitingForSignal → WaitingForEntryFill → WaitingForExitSignal → WaitingForExitFill`, eventos de dominio (`StrategyConfirmed`, `PositionOpened`, …), `apply`/`onFill` | `src/domain/strategies/strategyInstance.ts` | 32    |
 
@@ -229,19 +229,41 @@ cuatro paneles (§1.9), editor de **plantilla** (no editor libre de reglas por e
 
 ### Cambio 1 — Modelo de estrategia, persistencia y editor
 
-| Módulo                                                                                                                                                                                                          | Archivos                                                           | Tests                |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------- |
-| `PriceExpr` — árbol series ± * / sin literales, alias de operación (`entry`/`sl`/`tp` por contexto), builders + evaluación                                                                                      | `src/domain/strategies/priceExpr.ts`                               | 19                   |
-| `RuleSpec` árbol + `buildRule` (validación de clase por condición), indicador `Constant`, series builtin `close/open/high/low`                                                                                  | `src/domain/strategies/spec.ts`                                    | 35                   |
-| `StrategySpec` serializable + `buildStrategy`/`parseStrategySpec` + `Strategy.evaluate` ampliada (prioridad veto→SL→TP→reglas→triggers, niveles efectivos materializados) + `MarketContext.levels`/`withLevels` | `src/domain/strategies/spec.ts`, `strategy.ts`, `marketContext.ts` | 58 (`strategy.test`) |
-| `StrategyRepository` — `Storage` inyectado, id = hash de contenido, semilla demo, **invariante `name@version` → contenido único**, `nextVersion`                                                                | `src/storage/strategyRepository.ts`                                | 19                   |
-| API del editor: `seriesClasses`, `operationAliases`, `priceOperandAliases`, `ruleOperandAliases`, `compatibleClasses`                                                                                           | `src/domain/strategies/spec.ts`                                    | (en `spec.test`)     |
-| `StrategySelect` — selector único de la estrategia activa para los 4 paneles (§1.9)                                                                                                                             | `src/components/StrategySelect.tsx`                                | 4                    |
-| `StrategyPanel` — tercera sección del sidebar: lista `name@version` + huella, Nueva/Editar/Borrar, versión `max+1` conservando la anterior (enmienda 13) y validación `parse`+`buildStrategy` al guardar        | `src/components/StrategyPanel.tsx`                                 | 12                   |
-| `StrategyEditor` — formulario por bloques (indicadores agrupados por clase, entrada limit/market + precio, TP/SL, triggers con `fraction`, salida y veto) + deshacer + aviso de niveles invertidos              | `src/components/StrategyEditor.tsx`                                | 18                   |
-| `RuleEditor` — árbol visual AND/OR/NOT, segundo operando filtrado por clase, alias de operación por contexto, atajo "+c" de constante                                                                           | `src/components/RuleEditor.tsx`                                    | 13                   |
-| `PriceExprEditor` — expresiones en **suma de productos** (forma plana) con aviso "no editable" para árboles fuera de forma (enmienda 15)                                                                        | `src/components/PriceExprEditor.tsx`                               | 8                    |
-| Formulario compartido sin periodos (los parámetros viven en la `StrategySpec`)                                                                                                                                  | `src/components/backtestForm.ts`                                   | 7                    |
+| Módulo                                                                                                                                                                                                                        | Archivos                                                           | Tests                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------- |
+| `PriceExpr` — árbol series ± * / sin literales, alias de operación (`entry`/`sl`/`tp` por contexto), builders + evaluación                                                                                                    | `src/domain/strategies/priceExpr.ts`                               | 19                   |
+| `RuleSpec` árbol (`condition`/`and`/`or`/`not`/`first_since`) + `buildRule` (validación de clase y de alias de operación por contexto), operador `==`, indicador `Constant`, series builtin `close/open/high/low`             | `src/domain/strategies/spec.ts`                                    | 43                   |
+| `StrategySpec` serializable + `buildStrategy`/`parseStrategySpec` + `Strategy.evaluate` ampliada (prioridad veto→SL→TP→reglas→triggers, niveles efectivos materializados) + `MarketContext.levels`/`withLevels`               | `src/domain/strategies/spec.ts`, `strategy.ts`, `marketContext.ts` | 58 (`strategy.test`) |
+| `StrategyRepository` — `Storage` inyectado, id = hash de contenido, semilla demo, **invariante `name@version` → contenido único**, `nextVersion`                                                                              | `src/storage/strategyRepository.ts`                                | 19                   |
+| API del editor: `seriesClasses`, `operationAliases`, `priceOperandAliases`, `ruleOperandAliases`, `compatibleClasses`                                                                                                         | `src/domain/strategies/spec.ts`                                    | (en `spec.test`)     |
+| `StrategySelect` — selector único de la estrategia activa para los 4 paneles (§1.9)                                                                                                                                           | `src/components/StrategySelect.tsx`                                | 4                    |
+| `StrategyPanel` — tercera sección del sidebar: lista `name@version` + huella, Nueva/Editar/Borrar, versión `max+1` conservando la anterior (enmienda 13) y validación `parse`+`buildStrategy` al guardar                      | `src/components/StrategyPanel.tsx`                                 | 12                   |
+| `StrategyEditor` — formulario por bloques (indicadores agrupados por clase, entrada limit/market + precio, TP/SL, triggers con `fraction`, salida y veto) + deshacer + aviso de niveles invertidos                            | `src/components/StrategyEditor.tsx`                                | 18                   |
+| `RuleEditor` — árbol visual AND/OR/NOT/**first_since** (dos ranuras "desde que" y "se cumple", alta desde condición o grupo), segundo operando filtrado por clase, operador `==`, alias de operación por contexto, atajo "+c" | `src/components/RuleEditor.tsx`                                    | 23                   |
+| `PriceExprEditor` — expresiones en **suma de productos** (forma plana) con aviso "no editable" para árboles fuera de forma (enmienda 15)                                                                                      | `src/components/PriceExprEditor.tsx`                               | 8                    |
+| Formulario compartido sin periodos (los parámetros viven en la `StrategySpec`)                                                                                                                                                | `src/components/backtestForm.ts`                                   | 7                    |
+
+### Regla `first_since` — secuencia con ancla (2026-11-15)
+
+Plan detallado: [`rule-first-since-plan.md`](./rule-first-since-plan.md). Habilita confirmaciones de
+entrada **secuenciales**, p. ej. _"primera vela que cierra por encima de la EMA(15) a partir del
+mínimo de 100 velas"_:
+
+- **`MarketContext.at(back)`** — vista desplazada al pasado (comparte velas/series; `entry`/`sl`/
+  `tp` → `null`, no tienen histórico). La memoria vive en el **historial**, no en el objeto ⇒ la
+  regla sigue siendo una función pura del prefijo visible: determinista, sin look-ahead y sin estado
+  que reiniciar entre corridas.
+- **Operador `==`** (igualdad exacta, sin tolerancia) en las condiciones: ancla tipo `low == min100`.
+- **Nodo `first_since`** (`{ kind, since, then }`): cierto solo en la **primera** vela en que `then`
+  se cumple desde la última vez que `since`. Recursivo en forma, construcción y en la restricción de
+  alias de operación (una rama no es una valla para colar `entry` en `entry.rule`).
+- **UI**: dos ranuras etiquetadas ("desde que (ancla)" / "se cumple (primera vez)"), alta con
+  `+ primera desde que` desde una condición o desde un grupo.
+- Coste: O(1) si `then` es falso (lo habitual) y O(n) peor caso por evaluación ⇒ O(n²) por backtest
+  con `MAX_CANDLES = 1000` (mismo criterio aceptado que `confirmationPoints`).
+- E2E: `test/domain/strategies/firstSinceE2E.test.ts` — confirmaciones `[120, 161]` sobre una serie
+  sintética, entradas del runner **una vez por ancla**, anti look-ahead por prefijos y `reason`
+  legible (`request_entry: firstSince(low == min100, close > ema15)`).
 
 ### Cambio 2 — Test-forward interactivo (sustituye al split dev/eval)
 

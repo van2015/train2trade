@@ -7,6 +7,8 @@ import {
   Any,
   CrossesAbove,
   CrossesBelow,
+  Equals,
+  FirstSince,
   Greater,
   Lower,
   Not,
@@ -22,15 +24,20 @@ const CANDLES: Candle[] = [candle(1000, 10), candle(2000, 11), candle(3000, 12),
 
 const context = MarketContext.from({ candles: CANDLES })
 
-function contextWith(indicators: Record<string, (number | null)[]>): MarketContext {
+function contextWithUpTo(
+  indicators: Record<string, (number | null)[]>,
+  count: number,
+): MarketContext {
+  const candles = CANDLES.slice(0, count)
   const series: Record<string, IndicatorValue[]> = {}
   for (const [id, values] of Object.entries(indicators)) {
-    series[id] = CANDLES.map((candle, index) => ({
-      time: candle.time,
-      value: values[index] ?? null,
-    }))
+    series[id] = candles.map((entry, index) => ({ time: entry.time, value: values[index] ?? null }))
   }
-  return MarketContext.from({ candles: CANDLES, indicators: series })
+  return MarketContext.from({ candles, indicators: series })
+}
+
+function contextWith(indicators: Record<string, (number | null)[]>): MarketContext {
+  return contextWithUpTo(indicators, CANDLES.length)
 }
 
 const yes: Rule = { name: 'yes', evaluate: () => true }
@@ -114,6 +121,16 @@ describe('rules', () => {
       expect(new Lower('rsi', 30).evaluate(contextWith({ rsi: [50, 50, 50, 75] }))).toBe(false)
       expect(new Lower('rsi', 30).evaluate(contextWith({ rsi: [50, 50, 50, null] }))).toBe(false)
     })
+
+    it('Equals: true con igualdad exacta; false con desviación o dato faltante', () => {
+      const rule = new Equals('low', 'min100')
+
+      expect(rule.evaluate(contextWith({ low: [1, 1, 1, 5], min100: [1, 1, 1, 5] }))).toBe(true)
+      expect(rule.evaluate(contextWith({ low: [1, 1, 1, 5], min100: [1, 1, 1, 4.999999] }))).toBe(
+        false,
+      )
+      expect(rule.evaluate(contextWith({ low: [1, 1, 1, 5], min100: [1, 1, 1, null] }))).toBe(false)
+    })
   })
 
   describe('All / Any / Not', () => {
@@ -163,9 +180,78 @@ describe('rules', () => {
     })
   })
 
+  describe('FirstSince (secuencia con ancla)', () => {
+    /** Regla de valor: cierto si la serie `id` vale `expected` en la vela actual. */
+    function atValue(id: string, expected: number): Rule {
+      return { name: `${id} == ${expected}`, evaluate: (ctx) => ctx.value(id) === expected }
+    }
+
+    const anchor = atValue('anchor', 1)
+    const signal = atValue('signal', 1)
+
+    it('false si `then` no se cumple en la vela actual (camino corto)', () => {
+      const ctx = contextWith({ anchor: [1, 0, 0, 0], signal: [0, 0, 0, 0] })
+
+      expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(false)
+    })
+
+    it('true en la primera `then` posterior al ancla', () => {
+      const ctx = contextWith({ anchor: [1, 0, 0, 0], signal: [0, 0, 0, 1] })
+
+      expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(true)
+    })
+
+    it('false si ya hubo una `then` entre el ancla y la vela actual', () => {
+      const ctx = contextWith({ anchor: [1, 0, 0, 0], signal: [0, 1, 0, 1] })
+
+      expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(false)
+    })
+
+    it('el ancla en la propia vela actual → true (hueco vacío)', () => {
+      const ctx = contextWith({ anchor: [0, 0, 0, 1], signal: [0, 0, 0, 1] })
+
+      expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(true)
+    })
+
+    it('sin ancla en toda la ventana → false', () => {
+      const ctx = contextWith({ anchor: [0, 0, 0, 0], signal: [0, 0, 0, 1] })
+
+      expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(false)
+    })
+
+    it('un ancla nuevo borra las `then` anteriores (re-ancla)', () => {
+      const ctx = contextWith({ anchor: [0, 0, 1, 0], signal: [1, 0, 0, 1] })
+
+      expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(true)
+    })
+
+    it('calentamiento (null en la vela actual) → false', () => {
+      const ctx = contextWith({ anchor: [1, 0, 0, 0], signal: [0, 0, 0, null] })
+
+      expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(false)
+    })
+
+    it('sin look-ahead: evaluado en una vista desplazada equivale al prefijo', () => {
+      const values = { anchor: [1, 0, 0, 0], signal: [0, 0, 1, 1] }
+      const rule = new FirstSince(anchor, signal)
+      const displaced = contextWith(values).at(1) // vela 3000 (índice 2)
+      const prefix = contextWithUpTo(values, 3)
+
+      expect(rule.evaluate(displaced)).toBe(true)
+      expect(rule.evaluate(displaced)).toBe(rule.evaluate(prefix))
+      // En la vela completa (índice 3) ya no sería la primera: el futuro no cuenta.
+      expect(rule.evaluate(contextWith(values))).toBe(false)
+    })
+
+    it('name → "firstSince(ancla, condición)" (observabilidad)', () => {
+      expect(new FirstSince(anchor, signal).name).toBe('firstSince(anchor == 1, signal == 1)')
+    })
+  })
+
   describe('name (observabilidad)', () => {
     it('descripciones de las reglas básicas', () => {
       expect(new Greater('rsi', 30).name).toBe('rsi > 30')
+      expect(new Equals('low', 'min100').name).toBe('low == min100')
       expect(new CrossesAbove('fast', 'slow').name).toBe('fast crossesAbove slow')
     })
 

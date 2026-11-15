@@ -135,6 +135,7 @@ function RuleNode({
           <option value="crosses_below">cruza a la baja</option>
           <option value=">">es mayor que</option>
           <option value="<">es menor que</option>
+          <option value="==">es igual a</option>
         </select>
         <select
           aria-label={`${label} operando a`}
@@ -174,6 +175,55 @@ function RuleNode({
         >
           +c
         </button>
+        <button
+          type="button"
+          className="button button--ghost"
+          aria-label={`${label} envolver en primera vez desde que`}
+          onClick={() => onChange({ kind: 'first_since', since: defaultCondition(), then: rule })}
+        >
+          + primera desde que
+        </button>
+      </div>
+    )
+  }
+
+  if (rule.kind === 'first_since') {
+    return (
+      <div className="rule-node" data-testid={`${label}-first-since`}>
+        <div className="rule-node__row">
+          {controls}
+          <span>Primera vez desde que…</span>
+        </div>
+        <ul className="rule-tree">
+          <li className="rule-node">
+            <div className="rule-node__row">
+              <span>desde que (ancla)</span>
+            </div>
+            <RuleNode
+              rule={rule.since}
+              label={`${label}-since`}
+              classes={classes}
+              options={options}
+              onAddConstant={onAddConstant}
+              onChange={(next) => onChange({ ...rule, since: next })}
+              root
+            />
+          </li>
+          <li className="rule-node">
+            <div className="rule-node__row">
+              <span>se cumple (primera vez)</span>
+            </div>
+            <RuleNode
+              rule={rule.then}
+              label={`${label}-then`}
+              classes={classes}
+              options={options}
+              onAddConstant={onAddConstant}
+              onChange={(next) => onChange({ ...rule, then: next })}
+              root
+            />
+          </li>
+        </ul>
       </div>
     )
   }
@@ -201,6 +251,14 @@ function RuleNode({
   const addCondition = () => onChange({ ...rule, rules: [...rule.rules, defaultCondition()] })
   const addGroup = () =>
     onChange({ ...rule, rules: [...rule.rules, { kind: 'and', rules: [defaultCondition()] }] })
+  const addFirstSince = () =>
+    onChange({
+      ...rule,
+      rules: [
+        ...rule.rules,
+        { kind: 'first_since', since: defaultCondition(), then: defaultCondition() },
+      ],
+    })
 
   return (
     <div className="rule-node" data-testid={`${label}-group`}>
@@ -222,6 +280,14 @@ function RuleNode({
           onClick={addGroup}
         >
           + grupo
+        </button>
+        <button
+          type="button"
+          className="button button--ghost"
+          aria-label={`${label} añadir primera desde que`}
+          onClick={addFirstSince}
+        >
+          + primera desde que
         </button>
       </div>
       <ul className="rule-tree">

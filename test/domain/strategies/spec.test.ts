@@ -13,6 +13,8 @@ import {
   Any,
   CrossesAbove,
   CrossesBelow,
+  Equals,
+  FirstSince,
   Greater,
   Lower,
   Not,
@@ -71,7 +73,7 @@ const CLASSES: SeriesClasses = {
 describe('RuleSpec', () => {
   describe('assertRuleSpec (validación de forma)', () => {
     it('condición válida con cada operador → no lanza', () => {
-      for (const op of ['crosses_above', 'crosses_below', '>', '<'] as const) {
+      for (const op of ['crosses_above', 'crosses_below', '>', '<', '=='] as const) {
         expect(() =>
           assertRuleSpec({ kind: 'condition', op, a: 'close', b: 'ema12' }),
         ).not.toThrow()
@@ -103,7 +105,7 @@ describe('RuleSpec', () => {
       expect(() => assertRuleSpec({ kind: 'xor', rules: [] })).toThrow(
         InvalidStrategyDefinitionError,
       )
-      expect(() => assertRuleSpec({ kind: 'condition', op: '==', a: 'close', b: 'ema12' })).toThrow(
+      expect(() => assertRuleSpec({ kind: 'condition', op: '!=', a: 'close', b: 'ema12' })).toThrow(
         InvalidStrategyDefinitionError,
       )
       expect(() => assertRuleSpec({ kind: 'condition', op: '>', a: 42, b: 'ema12' })).toThrow(
@@ -137,6 +139,40 @@ describe('RuleSpec', () => {
 
       expect(() => assertRuleSpec(malformed)).toThrow(InvalidStrategyDefinitionError)
     })
+
+    it('first_since con ambas ramas válidas → no lanza (también anidado)', () => {
+      const node: RuleSpec = {
+        kind: 'first_since',
+        since: { kind: 'condition', op: '==', a: 'low', b: 'min100' },
+        then: { kind: 'and', rules: [{ kind: 'condition', op: '>', a: 'close', b: 'ema12' }] },
+      }
+
+      expect(() => assertRuleSpec(node)).not.toThrow()
+      expect(() => assertRuleSpec({ kind: 'not', rule: node })).not.toThrow()
+      expect(() =>
+        assertRuleSpec({
+          kind: 'or',
+          rules: [node, { kind: 'condition', op: '<', a: 'rsi14', b: 'umbral30' }],
+        }),
+      ).not.toThrow()
+    })
+
+    it('first_since sin ramas o con una rama inválida → error', () => {
+      expect(() => assertRuleSpec({ kind: 'first_since' })).toThrow(InvalidStrategyDefinitionError)
+      expect(() =>
+        assertRuleSpec({
+          kind: 'first_since',
+          since: { kind: 'condition', op: '>', a: 'close', b: 'ema12' },
+        }),
+      ).toThrow(InvalidStrategyDefinitionError)
+      expect(() =>
+        assertRuleSpec({
+          kind: 'first_since',
+          since: { kind: 'xor', rules: [] },
+          then: { kind: 'condition', op: '>', a: 'close', b: 'ema12' },
+        }),
+      ).toThrow(InvalidStrategyDefinitionError)
+    })
   })
 
   describe('buildRule (árbol → reglas de dominio)', () => {
@@ -159,6 +195,38 @@ describe('RuleSpec', () => {
       expect(
         buildRule({ kind: 'condition', op: '<', a: 'rsi14', b: 'umbral30' }, CLASSES),
       ).toBeInstanceOf(Lower)
+      expect(
+        buildRule({ kind: 'condition', op: '==', a: 'close', b: 'ema12' }, CLASSES),
+      ).toBeInstanceOf(Equals)
+    })
+
+    it('condición == → igualdad exacta sobre la vela actual', () => {
+      const rule = buildRule({ kind: 'condition', op: '==', a: 'close', b: 'ema12' }, CLASSES)
+
+      expect(rule.name).toBe('close == ema12')
+      expect(rule.evaluate(contextWith({ ema12: [8, 8, 8, 13] }))).toBe(true) // close = 13
+      expect(rule.evaluate(contextWith({ ema12: [8, 8, 8, 12.999999] }))).toBe(false)
+      expect(rule.evaluate(contextWith({ ema12: [8, 8, 8, null] }))).toBe(false)
+    })
+
+    it('first_since → FirstSince con el árbol montado y evaluación real', () => {
+      const spec: RuleSpec = {
+        kind: 'first_since',
+        since: { kind: 'condition', op: '==', a: 'low', b: 'ema12' },
+        then: { kind: 'condition', op: '>', a: 'close', b: 'ema12' },
+      }
+      const rule = buildRule(spec, CLASSES)
+
+      expect(rule).toBeInstanceOf(FirstSince)
+      expect(rule.name).toBe('firstSince(low == ema12, close > ema12)')
+
+      // Ancla en la vela 1 (low 9 == ema12 9) y primera `then` en la actual
+      // (close 13 > ema12 10, sin `then` intermedias: 11 ≯ 12, 12 ≯ 12).
+      expect(rule.evaluate(contextWith({ ema12: [9, 12, 12, 10] }))).toBe(true)
+      // Con `then` ya cumplidas después del ancla → no es la primera.
+      expect(rule.evaluate(contextWith({ ema12: [9, 8, 8, 10] }))).toBe(false)
+      // Sin ancla (low nunca igual a ema12) → false.
+      expect(rule.evaluate(contextWith({ ema12: [99, 99, 99, 10] }))).toBe(false)
     })
 
     it('and/or/not → All/Any/Not con el árbol montado', () => {
@@ -564,6 +632,49 @@ describe('buildStrategy', () => {
         },
       }),
     ).toThrow(InvalidStrategyDefinitionError)
+  })
+
+  it('first_since hereda las restricciones de alias de operación por ambas ramas', () => {
+    const base = validSpec()
+    const cond = (a: string, b: string): RuleSpec => ({ kind: 'condition', op: '>', a, b })
+    const withEntryRule = (rule: RuleSpec): StrategySpec => ({
+      ...base,
+      entry: { rule, execution: 'market' },
+    })
+
+    // `entry` dentro de `since` → prohibido en entry.rule
+    expect(() =>
+      buildStrategy(
+        withEntryRule({
+          kind: 'first_since',
+          since: cond('close', 'entry'),
+          then: cond('close', 'fast'),
+        }),
+      ),
+    ).toThrow(InvalidStrategyDefinitionError)
+
+    // `entry` dentro de `then`, anidado en un grupo → también
+    expect(() =>
+      buildStrategy(
+        withEntryRule({
+          kind: 'first_since',
+          since: cond('close', 'fast'),
+          then: { kind: 'and', rules: [cond('entry', 'fast')] },
+        }),
+      ),
+    ).toThrow(InvalidStrategyDefinitionError)
+
+    // en exitRule sí está permitido (hay posición)
+    expect(() =>
+      buildStrategy({
+        ...base,
+        exitRule: {
+          kind: 'first_since',
+          since: cond('close', 'entry'),
+          then: cond('close', 'fast'),
+        },
+      }),
+    ).not.toThrow()
   })
 
   it('end-to-end: la estrategia construida evalúa y dispara la entrada con su precio', () => {
