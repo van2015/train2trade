@@ -243,7 +243,7 @@ session.advance()` → `computeMetrics` sobre los datos de la sesión (la curva 
   (2) `manualBuy` a mitad del recorrido → relleno en la vela siguiente, invariantes de Fase 4
   intactos y log coherente; (3) `reset` → recorrido idéntico (§12C); (4) `manualSell` cierra y
   registra el `Trade`.
-- Docs: `proyectstate.md` (Fase 5 completa + contadores), `domain-diagram-phase3.md` (paquete
+- Docs: `proyectstate.md` (Fase 5 completa + contadores), `domain-diagram.md` (paquete
   `replay/`, `trading/tradingSession.ts`, dependencias `backtest → trading` y `replay → trading`)
   y este plan (estado completado).
 - **Aceptación (gate de fase):** `pnpm test && pnpm typecheck && pnpm format:check` en verde y

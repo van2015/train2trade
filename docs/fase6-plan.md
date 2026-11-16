@@ -315,7 +315,7 @@ estrategias`, `Asignación de capital` sin resultados contradictorios).
 - Escenario completo sobre una serie conocida: backtest → snapshot → `splitCandles` +
   `runTestForward` (deltas verificados a mano) → `runOptimization` (rejilla pequeña) →
   `analyzeRobustness` → `compareExperiments` con `differences`; determinismo extremo a extremo.
-- Actualización de `proyectstate.md` (Fase 6 completa + contadores), `domain-diagram-phase3.md`
+- Actualización de `proyectstate.md` (Fase 6 completa + contadores), `domain-diagram.md`
   (módulos nuevos en `backtest/`, repositorio en `storage/`) y este plan (estado completado).
 - **Aceptación (gate de fase):** `pnpm test && pnpm typecheck && pnpm format:check` en verde y
   `pnpm build` compila.

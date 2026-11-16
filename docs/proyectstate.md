@@ -106,7 +106,7 @@ existentes (§12D); la máquina de estados no cambió.
 
 **Sin ciclos entre paquetes**: `HistoricalBroker` depende del puerto `Account`
 (`src/domain/execution/account.ts`, efectivo/posición/`applyFill`) en vez de `Portfolio`, con lo que
-la dependencia va en un solo sentido `portfolio → execution` (ver [`domain-diagram-phase3.md`](./domain-diagram-phase3.md)).
+la dependencia va en un solo sentido `portfolio → execution` (ver [`domain-diagram.md`](./domain-diagram.md)).
 
 **Resultado de Fase 3 cumplido:** una estrategia puede generar operaciones y gestionar posiciones de
 forma determinista y reproducible, sin conocer backtest, replay ni React (§14). El P&L `Profit`/`Loss`

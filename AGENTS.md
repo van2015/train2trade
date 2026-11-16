@@ -69,6 +69,35 @@ Antes de dar por terminada una tarea: `pnpm format`. No añadir estilos a mano n
 pnpm test && pnpm typecheck && pnpm format:check   # los tres en verde
 ```
 
+Si la tarea ha tocado `src/domain/**` o `src/storage/**`, revisar además
+[Documentación y diagramas](#documentación-y-diagramas).
+
+## Documentación y diagramas
+
+`docs/domain-diagram.md` es el mapa de la estructura del código: paquetes y sus dependencias de
+importación, clases, jerarquía de errores y flujos de ejecución, en Mermaid. Es documentación viva:
+si el código cambia, el diagrama miente.
+
+**Regla: toda tarea que modifique `src/domain/**` o `src/storage/**` debe actualizar el fichero de
+diagramas** cuando el cambio afecte a lo que representa:
+
+- paquete nuevo o eliminado (carpeta de `src/domain/`, `src/storage/` o módulo raíz de `src/domain`);
+- clase, interfaz o tipo exportado nuevo o eliminado, o **miembros públicos** que cambien de nombre,
+  visibilidad o firma (los privados y el cuerpo de las funciones no cuentan);
+- error de dominio nuevo o eliminado (sección 3 y su tabla de reparto por paquete);
+- dependencia entre paquetes que aparezca o desaparezca (flechas discontinuas **y** su tabla);
+- función libre o tipo añadido/retirado en la sección 5.
+
+No requiere actualizarlo: renombrar variables o parámetros internos, cambiar el cuerpo de una función
+sin tocar su firma, tests, estilos y `src/components/**`.
+
+Comprobaciones al terminar:
+
+- los bloques Mermaid siguen parseando (`mermaid.parse`); si se añaden etiquetas de arista con
+  paréntesis u otros caracteres especiales, van entre comillas dobles;
+- las rutas y ficheros citados en el texto existen (nada de símbolos recién eliminados);
+- `pnpm format` deja el Markdown conforme.
+
 ## Git
 
 **El agente nunca realiza commits.** No ejecuta `git commit` (ni `--amend`) ni ningún comando que

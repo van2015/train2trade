@@ -177,7 +177,7 @@ MarketClock` y recorre las velas: `clock.advanceTo` → `runner.onCandle(candles
 - **Archivos:** test de integración (panel → `Experiment.run` → resultado) + docs.
 - Escenario completo sobre una serie conocida: métricas verificadas a mano, `Σ pnl` = equity final,
   determinismo, y actualización de `proyectstate.md` (Fase 4 completa + contadores),
-  `domain-diagram-phase3.md` (paquetes `time` y `backtest` en el árbol y sus dependencias) y este
+  `domain-diagram.md` (paquetes `time` y `backtest` en el árbol y sus dependencias) y este
   plan (estado completado).
 - **Aceptación (gate de fase):** `pnpm test && pnpm typecheck && pnpm format:check` en verde y
   `pnpm build` compila.
