@@ -1,23 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { Candle } from '@/domain/candles/candle'
 import { Indicator } from '@/domain/indicators/indicator'
 import { Ema } from '@/domain/indicators/ema'
 import { LowestLow } from '@/domain/indicators/lowestLow'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
-
-function candlesFrom(closes: number[], startMs = 1000): Candle[] {
-  return closes.map((close, index) =>
-    Candle.from({
-      time: startMs + index * 60_000,
-      open: close,
-      high: close,
-      low: close,
-      close,
-      volume: 1,
-    }),
-  )
-}
+import { candlesFrom } from '../../support/candles'
 
 describe('contrato Indicator', () => {
   it.each([

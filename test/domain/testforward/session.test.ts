@@ -9,6 +9,7 @@ import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { StrategyState } from '@/domain/strategies/strategyInstance'
 import { TradingSessionConfig } from '@/domain/trading/tradingSession'
 import { TestForwardError, TestForwardSession } from '@/domain/testforward/session'
+import { crossStrategy, type CrossStrategyOptions } from '../../support/strategies'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -34,18 +35,6 @@ function flat(closes: number[]): Candle[] {
 }
 
 const CANDLES: Candle[] = flat(PRICES)
-
-/** Entrada por cruce al alza + salida por cruce a la baja (fixture E2E). */
-function crossStrategy(): Strategy {
-  return new Strategy({
-    name: 'cross',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new Greater('close', 'fast')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
-}
 
 /** Real: la entrada es `close > fast` — dispara en i4 (130 > 110). */
 function aboveStrategy(): Strategy {
@@ -131,9 +120,12 @@ function config(strategy: Strategy, candles: Candle[] = CANDLES): TradingSession
   return { strategy, candles, timeframe: Timeframe.HOUR, initialCapital: 1_000 }
 }
 
+/** Variante real: la entrada es `close > fast` (dispara en i4), no el cruce al alza. */
+const CROSS: CrossStrategyOptions = { name: 'cross', entry: new Greater('close', 'fast') }
+
 describe('TestForwardSession — start, RNG y confirmaciones (§2.1)', () => {
   it('start salta al primer punto aleatorio y pausa en la confirmación de entrada', () => {
-    const tf = new TestForwardSession(config(crossStrategy()), () => 0)
+    const tf = new TestForwardSession(config(crossStrategy(CROSS)), () => 0)
 
     expect(tf.points).toEqual([4])
     tf.start()
@@ -157,7 +149,7 @@ describe('TestForwardSession — start, RNG y confirmaciones (§2.1)', () => {
   })
 
   it('decide(false) descarta la entrada: sin orden, sin posición', () => {
-    const tf = new TestForwardSession(config(crossStrategy()), () => 0)
+    const tf = new TestForwardSession(config(crossStrategy(CROSS)), () => 0)
     tf.start()
     tf.decide(false)
 
@@ -171,7 +163,7 @@ describe('TestForwardSession — start, RNG y confirmaciones (§2.1)', () => {
 
 describe('TestForwardSession — tomar (anti look-ahead §2.1)', () => {
   it('la orden aceptada rellena en la apertura de la vela siguiente a la decisión', () => {
-    const tf = new TestForwardSession(config(crossStrategy()), () => 0)
+    const tf = new TestForwardSession(config(crossStrategy(CROSS)), () => 0)
     tf.start() // pausa en i4 (cierre 130)
     tf.decide(true)
 
@@ -208,7 +200,7 @@ describe('TestForwardSession — tomar (anti look-ahead §2.1)', () => {
 
 describe('TestForwardSession — salida por regla con decisión (§2.1)', () => {
   it('la sesión pausa en la salida y decide() cierra o mantiene', () => {
-    const tf = new TestForwardSession(config(crossStrategy()), () => 0)
+    const tf = new TestForwardSession(config(crossStrategy(CROSS)), () => 0)
     tf.start()
     tf.decide(true)
     tf.step() // relleno de la entrada en i5
@@ -231,7 +223,7 @@ describe('TestForwardSession — salida por regla con decisión (§2.1)', () => 
   })
 
   it('decide(false) mantiene la posición abierta', () => {
-    const tf = new TestForwardSession(config(crossStrategy()), () => 0)
+    const tf = new TestForwardSession(config(crossStrategy(CROSS)), () => 0)
     tf.start()
     tf.decide(true)
     tf.step()
@@ -355,7 +347,7 @@ describe('TestForwardSession — jump, finish y errores (§2.2)', () => {
   })
 
   it('transiciones inválidas → TestForwardError', () => {
-    const tf = new TestForwardSession(config(crossStrategy()), () => 0)
+    const tf = new TestForwardSession(config(crossStrategy(CROSS)), () => 0)
 
     expect(() => tf.decide(true)).toThrow(TestForwardError) // sin confirmación
 
@@ -378,7 +370,7 @@ describe('TestForwardSession — jump, finish y errores (§2.2)', () => {
 
 describe('TestForwardSession — reset (§12C)', () => {
   it('reset reconstruye el stack: cursor 0, log vacío y mismo recorrido con el mismo RNG', () => {
-    const tf = new TestForwardSession(config(crossStrategy()), () => 0)
+    const tf = new TestForwardSession(config(crossStrategy(CROSS)), () => 0)
     tf.start()
     tf.decide(true)
     tf.step()

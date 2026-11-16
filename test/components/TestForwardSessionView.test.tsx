@@ -9,6 +9,7 @@ import { CrossesAbove, CrossesBelow, Greater } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { TradingSessionConfig } from '@/domain/trading/tradingSession'
 import { TestForwardSession } from '@/domain/testforward/session'
+import { crossStrategy } from '../support/strategies'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -26,17 +27,6 @@ const CANDLES: Candle[] = PRICES.map((price, index) =>
     volume: 1,
   }),
 )
-
-function crossStrategy(): Strategy {
-  return new Strategy({
-    name: 'cross',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
-}
 
 /** `close > SMA(3)`: puntos de confirmación en i4 e i5 (para saltos). */
 function aboveStrategy(): Strategy {
@@ -72,7 +62,10 @@ function config(strategy: Strategy): TradingSessionConfig {
   return { strategy, candles: CANDLES, timeframe: Timeframe.HOUR, initialCapital: 1_000 }
 }
 
-function makeSession(strategy: Strategy = crossStrategy(), random: () => number = () => 0) {
+function makeSession(
+  strategy: Strategy = crossStrategy({ name: 'cross' }),
+  random: () => number = () => 0,
+) {
   return new TestForwardSession(config(strategy), random)
 }
 
@@ -215,7 +208,7 @@ describe('TestForwardSessionView — estado y decisión (§2.3)', () => {
 
 describe('TestForwardSessionView — controles de TP/SL (§2.3)', () => {
   it('solo muestra niveles que la estrategia declara (§1.5)', () => {
-    startView(crossStrategy()) // sin TP/SL declarados
+    startView(crossStrategy({ name: 'cross' })) // sin TP/SL declarados
 
     expect(screen.queryByTestId('tf-tp')).not.toBeInTheDocument()
     expect(screen.queryByTestId('tf-sl')).not.toBeInTheDocument()

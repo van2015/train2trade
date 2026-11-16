@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Experiment } from '@/domain/backtest/experiment'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
-import { Sma } from '@/domain/indicators/sma'
-import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
-import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { crossStrategy } from '../../support/strategies'
 
 const t0 = 1_700_000_000_000
 const step = 60_000
@@ -20,17 +18,6 @@ const CANDLES = PRICES.map((price, index) =>
     volume: 1,
   }),
 )
-
-function crossStrategy(): Strategy {
-  return new Strategy({
-    name: 'cross-e2e',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
-}
 
 function run() {
   return Experiment.run({

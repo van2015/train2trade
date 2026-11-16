@@ -10,6 +10,7 @@ import { Instrument } from '@/domain/instruments/instrument'
 import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { ExperimentRepository } from '@/storage/experimentRepository'
+import { crossStrategy } from '../../support/strategies'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -54,17 +55,6 @@ class MemoryStorage implements Storage {
   }
 }
 
-function crossStrategy(): Strategy {
-  return new Strategy({
-    name: 'sma-cross',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
-}
-
 function buildStrategy(params: Readonly<Record<string, number>>): Strategy {
   return new Strategy({
     name: 'sma-cross',
@@ -80,7 +70,7 @@ type LabConfig = Partial<Parameters<typeof Experiment.run>[0]>
 
 function base(overrides: LabConfig = {}) {
   return {
-    strategy: crossStrategy(),
+    strategy: crossStrategy({ name: 'sma-cross' }),
     candles: CANDLES,
     timeframe: Timeframe.HOUR,
     initialCapital: 1_000,

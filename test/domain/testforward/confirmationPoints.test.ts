@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { Sma } from '@/domain/indicators/sma'
-import { CrossesAbove, CrossesBelow, Greater, Rule } from '@/domain/strategies/rules'
+import { Greater, Rule } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { confirmationPoints } from '@/domain/testforward/confirmationPoints'
+import { crossStrategy } from '../../support/strategies'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -41,17 +42,6 @@ const MIXED: Candle[] = [
   }),
 )
 
-function crossStrategy(): Strategy {
-  return new Strategy({
-    name: 'cross',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
-}
-
 function closeAboveSma(veto?: Rule): Strategy {
   return new Strategy({
     name: 'above',
@@ -63,7 +53,7 @@ function closeAboveSma(veto?: Rule): Strategy {
 
 describe('confirmationPoints — barrido estadoless (§2.2)', () => {
   it('cruce SMA(2)/SMA(3): solo el cruce al alza es punto de entrada', () => {
-    expect(confirmationPoints(crossStrategy(), CANDLES)).toEqual([4])
+    expect(confirmationPoints(crossStrategy({ name: 'cross' }), CANDLES)).toEqual([4])
   })
 
   it('regla que se repite → todas las velas donde dispara (tras el calentamiento)', () => {
@@ -80,7 +70,7 @@ describe('confirmationPoints — barrido estadoless (§2.2)', () => {
   })
 
   it('velas vacías → sin puntos', () => {
-    expect(confirmationPoints(crossStrategy(), [])).toEqual([])
+    expect(confirmationPoints(crossStrategy({ name: 'cross' }), [])).toEqual([])
   })
 
   it('calentamiento: la regla no dispara mientras la media sea null', () => {

@@ -15,12 +15,18 @@ src/                  → solo código de la app (nunca tests)
   components/         → componentes React
 test/                 → tests espejo de src/ (mismas carpetas)
   setup.ts            → setup de Vitest
+  support/            → helpers/builders compartidos entre tests (no son tests)
   domain/...
   components/...
 ```
 
 **Convención de tests:** `src/domain/foo/foo.ts` ↔ `test/domain/foo/foo.test.ts`.
 Los tests viven fuera de `src/` para que `src/` sea 100% código de producción.
+
+**Tests legibles:** cada test se lee como _nombre del comportamiento → datos relevantes →
+aserción_. Lo común a 2 o más ficheros (fixtures, constructores de entidades, render, seed de
+storage) se extrae a `test/support/`. Regla: los helpers **construyen** (nunca contienen
+`expect`); el que asienta es el test.
 
 ## Imports
 
@@ -32,6 +38,9 @@ import { Timeframe } from '@/domain/candles/timeframe'
 ```
 
 Usar siempre `@/...` en tests y en código de app. No usar imports relativos que suban hacia `src/`.
+
+Excepción: los helpers de `test/support/` se importan con ruta relativa dentro de `test/`
+(p. ej. `../../support/candles`). `@/` sigue apuntando exclusivamente a `src/`.
 
 ## Gestor de paquetes
 

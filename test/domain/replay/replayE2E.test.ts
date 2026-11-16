@@ -2,12 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { runBacktest } from '@/domain/backtest/backtest'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
-import { Sma } from '@/domain/indicators/sma'
 import { MarketReplayEngine, ReplayLogEntry } from '@/domain/replay/replayEngine'
-import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
-import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { TradingSessionConfig } from '@/domain/trading/tradingSession'
 import { ExecutionEvent } from '@/domain/trading/strategyRunner'
+import { crossStrategy } from '../../support/strategies'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -25,17 +23,6 @@ const CANDLES = PRICES.map((price, index) =>
     volume: 1,
   }),
 )
-
-function crossStrategy(): Strategy {
-  return new Strategy({
-    name: 'cross-e2e',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
-}
 
 function baseConfig(overrides: Partial<TradingSessionConfig> = {}): TradingSessionConfig {
   return {

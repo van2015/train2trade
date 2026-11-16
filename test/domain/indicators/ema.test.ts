@@ -1,20 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { Candle } from '@/domain/candles/candle'
 import { InvalidPeriodError } from '@/domain/indicators/indicator'
 import { Ema } from '@/domain/indicators/ema'
-
-function candlesFrom(closes: number[], startMs = 1000): Candle[] {
-  return closes.map((close, index) =>
-    Candle.from({
-      time: startMs + index * 60_000,
-      open: close,
-      high: close,
-      low: close,
-      close,
-      volume: 1,
-    }),
-  )
-}
+import { candlesFrom } from '../../support/candles'
 
 function values(period: number, closes: number[]): (number | null)[] {
   return new Ema(period).calculate(candlesFrom(closes)).map((entry) => entry.value)

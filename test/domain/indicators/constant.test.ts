@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { Constant, InvalidConstantError } from '@/domain/indicators/constant'
-
-function candle(time: number, close: number): Candle {
-  return Candle.from({ time, open: close, high: close + 1, low: close - 1, close, volume: 1 })
-}
+import { candle } from '../../support/candles'
 
 const CANDLES: Candle[] = [candle(1000, 10), candle(2000, 11), candle(3000, 12), candle(4000, 13)]
 

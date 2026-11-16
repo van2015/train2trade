@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { OrderSide, OrderType } from '@/domain/execution/order'
 import { Constant } from '@/domain/indicators/constant'
-import { Sma } from '@/domain/indicators/sma'
 import { MarketReplayEngine, ReplayError } from '@/domain/replay/replayEngine'
 import { series } from '@/domain/strategies/priceExpr'
-import { CrossesAbove, CrossesBelow, Rule } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { TradingSessionConfig, TradingSessionError } from '@/domain/trading/tradingSession'
+import { candlesFrom as flatCandles } from '../../support/candles'
+import { crossStrategy, enterOnceStrategy } from '../../support/strategies'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -16,48 +15,10 @@ const stepMs = 60_000
 /** Serie del E2E de Fase 3: cruce al alza en i4 (entrada) y salida posterior. */
 const PRICES = [100, 100, 100, 90, 130, 130, 130, 100, 100]
 
-function candlesFrom(prices: readonly number[]): Candle[] {
-  return prices.map((price, index) =>
-    Candle.from({
-      time: t0 + index * stepMs,
-      open: price,
-      high: price,
-      low: price,
-      close: price,
-      volume: 1,
-    }),
-  )
-}
+/** Serie plana sobre la base temporal del fichero (t0, paso de 1 min). */
+const candlesFrom = (prices: readonly number[]) => flatCandles(prices, { startMs: t0, stepMs })
 
 const CANDLES = candlesFrom(PRICES)
-
-function crossStrategy(): Strategy {
-  return new Strategy({
-    name: 'cross-e2e',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
-}
-
-/** Entrada que dispara una sola vez (para anti look-ahead, rechazos y reglas). */
-function enterOnceStrategy(): Strategy {
-  let fired = false
-  const rule: Rule = {
-    name: 'enter once',
-    evaluate: () => {
-      if (fired) return false
-      fired = true
-      return true
-    },
-  }
-  return new Strategy({
-    name: 'enter-once',
-    signals: [new Signal(StrategyAction.RequestEntry, rule)],
-  })
-}
 
 /** Entrada con limit lejano (no rellena) y veto que la cancela en la vela 1. */
 function vetoStrategy(): Strategy {

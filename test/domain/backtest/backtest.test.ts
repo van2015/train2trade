@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { BacktestError, findConfigProblem, runBacktest } from '@/domain/backtest/backtest'
-import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
-import { Sma } from '@/domain/indicators/sma'
-import { CrossesAbove, CrossesBelow, Rule } from '@/domain/strategies/rules'
 import { MarketContextError } from '@/domain/strategies/marketContext'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { candlesFrom } from '../../support/candles'
+import { crossStrategy, enterOnceStrategy } from '../../support/strategies'
 
 const t0 = 1_700_000_000_000
 const step = 60_000
@@ -13,48 +12,7 @@ const step = 60_000
 /** Serie del E2E de Fase 3: cruce al alza en i4 (entrada) y a la baja en i7 (salida). */
 const PRICES = [100, 100, 100, 90, 130, 130, 130, 100, 100]
 
-function candlesFrom(prices: readonly number[]): Candle[] {
-  return prices.map((price, index) =>
-    Candle.from({
-      time: t0 + index * step,
-      open: price,
-      high: price,
-      low: price,
-      close: price,
-      volume: 1,
-    }),
-  )
-}
-
-const CANDLES = candlesFrom(PRICES)
-
-function crossStrategy(): Strategy {
-  return new Strategy({
-    name: 'cross-e2e',
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
-}
-
-/** Estrategia que dispara una sola vez (para el test de anti look-ahead). */
-function enterOnceStrategy(): Strategy {
-  let fired = false
-  const rule: Rule = {
-    name: 'enter once',
-    evaluate: () => {
-      if (fired) return false
-      fired = true
-      return true
-    },
-  }
-  return new Strategy({
-    name: 'enter-once',
-    signals: [new Signal(StrategyAction.RequestEntry, rule)],
-  })
-}
+const CANDLES = candlesFrom(PRICES, { startMs: t0, stepMs: step })
 
 describe('runBacktest — ciclo completo', () => {
   it('devuelve curva, trades, órdenes, eventos y métricas coherentes', () => {

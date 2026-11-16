@@ -12,10 +12,7 @@ import {
   series,
   times,
 } from '@/domain/strategies/priceExpr'
-
-function candle(time: number, close: number): Candle {
-  return Candle.from({ time, open: close, high: close + 1, low: close - 1, close, volume: 1 })
-}
+import { candle } from '../../support/candles'
 
 /** Constructor binario para fixtures: `bin('+', 'fast', 'slow')`. */
 function bin(op: '+' | '-' | '*' | '/', left: PriceSeriesRef, right: PriceSeriesRef): PriceExpr {

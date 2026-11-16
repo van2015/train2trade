@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { Experiment, ExperimentError } from '@/domain/backtest/experiment'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
-import { Sma } from '@/domain/indicators/sma'
 import { Instrument } from '@/domain/instruments/instrument'
-import { CrossesAbove, CrossesBelow, Rule } from '@/domain/strategies/rules'
+import { Rule } from '@/domain/strategies/rules'
 import { strategyFingerprint, canonicalHash } from '@/domain/strategies/fingerprint'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { crossStrategy } from '../../support/strategies'
 
 const t0 = 1_700_000_000_000
 const step = 60_000
@@ -22,18 +22,6 @@ const CANDLES = PRICES.map((price, index) =>
     volume: 1,
   }),
 )
-
-function crossStrategy(version = 1): Strategy {
-  return new Strategy({
-    name: 'cross-e2e',
-    version,
-    indicators: { fast: new Sma(2), slow: new Sma(3) },
-    signals: [
-      new Signal(StrategyAction.RequestEntry, new CrossesAbove('fast', 'slow')),
-      new Signal(StrategyAction.RequestExit, new CrossesBelow('fast', 'slow')),
-    ],
-  })
-}
 
 /** Entrada única sin salida: deja la posición abierta al final (para probar el cierre). */
 function enterOnceStrategy(): Strategy {
@@ -111,7 +99,9 @@ describe('Experiment — registro (§12C)', () => {
   })
 
   it('strategyId es name@version', () => {
-    expect(Experiment.run(config({ strategy: crossStrategy(3) })).strategyId).toBe('cross-e2e@3')
+    expect(Experiment.run(config({ strategy: crossStrategy({ version: 3 }) })).strategyId).toBe(
+      'cross-e2e@3',
+    )
   })
 
   it('registra la huella reproducible de la estrategia (§12C)', () => {
@@ -119,9 +109,9 @@ describe('Experiment — registro (§12C)', () => {
 
     expect(experiment.fingerprint).toBe(strategyFingerprint(crossStrategy()))
     expect(Experiment.run(config()).fingerprint).toBe(experiment.fingerprint) // estable
-    expect(Experiment.run(config({ strategy: crossStrategy(2) })).fingerprint).not.toBe(
-      experiment.fingerprint,
-    ) // versión distinta → huella distinta
+    expect(
+      Experiment.run(config({ strategy: crossStrategy({ version: 2 }) })).fingerprint,
+    ).not.toBe(experiment.fingerprint) // versión distinta → huella distinta
   })
 
   it('registra el instrumento cuando se indica (null por defecto)', () => {
@@ -179,7 +169,7 @@ describe('Experiment — snapshot (§9/§12C)', () => {
 
     const changed = [
       Experiment.run(config({ initialCapital: 2_000 })).toSnapshot(),
-      Experiment.run(config({ strategy: crossStrategy(2) })).toSnapshot(),
+      Experiment.run(config({ strategy: crossStrategy({ version: 2 }) })).toSnapshot(),
       Experiment.run(config({ execution: { feeBps: 5 } })).toSnapshot(),
       Experiment.run(config({ candles: CANDLES.slice(0, 5) })).toSnapshot(),
     ]
