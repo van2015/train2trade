@@ -25,24 +25,9 @@ export function series(id: string): PriceExpr {
   return binary('series', id)
 }
 
-/** `left + right`. */
-export function plus(left: PriceSeriesRef, right: PriceSeriesRef): PriceExpr {
-  return { kind: 'binary', op: '+', left: toExpr(left), right: toExpr(right) }
-}
-
-/** `left - right`. */
-export function minus(left: PriceSeriesRef, right: PriceSeriesRef): PriceExpr {
-  return { kind: 'binary', op: '-', left: toExpr(left), right: toExpr(right) }
-}
-
 /** `left * right`. */
 export function times(left: PriceSeriesRef, right: PriceSeriesRef): PriceExpr {
   return { kind: 'binary', op: '*', left: toExpr(left), right: toExpr(right) }
-}
-
-/** `left / right`; la división por cero evalúa a `null` (nunca a no finito). */
-export function dividedBy(left: PriceSeriesRef, right: PriceSeriesRef): PriceExpr {
-  return { kind: 'binary', op: '/', left: toExpr(left), right: toExpr(right) }
 }
 
 /**

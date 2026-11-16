@@ -8,7 +8,7 @@ import {
 } from '@/components/strategyPreview'
 import { Candle } from '@/domain/candles/candle'
 import { Rsi } from '@/domain/indicators/rsi'
-import { minus, plus, series } from '@/domain/strategies/priceExpr'
+import { PriceExpr, series } from '@/domain/strategies/priceExpr'
 import {
   buildStrategy,
   InvalidStrategyDefinitionError,
@@ -46,6 +46,20 @@ function baseSpec(overrides: Partial<StrategySpec> = {}): StrategySpec {
       execution: 'market',
     },
     ...overrides,
+  }
+}
+
+/** Fixture de expresión binaria: `bin('+', 'entry', 'off')`. */
+function bin(
+  op: '+' | '-' | '*' | '/',
+  left: PriceExpr | string,
+  right: PriceExpr | string,
+): PriceExpr {
+  return {
+    kind: 'binary',
+    op,
+    left: typeof left === 'string' ? series(left) : left,
+    right: typeof right === 'string' ? series(right) : right,
   }
 }
 
@@ -183,8 +197,8 @@ describe('buildPreviewLevels', () => {
 
   it('entrada a mercado: TP/SL evaluados con entry = cierre de la última vela', () => {
     const spec = levelSpec({
-      takeProfit: { price: plus('entry', 'off'), execution: 'market' },
-      stopLoss: { price: minus('entry', 'off'), execution: 'market' },
+      takeProfit: { price: bin('+', 'entry', 'off'), execution: 'market' },
+      stopLoss: { price: bin('-', 'entry', 'off'), execution: 'market' },
     })
 
     const { levels, issues } = buildPreviewLevels(candles(), spec)
@@ -207,8 +221,8 @@ describe('buildPreviewLevels', () => {
         price: series('anchor'),
         execution: 'limit',
       },
-      takeProfit: { price: plus('entry', 'off'), execution: 'market' },
-      stopLoss: { price: minus('entry', 'off'), execution: 'market' },
+      takeProfit: { price: bin('+', 'entry', 'off'), execution: 'market' },
+      stopLoss: { price: bin('-', 'entry', 'off'), execution: 'market' },
     })
 
     const { levels, issues } = buildPreviewLevels(candles(), spec)
@@ -223,7 +237,7 @@ describe('buildPreviewLevels', () => {
 
   it('triggers: se evalúan con los niveles efectivos (tp) disponibles', () => {
     const spec = levelSpec({
-      takeProfit: { price: plus('entry', 'off'), execution: 'market' },
+      takeProfit: { price: bin('+', 'entry', 'off'), execution: 'market' },
       triggers: [{ price: series('tp'), action: 'request_exit', execution: 'market' }],
     })
 
@@ -239,7 +253,7 @@ describe('buildPreviewLevels', () => {
   it('alias no registrado en la expresión → issue, pero el resto de niveles se dibuja', () => {
     const spec = levelSpec({
       takeProfit: { price: series('fantasma'), execution: 'market' },
-      stopLoss: { price: minus('entry', 'off'), execution: 'market' },
+      stopLoss: { price: bin('-', 'entry', 'off'), execution: 'market' },
     })
 
     const { levels, issues } = buildPreviewLevels(candles(), spec)
@@ -257,7 +271,7 @@ describe('buildPreviewLevels', () => {
         { alias: 'off', kind: 'const', value: 10 },
       ],
       takeProfit: { price: series('malo'), execution: 'market' },
-      stopLoss: { price: minus('entry', 'off'), execution: 'market' },
+      stopLoss: { price: bin('-', 'entry', 'off'), execution: 'market' },
     })
 
     const { levels, issues } = buildPreviewLevels(candles(), spec)
@@ -299,7 +313,7 @@ describe('buildStrategyPreview', () => {
         rule: { kind: 'condition', op: '>', a: 'off', b: 'close' },
         execution: 'market',
       },
-      takeProfit: { price: plus('entry', 'off'), execution: 'market' },
+      takeProfit: { price: bin('+', 'entry', 'off'), execution: 'market' },
     }
 
     const preview = buildStrategyPreview(candles(), spec)
@@ -357,7 +371,7 @@ describe('buildStrategyPreview', () => {
 
   it('es determinista: misma entrada → mismo preview', () => {
     const spec = baseSpec({
-      takeProfit: { price: plus('entry', 'close'), execution: 'market' },
+      takeProfit: { price: bin('+', 'entry', 'close'), execution: 'market' },
     })
 
     expect(buildStrategyPreview(candles(), spec)).toEqual(buildStrategyPreview(candles(), spec))

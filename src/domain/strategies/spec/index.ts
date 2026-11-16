@@ -10,25 +10,17 @@
  */
 
 export {
-  BUILTIN_CLASSES,
   classOfKind,
   compatibleClasses,
-  OPERATION_ALIASES,
   operationAliases,
   priceOperandAliases,
-  RESERVED_ALIASES,
   ruleOperandAliases,
   seriesClasses,
-  TRIGGER_ACTIONS,
 } from '@/domain/strategies/spec/aliases'
 
-export {
-  assertRuleSpec,
-  assertStrategySpec,
-  parseStrategySpec,
-} from '@/domain/strategies/spec/validate'
+export { parseStrategySpec } from '@/domain/strategies/spec/validate'
 
-export { buildIndicator, buildRule, buildStrategy } from '@/domain/strategies/spec/build'
+export { buildIndicator, buildStrategy } from '@/domain/strategies/spec/build'
 
 export type {
   ConditionOp,

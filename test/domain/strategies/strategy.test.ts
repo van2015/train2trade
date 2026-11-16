@@ -5,7 +5,7 @@ import { IndicatorValue } from '@/domain/indicators/indicator'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
 import { MarketContext, MarketContextError } from '@/domain/strategies/marketContext'
-import { InvalidPriceExprError, plus, series } from '@/domain/strategies/priceExpr'
+import { InvalidPriceExprError, PriceExpr, series } from '@/domain/strategies/priceExpr'
 import { Greater, Rule } from '@/domain/strategies/rules'
 import {
   InvalidStrategyDefinitionError,
@@ -43,6 +43,20 @@ function rule(name: string, result: boolean): Rule {
 
 function strategyWith(signals: Signal[], overrides: Partial<StrategyDefinition> = {}): Strategy {
   return new Strategy({ name: 'test', signals, ...overrides })
+}
+
+/** Fixture de expresión binaria: `bin('+', 'entry', 'off')`. */
+function bin(
+  op: '+' | '-' | '*' | '/',
+  left: PriceExpr | string,
+  right: PriceExpr | string,
+): PriceExpr {
+  return {
+    kind: 'binary',
+    op,
+    left: typeof left === 'string' ? series(left) : left,
+    right: typeof right === 'string' ? series(right) : right,
+  }
 }
 
 describe('Signal', () => {
@@ -83,7 +97,7 @@ describe('Signal', () => {
     expect(
       () =>
         new Signal(StrategyAction.RequestEntry, rule('a', true), {
-          price: plus('a', 'b'),
+          price: bin('+', 'a', 'b'),
         }),
     ).not.toThrow()
     expect(
@@ -563,7 +577,7 @@ describe('Strategy.evaluate (TP/SL)', () => {
 describe('Trigger', () => {
   it('name es "action @ expr" para observabilidad', () => {
     const trigger = new Trigger({
-      price: plus('fast', 'slow'),
+      price: bin('+', 'fast', 'slow'),
       action: StrategyAction.RequestEntry,
       execution: 'limit',
     })

@@ -1,6 +1,5 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
 import { assertFinitePrice, LevelPosition, PricePosition } from '@/domain/candles/pricePosition'
-import { InvalidTimeframeError, Timeframe } from '@/domain/candles/timeframe'
 
 export interface CandleFields {
   /** Timestamp en milisegundos (UTC) */
@@ -86,44 +85,6 @@ export class Candle {
     }
 
     return candles
-  }
-
-  /** Vela del bucket: open de la primera, close de la última, extremos y volumen agregados. */
-  static aggregate(group: readonly Candle[], timeframe: Timeframe): Candle {
-    if (!Timeframe.is(timeframe)) {
-      throw new InvalidTimeframeError(timeframe)
-    }
-    if (group.length === 0) {
-      throw new RangeError('No se puede agregar un grupo vacío de velas')
-    }
-
-    const sorted = group.length > 1 ? [...group].sort((a, b) => a.time - b.time) : group
-    return Candle.aggregateSorted(sorted, timeframe)
-  }
-
-  /** Agrega el grupo ya ordenado por `time` en la vela de su bucket. */
-  private static aggregateSorted(sorted: readonly Candle[], timeframe: Timeframe): Candle {
-    let bucketTime = 0
-    let open = 0
-    let close = 0
-    let high = Number.NEGATIVE_INFINITY
-    let low = Number.POSITIVE_INFINITY
-    let volume = 0
-    let isFirst = true
-
-    for (const candle of sorted) {
-      if (isFirst) {
-        bucketTime = timeframe.bucketOf(candle.time)
-        open = candle.open
-        isFirst = false
-      }
-      close = candle.close
-      high = Math.max(high, candle.high)
-      low = Math.min(low, candle.low)
-      volume += candle.volume
-    }
-
-    return new Candle({ time: bucketTime, open, high, low, close, volume })
   }
 
   get isBullish(): boolean {

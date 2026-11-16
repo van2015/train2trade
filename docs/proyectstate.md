@@ -36,8 +36,7 @@ queda nada válido, se re-siembra la demo.
 
 | Módulo                                                               | Archivos                                       | Tests                 |
 | -------------------------------------------------------------------- | ---------------------------------------------- | --------------------- |
-| Modelo de velas                                                      | `src/domain/candles/candle.ts`, `timeframe.ts` | 45 + 7                |
-| Agregación de velas                                                  | `src/domain/candles/aggregate.ts`              | 6                     |
+| Modelo de velas                                                      | `src/domain/candles/candle.ts`, `timeframe.ts` | 39 + 7                |
 | Normalización de respuestas del exchange                             | `src/domain/candles/normalize.ts`              | 7                     |
 | Posición de precio en la vela                                        | `src/domain/candles/pricePosition.ts`          | (en `candle.test.ts`) |
 | Importación de CSV (parser puro texto → `Candle[]`)                  | `src/domain/candles/csv.ts`                    | 18                    |

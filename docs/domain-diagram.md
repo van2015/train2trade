@@ -276,7 +276,6 @@ classDiagram
             +close: number
             +volume: number
             +from(value) Candle
-            +aggregate(group, timeframe) Candle
             +positionOf(price) PricePosition
         }
         class Timeframe {
@@ -1282,12 +1281,11 @@ No son clases, pero viven en `src/domain/`:
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `errors.ts`                         | `formatValue(value)`, `invalidMessage(prefix, reason, raw)`                                                                                                                       |
 | `numbers.ts`                        | `isUnitFraction(value)` — hoja compartida por `strategies`/`portfolio`/`replay`                                                                                                   |
-| `candles/aggregate.ts`              | `aggregateCandles(candles, timeframe)`                                                                                                                                            |
 | `candles/normalize.ts`              | `normalizeCandles(raw)` — deduplica y ordena                                                                                                                                      |
 | `candles/pricePosition.ts`          | `assertFinitePrice(price)`                                                                                                                                                        |
 | `indicators/indicator.ts`           | `assertPeriod(period)`, `sortedByTime(candles)`                                                                                                                                   |
 | `strategies/rules.ts`               | `resolveRef(context, ref, back)` — alias o constante                                                                                                                              |
-| `strategies/priceExpr.ts`           | `series(id)`, `plus(a, b)`, `minus(a, b)`, `times(a, b)`, `dividedBy(a, b)`, `formatPriceExpr(expr)`, `assertPriceExpr(expr)`, `evaluatePriceExpr(expr, context)`                 |
+| `strategies/priceExpr.ts`           | `series(id)`, `times(a, b)`, `formatPriceExpr(expr)`, `assertPriceExpr(expr)`, `evaluatePriceExpr(expr, context)`                                                                 |
 | `strategies/spec/types.ts`          | formas serializables: `StrategySpec`, `RuleSpec`, `IndicatorSpec`, `EntrySpec`, `TriggerSpec`, `ConditionOp`, `SeriesClass`, `SeriesClasses`, `OperationContext`, `TriggerAction` |
 | `strategies/spec/validate.ts`       | `assertStrategySpec(value)`, `parseStrategySpec(value)`, `assertRuleSpec(value)` — forma → `InvalidStrategyDefinitionError`                                                       |
 | `strategies/spec/build.ts`          | `buildStrategy(spec)`, `buildRule(spec, classes)`, `buildIndicator(spec)` — semántica → `Strategy`                                                                                |
@@ -1314,7 +1312,7 @@ Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimit
 `Indicator`, `IndicatorValue`, `Rule`, `OrderData`, `OrderSpec`, `FillData`, `ExecutionModel`,
 `ExecutionModelConfig`, `Account`, `Broker`, `TradeData`, `RiskConfig`, `TradingSessionConfig`, `SessionRiskConfig`, `ConfigProblem`, `BrokerDecorator`,
 `CandleStep`, `ExecutionEvent`, `DecisionOrderRequest`, `DecisionOrderSubmission`, `BacktestConfig`,
-`BacktestRiskConfig`, `BacktestResult`, `Metrics`, `MetricsInput`, `EquityPoint`,
+`BacktestResult`, `Metrics`, `MetricsInput`, `EquityPoint`,
 `ExperimentSnapshot`, `ComparisonField`, `ComparisonRow`, `ComparisonTable`, `OptimizationConfig`,
 `OptimizationRun`, `OptimizationResult`, `StrategyFactory`, `RobustnessReport`, `SensitivityEntry`,
 `ReplayStatus`, `ReplayLogKind`, `ReplayLogEntry`, `ReplayStep`, `TestForwardStatus`,

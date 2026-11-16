@@ -2,9 +2,6 @@ import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import { Candle, InvalidCandlesError, type CandleFields } from '@/domain/candles/candle'
 import { InvalidPriceError, LevelPosition, PricePosition } from '@/domain/candles/pricePosition'
-import { Timeframe } from '@/domain/candles/timeframe'
-
-const MIN = 60_000
 
 function fields(overrides: Partial<CandleFields> = {}): CandleFields {
   return { time: 0, open: 10, high: 12, low: 9, close: 11, volume: 1, ...overrides }
@@ -96,67 +93,6 @@ describe('comportamiento de la vela', () => {
 
     expect(JSON.parse(JSON.stringify(candle))).toEqual(fields())
     expect(Candle.from(JSON.parse(JSON.stringify(candle)))).toEqual(candle)
-  })
-})
-
-describe('Candle.aggregate', () => {
-  it('fusiona un grupo: open primero, close último, extremos y volumen', () => {
-    const group = [
-      Candle.from(fields({ time: 0, open: 10, high: 12, low: 9, close: 11, volume: 1 })),
-      Candle.from(fields({ time: MIN, open: 11, high: 15, low: 10, close: 14, volume: 2 })),
-      Candle.from(fields({ time: 2 * MIN, open: 14, high: 16, low: 13, close: 15, volume: 3 })),
-    ]
-
-    const agg = Candle.aggregate(group, Timeframe.FIVE_MINUTES)
-
-    expect(agg).toEqual({
-      time: 0, // inicio del bucket
-      open: 10,
-      high: 16,
-      low: 9,
-      close: 15,
-      volume: 6,
-    })
-  })
-
-  it('rebucketa la vela al inicio del bucket aunque no esté alineada', () => {
-    const candle = Candle.from(fields({ time: 2 * MIN }))
-
-    expect(Candle.aggregate([candle], Timeframe.FIVE_MINUTES).time).toBe(0)
-  })
-
-  it('ordena el grupo por tiempo si viene desordenado', () => {
-    const group = [
-      Candle.from(fields({ time: 2 * MIN, close: 15 })),
-      Candle.from(fields({ time: 0, close: 11 })),
-    ]
-
-    const agg = Candle.aggregate(group, Timeframe.FIVE_MINUTES)
-
-    expect(agg.open).toBe(10) // la de time 0 abre
-    expect(agg.close).toBe(15) // la de time 2*MIN cierra
-  })
-
-  it('rechaza un grupo vacío', () => {
-    expect(() => Candle.aggregate([], Timeframe.FIVE_MINUTES)).toThrow()
-  })
-
-  it('rechaza un valor que no es un Timeframe', () => {
-    expect(() =>
-      Candle.aggregate([Candle.from(fields())], 300_000 as unknown as Timeframe),
-    ).toThrow(/timeframe/i)
-  })
-
-  it('no muta las velas de entrada', () => {
-    const inputs = [
-      Candle.from(fields({ time: 0, volume: 1 })),
-      Candle.from(fields({ time: MIN, volume: 2 })),
-    ]
-    const before = inputs.map((c) => JSON.stringify(c))
-
-    Candle.aggregate(inputs, Timeframe.FIVE_MINUTES)
-
-    expect(inputs.map((c) => JSON.stringify(c))).toEqual(before)
   })
 })
 

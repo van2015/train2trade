@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { PriceExprEditor } from '@/components/PriceExprEditor'
-import { dividedBy, minus, plus, PriceExpr, series, times } from '@/domain/strategies/priceExpr'
+import { PriceExpr, series, times } from '@/domain/strategies/priceExpr'
 
 const OPTIONS = ['close', 'fast', 'slow', 'umbral', 'entry']
 
@@ -43,6 +43,20 @@ function field(container: ReturnType<typeof within>, name: string): HTMLElement 
   return container.getByLabelText(name)
 }
 
+/** Fixture de expresión binaria: `bin('+', series('fast'), series('slow'))`. */
+function bin(
+  op: '+' | '-' | '*' | '/',
+  left: PriceExpr | string,
+  right: PriceExpr | string,
+): PriceExpr {
+  return {
+    kind: 'binary',
+    op,
+    left: typeof left === 'string' ? series(left) : left,
+    right: typeof right === 'string' ? series(right) : right,
+  }
+}
+
 describe('PriceExprEditor — forma plana suma de productos (enmienda 15)', () => {
   it('serie única → un factor, sin signo ni quitar término', () => {
     const container = renderEditor(series('fast'))
@@ -58,7 +72,7 @@ describe('PriceExprEditor — forma plana suma de productos (enmienda 15)', () =
 
   it('suma → términos con signo; cambiar el signo emite la resta', () => {
     const onChange = vi.fn()
-    const container = renderEditor(plus(series('fast'), series('slow')), undefined, onChange)
+    const container = renderEditor(bin('+', series('fast'), series('slow')), undefined, onChange)
 
     expect(field(container, 'Precio de entrada término 2 factor 1')).toHaveValue('slow')
     expect(field(container, 'Precio de entrada término 2 signo')).toHaveValue('+')
@@ -67,7 +81,7 @@ describe('PriceExprEditor — forma plana suma de productos (enmienda 15)', () =
       target: { value: '-' },
     })
 
-    expect(onChange).toHaveBeenLastCalledWith(minus(series('fast'), series('slow')))
+    expect(onChange).toHaveBeenLastCalledWith(bin('-', series('fast'), series('slow')))
   })
 
   it('añadir factor convierte el término en producto (izquierda asociativa)', () => {
@@ -95,13 +109,13 @@ describe('PriceExprEditor — forma plana suma de productos (enmienda 15)', () =
 
     fireEvent.click(container.getByLabelText('Añadir término a Precio de entrada'))
 
-    expect(onChange).toHaveBeenLastCalledWith(minus(series('fast'), series('close')))
+    expect(onChange).toHaveBeenLastCalledWith(bin('-', series('fast'), series('close')))
     expect(field(container, 'Precio de entrada término 2 signo')).toHaveValue('-')
   })
 
   it('quitar término elimina el último', () => {
     const onChange = vi.fn()
-    const container = renderEditor(plus(series('fast'), series('slow')), undefined, onChange)
+    const container = renderEditor(bin('+', series('fast'), series('slow')), undefined, onChange)
 
     fireEvent.click(container.getByLabelText('Precio de entrada quitar término 2'))
 
@@ -118,7 +132,7 @@ describe('PriceExprEditor — forma plana suma de productos (enmienda 15)', () =
 
 describe('PriceExprEditor — expresiones no representables (enmienda 15)', () => {
   it('división → aviso "no editable" y sin controles de términos', () => {
-    const container = renderEditor(dividedBy(series('fast'), series('slow')))
+    const container = renderEditor(bin('/', series('fast'), series('slow')))
 
     expect(container.getByTestId('expr-unportable')).toHaveTextContent('no editable')
     expect(container.queryByLabelText(/Añadir término/)).not.toBeInTheDocument()

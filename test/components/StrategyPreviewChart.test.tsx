@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { StrategyPreviewChart } from '@/components/StrategyPreviewChart'
 import { Candle } from '@/domain/candles/candle'
-import { minus, plus } from '@/domain/strategies/priceExpr'
+import { PriceExpr, series } from '@/domain/strategies/priceExpr'
 import { StrategySpec } from '@/domain/strategies/spec'
 
 const { chartMock, seriesMock } = vi.hoisted(() => {
@@ -86,8 +86,8 @@ function spec(overrides: Partial<StrategySpec> = {}): StrategySpec {
       rule: { kind: 'condition', op: '>', a: 'off', b: 'close' },
       execution: 'market',
     },
-    takeProfit: { price: plus('entry', 'off'), execution: 'market' },
-    stopLoss: { price: minus('entry', 'off'), execution: 'market' },
+    takeProfit: { price: bin('+', 'entry', 'off'), execution: 'market' },
+    stopLoss: { price: bin('-', 'entry', 'off'), execution: 'market' },
     ...overrides,
   }
 }
@@ -105,6 +105,20 @@ beforeEach(() => {
   seriesMock.created.length = 0
   seriesMock.priceLines.length = 0
 })
+
+/** Fixture de expresión binaria: `bin('+', 'entry', 'off')`. */
+function bin(
+  op: '+' | '-' | '*' | '/',
+  left: PriceExpr | string,
+  right: PriceExpr | string,
+): PriceExpr {
+  return {
+    kind: 'binary',
+    op,
+    left: typeof left === 'string' ? series(left) : left,
+    right: typeof right === 'string' ? series(right) : right,
+  }
+}
 
 describe('StrategyPreviewChart', () => {
   it('crea el chart una vez, sin volumen y sin scroll/zoom (preview fijo)', () => {

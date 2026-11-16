@@ -2,7 +2,7 @@ import { describe, expect, it, vi, type Mock } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { StrategyEditor } from '@/components/StrategyEditor'
 import { Candle } from '@/domain/candles/candle'
-import { minus, series } from '@/domain/strategies/priceExpr'
+import { PriceExpr, series } from '@/domain/strategies/priceExpr'
 import { StrategySpec } from '@/domain/strategies/spec'
 
 // El editor monta el minichart (lightweight-charts no corre en jsdom).
@@ -77,6 +77,20 @@ function saved(onSave: ReturnType<typeof vi.fn>): StrategySpec {
   const spec = onSave.mock.calls[0]?.[0] as StrategySpec | undefined
   if (spec === undefined) throw new Error('onSave no fue llamado')
   return spec
+}
+
+/** Fixture de expresión binaria: `bin('-', series('close'), series('close'))`. */
+function bin(
+  op: '+' | '-' | '*' | '/',
+  left: PriceExpr | string,
+  right: PriceExpr | string,
+): PriceExpr {
+  return {
+    kind: 'binary',
+    op,
+    left: typeof left === 'string' ? series(left) : left,
+    right: typeof right === 'string' ? series(right) : right,
+  }
 }
 
 describe('StrategyEditor — indicadores (§1.8)', () => {
@@ -155,7 +169,7 @@ describe('StrategyEditor — entrada', () => {
     const entry = saved(onSave).entry
     expect(entry.execution).toBe('limit')
     if (entry.execution === 'limit') {
-      expect(entry.price).toEqual(minus(series('close'), series('close')))
+      expect(entry.price).toEqual(bin('-', series('close'), series('close')))
     }
   })
 
@@ -216,7 +230,7 @@ describe('StrategyEditor — TP/SL', () => {
     fireEvent.click(screen.getByLabelText('Añadir término a Take profit precio'))
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(saved(onSave).takeProfit).toEqual({
-      price: minus(series('close'), series('close')),
+      price: bin('-', series('close'), series('close')),
       execution: 'market',
     })
 

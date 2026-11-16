@@ -12,7 +12,6 @@ import { Order, OrderSide, OrderType } from '@/domain/execution/order'
 import { RiskConfig } from '@/domain/portfolio/riskManager'
 import {
   findConfigProblem,
-  SessionRiskConfig,
   TradingSession,
   TradingSessionConfig,
 } from '@/domain/trading/tradingSession'
@@ -20,12 +19,7 @@ import { ExecutionEvent } from '@/domain/trading/strategyRunner'
 
 // La API pública de la Fase 4 sigue residiendo aquí (re-export): la validación
 // compartida vive ahora en el motor común de la Fase 5 (§7).
-export {
-  findConfigProblem,
-  type ConfigProblem,
-  type SessionRiskConfig,
-  type TradingSessionConfig,
-} from '@/domain/trading/tradingSession'
+export { findConfigProblem } from '@/domain/trading/tradingSession'
 
 /** Config de backtest: la sesión compartida (§7) + registro y cierre (Fase 6). */
 export interface BacktestConfig extends TradingSessionConfig {
@@ -34,9 +28,6 @@ export interface BacktestConfig extends TradingSessionConfig {
   /** Cierra la posición abierta al cierre de la última vela (por defecto `false`). */
   closePositionAtEnd?: boolean
 }
-
-/** Riesgo de un backtest **sin costes**: la fuente única es `execution`. */
-export type BacktestRiskConfig = SessionRiskConfig
 
 export interface BacktestResult {
   /** Un `Trade` por cierre (parcial o total); `Σ pnl = finalEquity − inicial` sin posición abierta. */

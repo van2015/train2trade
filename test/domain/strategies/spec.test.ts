@@ -7,7 +7,7 @@ import { LowestLow } from '@/domain/indicators/lowestLow'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
 import { MarketContext } from '@/domain/strategies/marketContext'
-import { plus, series, InvalidPriceExprError } from '@/domain/strategies/priceExpr'
+import { series, InvalidPriceExprError } from '@/domain/strategies/priceExpr'
 import {
   All,
   Any,
@@ -21,11 +21,10 @@ import {
   Rule,
 } from '@/domain/strategies/rules'
 import { StrategyAction } from '@/domain/strategies/strategy'
+import { buildRule } from '@/domain/strategies/spec/build'
+import { assertRuleSpec, assertStrategySpec } from '@/domain/strategies/spec/validate'
 import {
-  assertRuleSpec,
-  assertStrategySpec,
   buildIndicator,
-  buildRule,
   buildStrategy,
   compatibleClasses,
   InvalidStrategyDefinitionError,
@@ -353,7 +352,10 @@ function validSpec(): StrategySpec {
       price: series('fast'),
       execution: 'limit',
     },
-    takeProfit: { price: plus('fast', 'umbral'), execution: 'limit' },
+    takeProfit: {
+      price: { kind: 'binary', op: '+', left: series('fast'), right: series('umbral') },
+      execution: 'limit',
+    },
     stopLoss: { price: series('slow'), execution: 'market' },
     triggers: [{ price: series('fast'), action: 'request_exit', execution: 'market' }],
     exitRule: { kind: 'condition', op: 'crosses_below', a: 'fast', b: 'slow' },

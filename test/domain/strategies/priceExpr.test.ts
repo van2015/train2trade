@@ -4,19 +4,27 @@ import { IndicatorValue } from '@/domain/indicators/indicator'
 import { MarketContext, MarketContextError } from '@/domain/strategies/marketContext'
 import {
   assertPriceExpr,
-  dividedBy,
   evaluatePriceExpr,
   formatPriceExpr,
   InvalidPriceExprError,
-  minus,
-  plus,
   PriceExpr,
+  PriceSeriesRef,
   series,
   times,
 } from '@/domain/strategies/priceExpr'
 
 function candle(time: number, close: number): Candle {
   return Candle.from({ time, open: close, high: close + 1, low: close - 1, close, volume: 1 })
+}
+
+/** Constructor binario para fixtures: `bin('+', 'fast', 'slow')`. */
+function bin(op: '+' | '-' | '*' | '/', left: PriceSeriesRef, right: PriceSeriesRef): PriceExpr {
+  return {
+    kind: 'binary',
+    op,
+    left: typeof left === 'string' ? series(left) : left,
+    right: typeof right === 'string' ? series(right) : right,
+  }
 }
 
 const CANDLES: Candle[] = [candle(1000, 10), candle(2000, 11), candle(3000, 12), candle(4000, 13)]
@@ -39,12 +47,12 @@ describe('PriceExpr', () => {
       expect(series('sma_fast')).toEqual({ kind: 'series', id: 'sma_fast' })
     })
 
-    it('plus/minus/times/dividedBy construyen el árbol en orden', () => {
-      const expr = minus(series('entry'), times(series('two'), series('atr14')))
+    it('times construye el árbol en orden', () => {
+      const expr = times(series('entry'), times(series('two'), series('atr14')))
 
       expect(expr).toEqual({
         kind: 'binary',
-        op: '-',
+        op: '*',
         left: { kind: 'series', id: 'entry' },
         right: {
           kind: 'binary',
@@ -53,21 +61,9 @@ describe('PriceExpr', () => {
           right: { kind: 'series', id: 'atr14' },
         },
       })
-      expect(plus('a', 'b')).toEqual({
-        kind: 'binary',
-        op: '+',
-        left: { kind: 'series', id: 'a' },
-        right: { kind: 'series', id: 'b' },
-      })
       expect(times('a', 'b')).toEqual({
         kind: 'binary',
         op: '*',
-        left: { kind: 'series', id: 'a' },
-        right: { kind: 'series', id: 'b' },
-      })
-      expect(dividedBy('a', 'b')).toEqual({
-        kind: 'binary',
-        op: '/',
         left: { kind: 'series', id: 'a' },
         right: { kind: 'series', id: 'b' },
       })
@@ -75,13 +71,12 @@ describe('PriceExpr', () => {
 
     it('alias vacío en un builder → InvalidPriceExprError', () => {
       expect(() => series('')).toThrow(InvalidPriceExprError)
-      expect(() => plus('', 'b')).toThrow(InvalidPriceExprError)
     })
   })
 
   describe('assertPriceExpr', () => {
     it('expresión válida → la devuelve sin lanzar', () => {
-      const expr = plus(series('fast'), series('slow'))
+      const expr = bin('+', series('fast'), series('slow'))
       expect(assertPriceExpr(expr)).toBe(expr)
     })
 
@@ -141,44 +136,46 @@ describe('PriceExpr', () => {
     })
 
     it('aritmética de primer nivel: +, -, *, /', () => {
-      expect(evaluatePriceExpr(plus('fast', 'slow'), context)).toBe(44)
-      expect(evaluatePriceExpr(minus('slow', 'fast'), context)).toBe(36)
+      expect(evaluatePriceExpr(bin('+', 'fast', 'slow'), context)).toBe(44)
+      expect(evaluatePriceExpr(bin('-', 'slow', 'fast'), context)).toBe(36)
       expect(evaluatePriceExpr(times('fast', 'two'), context)).toBe(8)
-      expect(evaluatePriceExpr(dividedBy('slow', 'fast'), context)).toBe(10)
+      expect(evaluatePriceExpr(bin('/', 'slow', 'fast'), context)).toBe(10)
     })
 
     it('expresión anidada respeta la precedencia del árbol', () => {
       // slow - (fast * two) = 40 - 8 = 32
-      const expr = minus('slow', times('fast', 'two'))
+      const expr = bin('-', 'slow', times('fast', 'two'))
 
       expect(evaluatePriceExpr(expr, context)).toBe(32)
     })
 
     it('serie en calentamiento (null) → null', () => {
       expect(evaluatePriceExpr(series('warmup'), context)).toBeNull()
-      expect(evaluatePriceExpr(plus('warmup', 'fast'), context)).toBeNull()
+      expect(evaluatePriceExpr(bin('+', 'warmup', 'fast'), context)).toBeNull()
     })
 
     it('alias no registrado → propaga MarketContextError', () => {
       expect(() => evaluatePriceExpr(series('missing'), context)).toThrow(MarketContextError)
-      expect(() => evaluatePriceExpr(plus('missing', 'fast'), context)).toThrow(MarketContextError)
+      expect(() => evaluatePriceExpr(bin('+', 'missing', 'fast'), context)).toThrow(
+        MarketContextError,
+      )
     })
 
     it('división por cero (0 o -0) → null: nunca devuelve no finito', () => {
-      expect(evaluatePriceExpr(dividedBy('fast', 'zero'), context)).toBeNull()
-      expect(evaluatePriceExpr(dividedBy('fast', times('zero', 'two')), context)).toBeNull()
+      expect(evaluatePriceExpr(bin('/', 'fast', 'zero'), context)).toBeNull()
+      expect(evaluatePriceExpr(bin('/', 'fast', times('zero', 'two')), context)).toBeNull()
     })
 
     it('0/0 → null (NaN cubierto)', () => {
       const allZero = contextWith({ a: [0, 0, 0, 0], b: [0, 0, 0, 0] })
 
-      expect(evaluatePriceExpr(dividedBy('a', 'b'), allZero)).toBeNull()
+      expect(evaluatePriceExpr(bin('/', 'a', 'b'), allZero)).toBeNull()
     })
 
     it('resultado negativo intermedio es válido (la validación de precio no es aquí)', () => {
       const context2 = contextWith({ a: [1, 1, 1, 1], b: [10, 10, 10, 10] })
 
-      expect(evaluatePriceExpr(minus('a', 'b'), context2)).toBe(-9)
+      expect(evaluatePriceExpr(bin('-', 'a', 'b'), context2)).toBe(-9)
     })
   })
 
@@ -188,11 +185,11 @@ describe('PriceExpr', () => {
     })
 
     it('operaciones binarias con anidación entre paréntesis', () => {
-      expect(formatPriceExpr(plus('fast', 'slow'))).toBe('fast + slow')
+      expect(formatPriceExpr(bin('+', 'fast', 'slow'))).toBe('fast + slow')
       expect(formatPriceExpr(times('two', 'atr'))).toBe('two * atr')
       // (entry - (two * atr))  →  prioridad visual sin ambigüedad
-      expect(formatPriceExpr(minus('entry', times('two', 'atr')))).toBe('entry - (two * atr)')
-      expect(formatPriceExpr(dividedBy(plus('a', 'b'), 'c'))).toBe('(a + b) / c')
+      expect(formatPriceExpr(bin('-', 'entry', times('two', 'atr')))).toBe('entry - (two * atr)')
+      expect(formatPriceExpr(bin('/', bin('+', 'a', 'b'), 'c'))).toBe('(a + b) / c')
     })
   })
 })
