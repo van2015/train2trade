@@ -5,6 +5,8 @@ import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { StrategySpec } from '@/domain/strategies/spec'
 import { TestForwardSession } from '@/domain/testforward/session'
+import { smaCrossSpec } from '../support/specs'
+import { candlesFrom } from '../support/candles'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -12,31 +14,10 @@ const stepMs = 60_000
 /** Serie de los E2E: cruce SMA(2)/SMA(3) al alza en i4 → punto de confirmación. */
 const PRICES = [100, 100, 100, 90, 130, 130, 130, 100, 100]
 
-const CANDLES: Candle[] = PRICES.map((price, index) =>
-  Candle.from({
-    time: t0 + index * stepMs,
-    open: price,
-    high: price,
-    low: price,
-    close: price,
-    volume: 1,
-  }),
-)
+const CANDLES: Candle[] = candlesFrom(PRICES, { startMs: t0, stepMs: stepMs })
 
 /** Estrategia activa por defecto en los tests: sma-cross(2/3) (§1.9). */
-const SPEC: StrategySpec = {
-  name: 'sma-cross',
-  version: 1,
-  indicators: [
-    { alias: 'fast', kind: 'sma', period: 2 },
-    { alias: 'slow', kind: 'sma', period: 3 },
-  ],
-  entry: {
-    rule: { kind: 'condition', op: 'crosses_above', a: 'fast', b: 'slow' },
-    execution: 'market',
-  },
-  exitRule: { kind: 'condition', op: 'crosses_below', a: 'fast', b: 'slow' },
-}
+const SPEC: StrategySpec = smaCrossSpec()
 
 function renderPanel(
   candles: readonly Candle[] = CANDLES,

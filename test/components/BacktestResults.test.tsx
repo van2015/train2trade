@@ -7,6 +7,7 @@ import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
 import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { candlesFrom } from '../support/candles'
 
 const { chartMock, seriesMock } = vi.hoisted(() => {
   const makeSeries = () => ({
@@ -46,16 +47,7 @@ const step = 60_000
 /** Mismo cruce que los E2E: SMA(2) cruza al alza en i4 y a la baja en i7. */
 const PRICES = [100, 100, 100, 90, 130, 130, 130, 100, 100]
 
-const CANDLES = PRICES.map((price, index) =>
-  Candle.from({
-    time: t0 + index * step,
-    open: price,
-    high: price,
-    low: price,
-    close: price,
-    volume: 1,
-  }),
-)
+const CANDLES: Candle[] = candlesFrom(PRICES, { startMs: t0, stepMs: step })
 
 /** Ejecuta el mismo backtest que el formulario del panel (parámetros por defecto: fee/slippage 0). */
 function runExperiment(fast: number, slow: number, capital = 1000): Experiment {

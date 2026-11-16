@@ -8,36 +8,17 @@ import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { buildStrategy, StrategySpec } from '@/domain/strategies/spec'
 import { formatMetric } from '@/components/backtestForm'
+import { smaCrossSpec } from '../support/specs'
+import { candlesFrom } from '../support/candles'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
 const PRICES = [100, 100, 100, 90, 130, 130, 130, 100, 100]
 
-const CANDLES = PRICES.map((price, index) =>
-  Candle.from({
-    time: t0 + index * stepMs,
-    open: price,
-    high: price,
-    low: price,
-    close: price,
-    volume: 1,
-  }),
-)
+const CANDLES: Candle[] = candlesFrom(PRICES, { startMs: t0, stepMs: stepMs })
 
 /** Estrategia activa por defecto en los tests (§1.9): periodos 10/30 como la demo. */
-const SPEC: StrategySpec = {
-  name: 'sma-cross',
-  version: 1,
-  indicators: [
-    { alias: 'fast', kind: 'sma', period: 10 },
-    { alias: 'slow', kind: 'sma', period: 30 },
-  ],
-  entry: {
-    rule: { kind: 'condition', op: 'crosses_above', a: 'fast', b: 'slow' },
-    execution: 'market',
-  },
-  exitRule: { kind: 'condition', op: 'crosses_below', a: 'fast', b: 'slow' },
-}
+const SPEC: StrategySpec = smaCrossSpec({ fast: 10, slow: 30 })
 
 /** Estrategia sin indicadores con periodo (solo constantes) → nada que optimizar. */
 const CONST_SPEC: StrategySpec = {

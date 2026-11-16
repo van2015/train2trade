@@ -10,6 +10,7 @@ import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { TradingSessionConfig } from '@/domain/trading/tradingSession'
 import { TestForwardSession } from '@/domain/testforward/session'
 import { crossStrategy } from '../support/strategies'
+import { candlesFrom } from '../support/candles'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -17,16 +18,7 @@ const stepMs = 60_000
 /** Serie de los E2E: cruce SMA(2)/SMA(3) al alza en i4 y a la baja en i7. */
 const PRICES = [100, 100, 100, 90, 130, 130, 130, 100, 100]
 
-const CANDLES: Candle[] = PRICES.map((price, index) =>
-  Candle.from({
-    time: t0 + index * stepMs,
-    open: price,
-    high: price,
-    low: price,
-    close: price,
-    volume: 1,
-  }),
-)
+const CANDLES: Candle[] = candlesFrom(PRICES, { startMs: t0, stepMs: stepMs })
 
 /** `close > SMA(3)`: puntos de confirmación en i4 e i5 (para saltos). */
 function aboveStrategy(): Strategy {

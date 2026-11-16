@@ -9,21 +9,13 @@ import { Timeframe } from '@/domain/candles/timeframe'
 import { Sma } from '@/domain/indicators/sma'
 import { CrossesAbove, CrossesBelow } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
+import { candlesFrom } from '../support/candles'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
 const PRICES = [100, 100, 100, 90, 130, 130, 130, 100, 100]
 
-const CANDLES = PRICES.map((price, index) =>
-  Candle.from({
-    time: t0 + index * stepMs,
-    open: price,
-    high: price,
-    low: price,
-    close: price,
-    volume: 1,
-  }),
-)
+const CANDLES: Candle[] = candlesFrom(PRICES, { startMs: t0, stepMs: stepMs })
 
 /** Misma construcción que el formulario de `OptimizationPanel`. */
 function buildView(

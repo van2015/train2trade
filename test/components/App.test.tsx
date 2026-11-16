@@ -11,6 +11,7 @@ import { ExperimentRepository } from '@/storage/experimentRepository'
 import { StrategyRepository } from '@/storage/strategyRepository'
 import type { StrategySpec } from '@/domain/strategies/spec'
 import { jsonResponse, kline } from '../support/api'
+import { smaCrossSpec } from '../support/specs'
 
 const { chartMock, seriesMock } = vi.hoisted(() => {
   const makeSeries = () => ({
@@ -99,19 +100,7 @@ let strategiesStorage: MemoryStorage
 let uiStorage: MemoryStorage
 
 /** Estrategia sma-cross(2/3): la misma que los E2E (cruces en i4/i7). */
-const SPEC: StrategySpec = {
-  name: 'sma-cross',
-  version: 1,
-  indicators: [
-    { alias: 'fast', kind: 'sma', period: 2 },
-    { alias: 'slow', kind: 'sma', period: 3 },
-  ],
-  entry: {
-    rule: { kind: 'condition', op: 'crosses_above', a: 'fast', b: 'slow' },
-    execution: 'market',
-  },
-  exitRule: { kind: 'condition', op: 'crosses_below', a: 'fast', b: 'slow' },
-}
+const SPEC: StrategySpec = smaCrossSpec()
 
 /** Segunda estrategia para el selector único (§1.9). */
 const ALPHA_SPEC: StrategySpec = {
@@ -123,6 +112,15 @@ const ALPHA_SPEC: StrategySpec = {
     execution: 'market',
   },
   exitRule: { kind: 'condition', op: '<', a: 'close', b: 'fast' },
+}
+
+/** Guarda la serie de cruce E2E (9 velas: sube en i4 y baja en i7) en el repositorio. */
+function seedCandles(closes: number[] = [100, 100, 100, 90, 130, 130, 130, 100, 100]) {
+  repository.save(
+    Instrument.of('BTC', 'USDT'),
+    Timeframe.HOUR,
+    closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
+  )
 }
 
 function renderApp(provider?: MarketDataProvider) {
@@ -322,12 +320,7 @@ describe('App', () => {
   })
 
   it('ejecutar un backtest lo auto-guarda en el historial', () => {
-    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
-    repository.save(
-      Instrument.of('BTC', 'USDT'),
-      Timeframe.HOUR,
-      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
-    )
+    seedCandles()
     renderApp()
     openSection('Experimentos')
 
@@ -344,12 +337,7 @@ describe('App', () => {
 
   it('ejecuta un backtest desde la UI con las velas del repositorio', () => {
     // Serie con cruce SMA(2)/SMA(3): sube en i4 y baja en i7 (igual que los E2E).
-    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
-    repository.save(
-      Instrument.of('BTC', 'USDT'),
-      Timeframe.HOUR,
-      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
-    )
+    seedCandles()
 
     renderApp()
     openSection('Experimentos')
@@ -363,12 +351,7 @@ describe('App', () => {
   })
 
   it('iniciar un test-forward corta el gráfico y abre su pestaña (§2.3)', () => {
-    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
-    repository.save(
-      Instrument.of('BTC', 'USDT'),
-      Timeframe.HOUR,
-      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
-    )
+    seedCandles()
     renderApp()
     openSection('Experimentos')
 
@@ -390,12 +373,7 @@ describe('App', () => {
   })
 
   it('ejecutar una optimización muestra sus resultados en su pestaña', () => {
-    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
-    repository.save(
-      Instrument.of('BTC', 'USDT'),
-      Timeframe.HOUR,
-      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
-    )
+    seedCandles()
     renderApp()
     openSection('Experimentos')
 
@@ -410,12 +388,7 @@ describe('App', () => {
   })
 
   it('recorta el gráfico a las velas consumidas durante el replay', () => {
-    const closes = [100, 100, 100, 90, 130, 130, 130, 100, 100]
-    repository.save(
-      Instrument.of('BTC', 'USDT'),
-      Timeframe.HOUR,
-      closes.map((close, index) => candle(1_700_000_000_000 + index * 3_600_000, close)),
-    )
+    seedCandles()
     renderApp()
     fireEvent.click(screen.getByRole('tab', { name: 'Replay' }))
 
