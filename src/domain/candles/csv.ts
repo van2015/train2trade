@@ -1,6 +1,6 @@
 import { DomainError, formatValue } from '@/domain/errors'
-import { Candle, CandleFields, InvalidCandlesError } from './candle'
-import { normalizeCandles } from './normalize'
+import { Candle, CandleFields, InvalidCandlesError } from '@/domain/candles/candle'
+import { normalizeCandles } from '@/domain/candles/normalize'
 
 export type CsvDelimiter = ',' | ';' | '\t'
 

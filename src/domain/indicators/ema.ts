@@ -1,5 +1,10 @@
 import { Candle } from '@/domain/candles/candle'
-import { assertPeriod, Indicator, IndicatorValue, sortedByTime } from './indicator'
+import {
+  assertPeriod,
+  Indicator,
+  IndicatorValue,
+  sortedByTime,
+} from '@/domain/indicators/indicator'
 
 /** EMA sobre cierres; semilla = SMA de los primeros `period` cierres (no el primero). */
 export class Ema implements Indicator {

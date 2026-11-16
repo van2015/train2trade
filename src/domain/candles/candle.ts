@@ -1,6 +1,6 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
-import { assertFinitePrice, LevelPosition, PricePosition } from './pricePosition'
-import { InvalidTimeframeError, Timeframe } from './timeframe'
+import { assertFinitePrice, LevelPosition, PricePosition } from '@/domain/candles/pricePosition'
+import { InvalidTimeframeError, Timeframe } from '@/domain/candles/timeframe'
 
 export interface CandleFields {
   /** Timestamp en milisegundos (UTC) */

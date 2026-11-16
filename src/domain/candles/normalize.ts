@@ -1,4 +1,4 @@
-import { Candle, InvalidCandlesError } from './candle'
+import { Candle, InvalidCandlesError } from '@/domain/candles/candle'
 
 /**
  * Respuesta cruda del exchange → `Candle[]`: invariantes delegados en

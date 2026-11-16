@@ -1,4 +1,5 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
+import { isUnitFraction } from '@/domain/numbers'
 import { withFee, withSlippage } from '@/domain/execution/costs'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 
@@ -173,7 +174,7 @@ function assertPositive(value: number, label: string): void {
 }
 
 function assertFraction(value: number, label: string): void {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0 || value > 1) {
+  if (!isUnitFraction(value)) {
     throw new InvalidRiskError(`${label} debe ser un número en (0, 1]`, value)
   }
 }

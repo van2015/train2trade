@@ -1,5 +1,10 @@
 import { Candle } from '@/domain/candles/candle'
-import { assertPeriod, Indicator, IndicatorValue, sortedByTime } from './indicator'
+import {
+  assertPeriod,
+  Indicator,
+  IndicatorValue,
+  sortedByTime,
+} from '@/domain/indicators/indicator'
 
 /**
  * Mínimo `low` de los últimos `period` periodos (ventana incluye la vela

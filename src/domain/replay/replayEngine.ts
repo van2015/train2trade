@@ -1,5 +1,6 @@
 import { RecordingBroker } from '@/domain/execution/recordingBroker'
 import { DomainError, invalidMessage } from '@/domain/errors'
+import { isUnitFraction } from '@/domain/numbers'
 import { Account } from '@/domain/execution/account'
 import { Broker } from '@/domain/execution/broker'
 import { Fill } from '@/domain/execution/fill'
@@ -372,12 +373,7 @@ export class MarketReplayEngine {
   }
 
   private assertFraction(fraction: number): void {
-    if (
-      typeof fraction !== 'number' ||
-      !Number.isFinite(fraction) ||
-      fraction <= 0 ||
-      fraction > 1
-    ) {
+    if (!isUnitFraction(fraction)) {
       throw new ReplayError('fraction debe ser un número en (0, 1]', fraction)
     }
   }

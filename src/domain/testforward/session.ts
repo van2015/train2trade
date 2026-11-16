@@ -10,7 +10,7 @@ import { Strategy, StrategyAction, StrategyDecision } from '@/domain/strategies/
 import { StrategyState } from '@/domain/strategies/strategyInstance'
 import { formatFill, formatOrderSent } from '@/domain/trading/logFormat'
 import { TradingSession, TradingSessionConfig } from '@/domain/trading/tradingSession'
-import { confirmationPoints } from './confirmationPoints'
+import { confirmationPoints } from '@/domain/testforward/confirmationPoints'
 
 /** Estado de la sesión (§2.1): `awaiting` = pausada esperando `decide()`. */
 export type TestForwardStatus = 'idle' | 'awaiting' | 'finished'

@@ -1,6 +1,6 @@
 import { Candle } from '@/domain/candles/candle'
 import { DomainError, invalidMessage } from '@/domain/errors'
-import { Indicator, IndicatorValue, sortedByTime } from './indicator'
+import { Indicator, IndicatorValue, sortedByTime } from '@/domain/indicators/indicator'
 
 export class InvalidConstantError extends DomainError {
   constructor(value: unknown) {

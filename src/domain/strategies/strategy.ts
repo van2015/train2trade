@@ -1,6 +1,7 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
 import { Candle } from '@/domain/candles/candle'
 import { Indicator, IndicatorValue } from '@/domain/indicators/indicator'
+import { isUnitFraction } from '@/domain/numbers'
 import { MarketContext, OperationLevels } from '@/domain/strategies/marketContext'
 import {
   assertPriceExpr,
@@ -183,10 +184,8 @@ function isSignalAction(action: unknown): action is SignalAction {
   )
 }
 
-/** `true` si `fraction` es un número finito en (0, 1]. */
-export function isUnitFraction(fraction: unknown): fraction is number {
-  return typeof fraction === 'number' && Number.isFinite(fraction) && fraction > 0 && fraction <= 1
-}
+/** `true` si `fraction` es un número finito en (0, 1] (re-export desde la hoja `numbers`). */
+export { isUnitFraction }
 
 /** Definición sin estado ni ejecución: no conoce órdenes ni brokers (§14). */
 export class Strategy {

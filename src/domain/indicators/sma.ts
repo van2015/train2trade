@@ -1,5 +1,10 @@
 import { Candle } from '@/domain/candles/candle'
-import { assertPeriod, Indicator, IndicatorValue, sortedByTime } from './indicator'
+import {
+  assertPeriod,
+  Indicator,
+  IndicatorValue,
+  sortedByTime,
+} from '@/domain/indicators/indicator'
 
 /** SMA sobre cierres; la ventana incluye la vela actual. */
 export class Sma implements Indicator {

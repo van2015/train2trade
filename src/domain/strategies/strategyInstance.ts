@@ -1,5 +1,5 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
-import { Strategy, StrategyAction, StrategyDecision } from './strategy'
+import { Strategy, StrategyAction, StrategyDecision } from '@/domain/strategies/strategy'
 
 export enum StrategyState {
   /** Plano: esperando la señal de entrada. */

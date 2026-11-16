@@ -1,5 +1,5 @@
-import { Candle } from './candle'
-import { InvalidTimeframeError, Timeframe } from './timeframe'
+import { Candle } from '@/domain/candles/candle'
+import { InvalidTimeframeError, Timeframe } from '@/domain/candles/timeframe'
 
 /**
  * Agrupa por bucket de `timeframe` y devuelve la vela agregada de cada bucket,
