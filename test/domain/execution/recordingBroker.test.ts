@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { RecordingBroker } from '@/domain/execution/recordingBroker'
-import { Candle } from '@/domain/candles/candle'
 import { Broker } from '@/domain/execution/broker'
 import { NextOpenExecutionModel } from '@/domain/execution/executionModel'
 import { Fill } from '@/domain/execution/fill'
@@ -13,21 +12,13 @@ import {
   OrderType,
 } from '@/domain/execution/order'
 import { Portfolio } from '@/domain/portfolio/portfolio'
+import { rangeCandle, type RangeCandleOptions } from '../../support/candles'
 
 const t0 = 1_700_000_000_000
 const step = 60_000
 
-function candleAt(index: number, overrides: { open?: number; high?: number; low?: number } = {}) {
-  const { open = 100, high = 110, low = 90 } = overrides
-  return Candle.from({
-    time: t0 + index * step,
-    open,
-    high,
-    low,
-    close: (high + low) / 2,
-    volume: 10,
-  })
-}
+const candleAt = (index: number, overrides: RangeCandleOptions = {}) =>
+  rangeCandle(t0 + index * step, overrides)
 
 function order(
   id: string,

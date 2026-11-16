@@ -8,7 +8,8 @@ import {
   TradingSessionError,
 } from '@/domain/trading/tradingSession'
 import { candlesFrom } from '../../support/candles'
-import { crossStrategy, enterOnceStrategy } from '../../support/strategies'
+import { enterOnceStrategy } from '../../support/strategies'
+import { baseConfig } from '../../support/sessions'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -18,16 +19,6 @@ const PRICES = [100, 100, 100, 90, 130, 130, 130, 100, 100]
 
 const CANDLES = candlesFrom(PRICES, { startMs: t0, stepMs })
 
-function baseConfig(overrides: Partial<TradingSessionConfig> = {}): TradingSessionConfig {
-  return {
-    strategy: crossStrategy(),
-    candles: CANDLES,
-    timeframe: Timeframe.HOUR,
-    initialCapital: 1_000,
-    ...overrides,
-  }
-}
-
 /** Sesión con observabilidad de Fase 4: el consumidor tipa el broker decorado. */
 function openSession(config: TradingSessionConfig): TradingSession<RecordingBroker> {
   return new TradingSession(config, (inner, account) => new RecordingBroker(inner, account))
@@ -35,18 +26,22 @@ function openSession(config: TradingSessionConfig): TradingSession<RecordingBrok
 
 describe('TradingSession — construcción y validación', () => {
   it('config inválida → TradingSessionError (velas vacías, timeframe y capital)', () => {
-    expect(() => new TradingSession(baseConfig({ candles: [] }))).toThrow(TradingSessionError)
+    expect(() => new TradingSession(baseConfig(CANDLES, { candles: [] }))).toThrow(
+      TradingSessionError,
+    )
     expect(
-      () => new TradingSession(baseConfig({ timeframe: '1h' as unknown as Timeframe })),
+      () => new TradingSession(baseConfig(CANDLES, { timeframe: '1h' as unknown as Timeframe })),
     ).toThrow(TradingSessionError)
-    expect(() => new TradingSession(baseConfig({ initialCapital: 0 }))).toThrow(TradingSessionError)
-    expect(() => new TradingSession(baseConfig({ initialCapital: Number.NaN }))).toThrow(
+    expect(() => new TradingSession(baseConfig(CANDLES, { initialCapital: 0 }))).toThrow(
+      TradingSessionError,
+    )
+    expect(() => new TradingSession(baseConfig(CANDLES, { initialCapital: Number.NaN }))).toThrow(
       TradingSessionError,
     )
   })
 
   it('sin decorador, el broker es un broker histórico plano sin registro de trades', () => {
-    const session = new TradingSession(baseConfig())
+    const session = new TradingSession(baseConfig(CANDLES))
     expect(session.broker.pendingOrders()).toEqual([])
     expect(session.broker.positions()).toEqual([])
   })
@@ -54,7 +49,7 @@ describe('TradingSession — construcción y validación', () => {
 
 describe('TradingSession — avance vela a vela', () => {
   it('cursor y finished: 0/false al inicio, N/true tras procesar todas', () => {
-    const session = openSession(baseConfig())
+    const session = openSession(baseConfig(CANDLES))
     expect(session.cursor).toBe(0)
     expect(session.finished).toBe(false)
 
@@ -67,7 +62,7 @@ describe('TradingSession — avance vela a vela', () => {
   })
 
   it('advance tras terminar → TradingSessionError', () => {
-    const session = openSession(baseConfig())
+    const session = openSession(baseConfig(CANDLES))
     while (!session.finished) {
       session.advance()
     }
@@ -75,7 +70,7 @@ describe('TradingSession — avance vela a vela', () => {
   })
 
   it('cada paso devuelve índice, vela, eventos propios y equity de ese cierre', () => {
-    const session = openSession(baseConfig())
+    const session = openSession(baseConfig(CANDLES))
     const collected: string[] = []
 
     for (const [index, candle] of CANDLES.entries()) {
@@ -101,7 +96,7 @@ describe('TradingSession — avance vela a vela', () => {
   })
 
   it('el reloj (§12A) avanza al cierre de cada vela procesada', () => {
-    const session = openSession(baseConfig())
+    const session = openSession(baseConfig(CANDLES))
     expect(session.clock.now).toBeNull()
 
     const first = session.advance()
@@ -112,7 +107,7 @@ describe('TradingSession — avance vela a vela', () => {
   })
 
   it('velas no ascendentes → MarketContextError en la segunda vela, sin avanzar el cursor', () => {
-    const session = openSession(baseConfig({ candles: [...CANDLES].reverse() }))
+    const session = openSession(baseConfig(CANDLES, { candles: [...CANDLES].reverse() }))
     // Una sola vela no puede violar el orden: la violación aparece al cruzar la 2.
     session.advance()
     expect(() => session.advance()).toThrow(MarketContextError)
@@ -122,7 +117,7 @@ describe('TradingSession — avance vela a vela', () => {
 
 describe('TradingSession — sin look-ahead', () => {
   it('la orden decidida en la vela 0 rellena en la 1: equity intacto en la primera', () => {
-    const session = openSession(baseConfig({ strategy: enterOnceStrategy() }))
+    const session = openSession(baseConfig(CANDLES, { strategy: enterOnceStrategy() }))
 
     const first = session.advance()
     expect(first.events).toContain('OrderSubmitted')
@@ -146,8 +141,12 @@ describe('TradingSession — determinismo y config efectiva (§12C)', () => {
       }
     }
 
-    const first = runAll(openSession(baseConfig({ execution: { slippageBps: 10, feeBps: 10 } })))
-    const second = runAll(openSession(baseConfig({ execution: { slippageBps: 10, feeBps: 10 } })))
+    const first = runAll(
+      openSession(baseConfig(CANDLES, { execution: { slippageBps: 10, feeBps: 10 } })),
+    )
+    const second = runAll(
+      openSession(baseConfig(CANDLES, { execution: { slippageBps: 10, feeBps: 10 } })),
+    )
 
     expect(second.events).toEqual(first.events)
     expect(second.orders).toEqual(first.orders)
@@ -156,7 +155,7 @@ describe('TradingSession — determinismo y config efectiva (§12C)', () => {
   })
 
   it('con decorador: Σ trades.pnl = realizedPnl tras cerrar la posición', () => {
-    const session = openSession(baseConfig())
+    const session = openSession(baseConfig(CANDLES))
     while (!session.finished) session.advance()
 
     const total = session.broker.trades.reduce((sum, trade) => sum + trade.pnl, 0)
@@ -165,7 +164,7 @@ describe('TradingSession — determinismo y config efectiva (§12C)', () => {
   })
 
   it('registra execution/risk con los defaults resueltos y fuente única de costes', () => {
-    const plain = openSession(baseConfig())
+    const plain = openSession(baseConfig(CANDLES))
     expect(plain.executionConfig).toEqual({ slippageBps: 0, feeBps: 0 })
     expect(plain.riskConfig).toEqual({
       maxPositionFraction: 1,
@@ -174,7 +173,9 @@ describe('TradingSession — determinismo y config efectiva (§12C)', () => {
       slippageBps: 0,
     })
 
-    const withCosts = openSession(baseConfig({ execution: { slippageBps: 10, feeBps: 30 } }))
+    const withCosts = openSession(
+      baseConfig(CANDLES, { execution: { slippageBps: 10, feeBps: 30 } }),
+    )
     expect(withCosts.executionConfig).toEqual({ slippageBps: 10, feeBps: 30 })
     expect(withCosts.riskConfig.feeBps).toBe(withCosts.executionConfig.feeBps)
     expect(withCosts.riskConfig.slippageBps).toBe(withCosts.executionConfig.slippageBps)

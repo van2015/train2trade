@@ -2,15 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { Constant } from '@/domain/indicators/constant'
 import { Ema } from '@/domain/indicators/ema'
-import { IndicatorValue, InvalidPeriodError } from '@/domain/indicators/indicator'
+import { InvalidPeriodError } from '@/domain/indicators/indicator'
 import { LowestLow } from '@/domain/indicators/lowestLow'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
-import { MarketContext } from '@/domain/strategies/marketContext'
 import { series, InvalidPriceExprError } from '@/domain/strategies/priceExpr'
 import {
   All,
-  Any,
   CrossesAbove,
   CrossesBelow,
   Equals,
@@ -18,11 +16,10 @@ import {
   Greater,
   Lower,
   Not,
-  Rule,
 } from '@/domain/strategies/rules'
 import { StrategyAction } from '@/domain/strategies/strategy'
 import { buildRule } from '@/domain/strategies/spec/build'
-import { assertRuleSpec, assertStrategySpec } from '@/domain/strategies/spec/validate'
+import { assertRuleSpec } from '@/domain/strategies/spec/validate'
 import {
   buildIndicator,
   buildStrategy,
@@ -38,16 +35,9 @@ import {
   StrategySpec,
 } from '@/domain/strategies/spec'
 import { candle } from '../../support/candles'
+import { contextWith } from '../../support/marketContext'
 
 const CANDLES: Candle[] = [candle(1000, 10), candle(2000, 11), candle(3000, 12), candle(4000, 13)]
-
-function contextWith(indicators: Record<string, (number | null)[]>): MarketContext {
-  const series: Record<string, IndicatorValue[]> = {}
-  for (const [id, values] of Object.entries(indicators)) {
-    series[id] = CANDLES.map((entry, index) => ({ time: entry.time, value: values[index] ?? null }))
-  }
-  return MarketContext.from({ candles: CANDLES, indicators: series })
-}
 
 /** Catálogo de clases para las pruebas (el real lo construye `buildStrategy`, ronda C). */
 const CLASSES: SeriesClasses = {
@@ -200,9 +190,9 @@ describe('RuleSpec', () => {
       const rule = buildRule({ kind: 'condition', op: '==', a: 'close', b: 'ema12' }, CLASSES)
 
       expect(rule.name).toBe('close == ema12')
-      expect(rule.evaluate(contextWith({ ema12: [8, 8, 8, 13] }))).toBe(true) // close = 13
-      expect(rule.evaluate(contextWith({ ema12: [8, 8, 8, 12.999999] }))).toBe(false)
-      expect(rule.evaluate(contextWith({ ema12: [8, 8, 8, null] }))).toBe(false)
+      expect(rule.evaluate(contextWith(CANDLES, { ema12: [8, 8, 8, 13] }))).toBe(true) // close = 13
+      expect(rule.evaluate(contextWith(CANDLES, { ema12: [8, 8, 8, 12.999999] }))).toBe(false)
+      expect(rule.evaluate(contextWith(CANDLES, { ema12: [8, 8, 8, null] }))).toBe(false)
     })
 
     it('first_since → FirstSince con el árbol montado y evaluación real', () => {
@@ -218,11 +208,11 @@ describe('RuleSpec', () => {
 
       // Ancla en la vela 1 (low 9 == ema12 9) y primera `then` en la actual
       // (close 13 > ema12 10, sin `then` intermedias: 11 ≯ 12, 12 ≯ 12).
-      expect(rule.evaluate(contextWith({ ema12: [9, 12, 12, 10] }))).toBe(true)
+      expect(rule.evaluate(contextWith(CANDLES, { ema12: [9, 12, 12, 10] }))).toBe(true)
       // Con `then` ya cumplidas después del ancla → no es la primera.
-      expect(rule.evaluate(contextWith({ ema12: [9, 8, 8, 10] }))).toBe(false)
+      expect(rule.evaluate(contextWith(CANDLES, { ema12: [9, 8, 8, 10] }))).toBe(false)
       // Sin ancla (low nunca igual a ema12) → false.
-      expect(rule.evaluate(contextWith({ ema12: [99, 99, 99, 10] }))).toBe(false)
+      expect(rule.evaluate(contextWith(CANDLES, { ema12: [99, 99, 99, 10] }))).toBe(false)
     })
 
     it('and/or/not → All/Any/Not con el árbol montado', () => {
@@ -251,7 +241,7 @@ describe('RuleSpec', () => {
         ],
       }
       // close de la vela actual = 13; ema12 por debajo (10) y rsi14 por debajo del umbral (20 < 30)
-      const context = contextWith({
+      const context = contextWith(CANDLES, {
         ema12: [8, 8, 8, 10],
         rsi14: [50, 50, 50, 20],
         umbral30: [30, 30, 30, 30],
@@ -260,7 +250,7 @@ describe('RuleSpec', () => {
       expect(buildRule(spec, CLASSES).evaluate(context)).toBe(true)
 
       // rsi14 por encima del umbral → la segunda condición falla
-      const context2 = contextWith({
+      const context2 = contextWith(CANDLES, {
         ema12: [8, 8, 8, 10],
         rsi14: [50, 50, 50, 45],
         umbral30: [30, 30, 30, 30],
@@ -270,7 +260,7 @@ describe('RuleSpec', () => {
 
     it('las series builtin son operandos válidos (close en condición)', () => {
       const rule = buildRule({ kind: 'condition', op: '>', a: 'close', b: 'ema12' }, CLASSES)
-      const context = contextWith({ ema12: [8, 8, 8, 10] })
+      const context = contextWith(CANDLES, { ema12: [8, 8, 8, 10] })
 
       expect(rule.evaluate(context)).toBe(true) // close actual 13 > 10
     })

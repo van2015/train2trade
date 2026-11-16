@@ -1,42 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
-import { IndicatorValue } from '@/domain/indicators/indicator'
-import { MarketContext, MarketContextError } from '@/domain/strategies/marketContext'
+import { MarketContextError } from '@/domain/strategies/marketContext'
 import {
   assertPriceExpr,
   evaluatePriceExpr,
   formatPriceExpr,
   InvalidPriceExprError,
-  PriceExpr,
-  PriceSeriesRef,
   series,
   times,
 } from '@/domain/strategies/priceExpr'
 import { candle } from '../../support/candles'
-
-/** Constructor binario para fixtures: `bin('+', 'fast', 'slow')`. */
-function bin(op: '+' | '-' | '*' | '/', left: PriceSeriesRef, right: PriceSeriesRef): PriceExpr {
-  return {
-    kind: 'binary',
-    op,
-    left: typeof left === 'string' ? series(left) : left,
-    right: typeof right === 'string' ? series(right) : right,
-  }
-}
+import { bin } from '../../support/priceExpr'
+import { contextWith } from '../../support/marketContext'
 
 const CANDLES: Candle[] = [candle(1000, 10), candle(2000, 11), candle(3000, 12), candle(4000, 13)]
-
-/** Contexto con las series indicadas (null donde no hay valor). */
-function contextWith(indicators: Record<string, (number | null)[]>): MarketContext {
-  const seriesById: Record<string, IndicatorValue[]> = {}
-  for (const [id, values] of Object.entries(indicators)) {
-    seriesById[id] = CANDLES.map((entry, index) => ({
-      time: entry.time,
-      value: values[index] ?? null,
-    }))
-  }
-  return MarketContext.from({ candles: CANDLES, indicators: seriesById })
-}
 
 describe('PriceExpr', () => {
   describe('builders', () => {
@@ -119,7 +96,7 @@ describe('PriceExpr', () => {
   })
 
   describe('evaluatePriceExpr', () => {
-    const context = contextWith({
+    const context = contextWith(CANDLES, {
       fast: [1, 2, 3, 4],
       slow: [10, 20, 30, 40],
       two: [2, 2, 2, 2],
@@ -164,13 +141,13 @@ describe('PriceExpr', () => {
     })
 
     it('0/0 → null (NaN cubierto)', () => {
-      const allZero = contextWith({ a: [0, 0, 0, 0], b: [0, 0, 0, 0] })
+      const allZero = contextWith(CANDLES, { a: [0, 0, 0, 0], b: [0, 0, 0, 0] })
 
       expect(evaluatePriceExpr(bin('/', 'a', 'b'), allZero)).toBeNull()
     })
 
     it('resultado negativo intermedio es válido (la validación de precio no es aquí)', () => {
-      const context2 = contextWith({ a: [1, 1, 1, 1], b: [10, 10, 10, 10] })
+      const context2 = contextWith(CANDLES, { a: [1, 1, 1, 1], b: [10, 10, 10, 10] })
 
       expect(evaluatePriceExpr(bin('-', 'a', 'b'), context2)).toBe(-9)
     })

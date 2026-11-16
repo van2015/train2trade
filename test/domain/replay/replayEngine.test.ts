@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { Timeframe } from '@/domain/candles/timeframe'
 import { OrderSide, OrderType } from '@/domain/execution/order'
 import { Constant } from '@/domain/indicators/constant'
 import { MarketReplayEngine, ReplayError } from '@/domain/replay/replayEngine'
@@ -7,7 +6,8 @@ import { series } from '@/domain/strategies/priceExpr'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { TradingSessionConfig, TradingSessionError } from '@/domain/trading/tradingSession'
 import { candlesFrom as flatCandles } from '../../support/candles'
-import { crossStrategy, enterOnceStrategy } from '../../support/strategies'
+import { enterOnceStrategy } from '../../support/strategies'
+import { baseConfig } from '../../support/sessions'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -46,18 +46,8 @@ function vetoStrategy(): Strategy {
   })
 }
 
-function baseConfig(overrides: Partial<TradingSessionConfig> = {}): TradingSessionConfig {
-  return {
-    strategy: crossStrategy(),
-    candles: CANDLES,
-    timeframe: Timeframe.HOUR,
-    initialCapital: 1_000,
-    ...overrides,
-  }
-}
-
 function openEngine(overrides: Partial<TradingSessionConfig> = {}): MarketReplayEngine {
-  return new MarketReplayEngine(baseConfig(overrides))
+  return new MarketReplayEngine(baseConfig(CANDLES, overrides))
 }
 
 function runToEnd(engine: MarketReplayEngine): void {
@@ -71,7 +61,9 @@ function formatAmount(value: number): string {
 
 describe('MarketReplayEngine — construcción y máquina de estados', () => {
   it('config inválida propaga TradingSessionError (validación compartida)', () => {
-    expect(() => new MarketReplayEngine(baseConfig({ candles: [] }))).toThrow(TradingSessionError)
+    expect(() => new MarketReplayEngine(baseConfig(CANDLES, { candles: [] }))).toThrow(
+      TradingSessionError,
+    )
   })
 
   it('arranca en ready con cursor 0 y log vacío', () => {

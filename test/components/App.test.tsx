@@ -10,6 +10,7 @@ import { CandleRepository } from '@/storage/candleRepository'
 import { ExperimentRepository } from '@/storage/experimentRepository'
 import { StrategyRepository } from '@/storage/strategyRepository'
 import type { StrategySpec } from '@/domain/strategies/spec'
+import { jsonResponse, kline } from '../support/api'
 
 const { chartMock, seriesMock } = vi.hoisted(() => {
   const makeSeries = () => ({
@@ -89,17 +90,6 @@ class MemoryStorage implements Storage {
 
 function candle(time: number, close = 100): Candle {
   return Candle.from({ time, open: 90, high: 110, low: 80, close, volume: 42 })
-}
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  })
-}
-
-function kline(openTime: number, close = '105') {
-  return [openTime, '100', '110', '90', close, '42', openTime + 3_599_999]
 }
 
 let repository: CandleRepository

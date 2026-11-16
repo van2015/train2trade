@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { Constant } from '@/domain/indicators/constant'
-import { IndicatorValue } from '@/domain/indicators/indicator'
 import { Rsi } from '@/domain/indicators/rsi'
 import { Sma } from '@/domain/indicators/sma'
 import { MarketContext, MarketContextError } from '@/domain/strategies/marketContext'
-import { InvalidPriceExprError, PriceExpr, series } from '@/domain/strategies/priceExpr'
+import { InvalidPriceExprError, series } from '@/domain/strategies/priceExpr'
 import { Greater, Rule } from '@/domain/strategies/rules'
 import {
   InvalidStrategyDefinitionError,
@@ -18,21 +17,12 @@ import {
   Trigger,
 } from '@/domain/strategies/strategy'
 import { candle } from '../../support/candles'
+import { bin } from '../../support/priceExpr'
+import { contextWith } from '../../support/marketContext'
 
 const CANDLES: Candle[] = [candle(1000, 10), candle(2000, 11), candle(3000, 12), candle(4000, 13)]
 
 const context = MarketContext.from({ candles: CANDLES })
-
-function contextWith(indicators: Record<string, (number | null)[]>): MarketContext {
-  const series: Record<string, IndicatorValue[]> = {}
-  for (const [id, values] of Object.entries(indicators)) {
-    series[id] = CANDLES.map((candle, index) => ({
-      time: candle.time,
-      value: values[index] ?? null,
-    }))
-  }
-  return MarketContext.from({ candles: CANDLES, indicators: series })
-}
 
 function rule(name: string, result: boolean): Rule {
   return { name, evaluate: () => result }
@@ -40,20 +30,6 @@ function rule(name: string, result: boolean): Rule {
 
 function strategyWith(signals: Signal[], overrides: Partial<StrategyDefinition> = {}): Strategy {
   return new Strategy({ name: 'test', signals, ...overrides })
-}
-
-/** Fixture de expresión binaria: `bin('+', 'entry', 'off')`. */
-function bin(
-  op: '+' | '-' | '*' | '/',
-  left: PriceExpr | string,
-  right: PriceExpr | string,
-): PriceExpr {
-  return {
-    kind: 'binary',
-    op,
-    left: typeof left === 'string' ? series(left) : left,
-    right: typeof right === 'string' ? series(right) : right,
-  }
 }
 
 describe('Signal', () => {
@@ -254,7 +230,7 @@ describe('Strategy.evaluate (aplicabilidad)', () => {
   it('regla con dato faltante (calentamiento) → None', () => {
     const strategy = strategyWith([new Signal(StrategyAction.RequestEntry, new Greater('rsi', 30))])
 
-    expect(strategy.evaluate(contextWith({ rsi: [50, 50, 50, null] }), false).action).toBe(
+    expect(strategy.evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, null] }), false).action).toBe(
       StrategyAction.None,
     )
   })
@@ -266,7 +242,9 @@ describe('Strategy.evaluate (precio)', () => {
       new Signal(StrategyAction.RequestEntry, rule('a', true), { price: series('target') }),
     ])
 
-    expect(strategy.evaluate(contextWith({ target: [10, 10, 10, 12] }), false).price).toBe(12)
+    expect(strategy.evaluate(contextWith(CANDLES, { target: [10, 10, 10, 12] }), false).price).toBe(
+      12,
+    )
   })
 
   it('price con indicador constante resuelve su valor (decisión 9)', () => {
@@ -283,7 +261,10 @@ describe('Strategy.evaluate (precio)', () => {
       new Signal(StrategyAction.RequestEntry, rule('a', true), { price: series('target') }),
       new Signal(StrategyAction.RequestEntry, rule('b', true)),
     ])
-    const decision = strategy.evaluate(contextWith({ target: [null, null, null, null] }), false)
+    const decision = strategy.evaluate(
+      contextWith(CANDLES, { target: [null, null, null, null] }),
+      false,
+    )
 
     expect(decision.reason).toBe('request_entry: b')
     expect(decision.price).toBeNull()
@@ -304,7 +285,7 @@ describe('Strategy.evaluate (precio)', () => {
     const limit = strategyWith([
       new Signal(StrategyAction.RequestEntry, rule('a', true), { price: series('target') }),
     ])
-    expect(limit.evaluate(contextWith({ target: [10, 10, 10, 12] }), false).price).toBe(12)
+    expect(limit.evaluate(contextWith(CANDLES, { target: [10, 10, 10, 12] }), false).price).toBe(12)
   })
 })
 
@@ -412,7 +393,7 @@ describe('Strategy.evaluate (invalidación)', () => {
       invalidationRule: new Greater('rsi', 30),
     })
 
-    expect(strategy.evaluate(contextWith({ rsi: [50, 50, 50, null] }), false).action).toBe(
+    expect(strategy.evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, null] }), false).action).toBe(
       StrategyAction.RequestEntry,
     )
   })

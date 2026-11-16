@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { runBacktest } from '@/domain/backtest/backtest'
 import { Candle } from '@/domain/candles/candle'
-import { Timeframe } from '@/domain/candles/timeframe'
 import { MarketReplayEngine, ReplayLogEntry } from '@/domain/replay/replayEngine'
-import { TradingSessionConfig } from '@/domain/trading/tradingSession'
 import { ExecutionEvent } from '@/domain/trading/strategyRunner'
-import { crossStrategy } from '../../support/strategies'
+import { baseConfig } from '../../support/sessions'
 
 const t0 = 1_700_000_000_000
 const stepMs = 60_000
@@ -24,21 +22,11 @@ const CANDLES = PRICES.map((price, index) =>
   }),
 )
 
-function baseConfig(overrides: Partial<TradingSessionConfig> = {}): TradingSessionConfig {
-  return {
-    strategy: crossStrategy(),
-    candles: CANDLES,
-    timeframe: Timeframe.HOUR,
-    initialCapital: 1_000,
-    ...overrides,
-  }
-}
-
 describe('Replay E2E — simulación interactiva (Fase 5)', () => {
   it('una sesión paso a paso reproduce exactamente el backtest (motor compartido, §7)', () => {
-    const backtest = runBacktest(baseConfig())
+    const backtest = runBacktest(baseConfig(CANDLES))
 
-    const engine = new MarketReplayEngine(baseConfig())
+    const engine = new MarketReplayEngine(baseConfig(CANDLES))
     const equityCurve: { time: number; equity: number }[] = []
     const events: ExecutionEvent[] = []
     while (engine.status !== 'finished') {
@@ -59,7 +47,7 @@ describe('Replay E2E — simulación interactiva (Fase 5)', () => {
   })
 
   it('manualBuy a mitad del recorrido: rellena en la siguiente vela y respeta los invariantes', () => {
-    const engine = new MarketReplayEngine(baseConfig())
+    const engine = new MarketReplayEngine(baseConfig(CANDLES))
 
     engine.step()
     engine.step()
@@ -91,7 +79,7 @@ describe('Replay E2E — simulación interactiva (Fase 5)', () => {
   })
 
   it('reset repite exactamente el mismo recorrido, manuales incluidos (§12C)', () => {
-    const engine = new MarketReplayEngine(baseConfig())
+    const engine = new MarketReplayEngine(baseConfig(CANDLES))
 
     const play = (): {
       log: readonly ReplayLogEntry[]
@@ -124,7 +112,7 @@ describe('Replay E2E — simulación interactiva (Fase 5)', () => {
   })
 
   it('manualSell cierra la posición y registra el Trade (§9)', () => {
-    const engine = new MarketReplayEngine(baseConfig())
+    const engine = new MarketReplayEngine(baseConfig(CANDLES))
 
     engine.manualBuy(1)
     engine.step() // posición: 10 @ 100

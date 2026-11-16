@@ -19,6 +19,23 @@ export interface CandleSeriesOptions {
   offsetMs?: number
 }
 
+export interface RangeCandleOptions {
+  open?: number
+  high?: number
+  low?: number
+}
+
+/**
+ * Vela de rango para fixtures de broker: `close` a media entre `high` y `low`,
+ * volumen 10. El tiempo lo decide quien la construye (p. ej. `t0 + index * step`).
+ */
+export function rangeCandle(
+  time: number,
+  { open = 100, high = 110, low = 90 }: RangeCandleOptions = {},
+): Candle {
+  return Candle.from({ time, open, high, low, close: (high + low) / 2, volume: 10 })
+}
+
 /**
  * Serie de velas **planas** (`open = high = low = close = precio`, volumen 1) con
  * tiempos regulares `startMs + offsetMs + index * stepMs`. Los indicadores usan los

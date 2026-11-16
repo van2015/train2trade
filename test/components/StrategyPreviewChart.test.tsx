@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { StrategyPreviewChart } from '@/components/StrategyPreviewChart'
 import { Candle } from '@/domain/candles/candle'
-import { PriceExpr, series } from '@/domain/strategies/priceExpr'
+import { series } from '@/domain/strategies/priceExpr'
 import { StrategySpec } from '@/domain/strategies/spec'
+import { bin } from '../support/priceExpr'
 
 const { chartMock, seriesMock } = vi.hoisted(() => {
   const makePriceLine = () => ({
@@ -105,20 +106,6 @@ beforeEach(() => {
   seriesMock.created.length = 0
   seriesMock.priceLines.length = 0
 })
-
-/** Fixture de expresión binaria: `bin('+', 'entry', 'off')`. */
-function bin(
-  op: '+' | '-' | '*' | '/',
-  left: PriceExpr | string,
-  right: PriceExpr | string,
-): PriceExpr {
-  return {
-    kind: 'binary',
-    op,
-    left: typeof left === 'string' ? series(left) : left,
-    right: typeof right === 'string' ? series(right) : right,
-  }
-}
 
 describe('StrategyPreviewChart', () => {
   it('crea el chart una vez, sin volumen y sin scroll/zoom (preview fijo)', () => {

@@ -1,19 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { Fill } from '@/domain/execution/fill'
-import { OrderSide } from '@/domain/execution/order'
 import { InvalidPortfolioError, Portfolio } from '@/domain/portfolio/portfolio'
+import { buy, sell } from '../../support/fills'
 
 const t0 = 1_700_000_000_000
 const t1 = t0 + 60_000
 const t2 = t0 + 120_000
-
-function buy(qty: number, price: number, time = t0, fee = 0): Fill {
-  return new Fill({ orderId: 'b', side: OrderSide.Buy, price, qty, fee, time })
-}
-
-function sell(qty: number, price: number, time = t1, fee = 0): Fill {
-  return new Fill({ orderId: 's', side: OrderSide.Sell, price, qty, fee, time })
-}
 
 describe('Portfolio — construcción', () => {
   it('empieza con el capital inicial en efectivo y sin posición', () => {

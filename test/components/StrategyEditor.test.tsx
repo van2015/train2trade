@@ -2,8 +2,9 @@ import { describe, expect, it, vi, type Mock } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { StrategyEditor } from '@/components/StrategyEditor'
 import { Candle } from '@/domain/candles/candle'
-import { PriceExpr, series } from '@/domain/strategies/priceExpr'
+import { series } from '@/domain/strategies/priceExpr'
 import { StrategySpec } from '@/domain/strategies/spec'
+import { bin } from '../support/priceExpr'
 
 // El editor monta el minichart (lightweight-charts no corre en jsdom).
 vi.mock('lightweight-charts', () => ({
@@ -77,20 +78,6 @@ function saved(onSave: ReturnType<typeof vi.fn>): StrategySpec {
   const spec = onSave.mock.calls[0]?.[0] as StrategySpec | undefined
   if (spec === undefined) throw new Error('onSave no fue llamado')
   return spec
-}
-
-/** Fixture de expresión binaria: `bin('-', series('close'), series('close'))`. */
-function bin(
-  op: '+' | '-' | '*' | '/',
-  left: PriceExpr | string,
-  right: PriceExpr | string,
-): PriceExpr {
-  return {
-    kind: 'binary',
-    op,
-    left: typeof left === 'string' ? series(left) : left,
-    right: typeof right === 'string' ? series(right) : right,
-  }
 }
 
 describe('StrategyEditor — indicadores (§1.8)', () => {

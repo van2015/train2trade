@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { Fill } from '@/domain/execution/fill'
-import { OrderSide } from '@/domain/execution/order'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 import { InvalidRiskError, RiskConfig, RiskManager } from '@/domain/portfolio/riskManager'
-
-const t0 = 1_700_000_000_000
-
-function buy(qty: number, price: number, time = t0, fee = 0): Fill {
-  return new Fill({ orderId: 'b', side: OrderSide.Buy, price, qty, fee, time })
-}
+import { buy } from '../../support/fills'
 
 describe('RiskManager — configuración', () => {
   it('acepta una configuración válida con defaults', () => {

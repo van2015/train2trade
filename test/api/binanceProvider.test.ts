@@ -4,27 +4,9 @@ import { MAX_CANDLES } from '@/api/candleRequest'
 import { MarketDataError } from '@/api/marketDataProvider'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
+import { jsonResponse, kline } from '../support/api'
 
 const BTC_USDT = Instrument.of('BTC', 'USDT')
-
-/** Fila de `/api/v3/klines`: [openTime, open, high, low, close, volume, ...]. */
-function kline(
-  openTime: number,
-  open = '100',
-  high = '110',
-  low = '90',
-  close = '105',
-  volume = '42',
-) {
-  return [openTime, open, high, low, close, volume, openTime + 3_599_999, '0', 1, '0', '0', '0']
-}
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  })
-}
 
 function providerWith(fetchImpl: FetchLike): BinanceProvider {
   return new BinanceProvider({ fetch: fetchImpl, baseUrl: 'https://exchange.test' })

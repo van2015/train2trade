@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
-import { IndicatorValue } from '@/domain/indicators/indicator'
 import { MarketContext, MarketContextError } from '@/domain/strategies/marketContext'
 import {
   All,
@@ -16,29 +15,18 @@ import {
   Rule,
 } from '@/domain/strategies/rules'
 import { candle } from '../../support/candles'
+import { contextWith } from '../../support/marketContext'
 
 const CANDLES: Candle[] = [candle(1000, 10), candle(2000, 11), candle(3000, 12), candle(4000, 13)]
 
 const context = MarketContext.from({ candles: CANDLES })
 
-function contextWithUpTo(
-  indicators: Record<string, (number | null)[]>,
-  count: number,
-): MarketContext {
-  const candles = CANDLES.slice(0, count)
-  const series: Record<string, IndicatorValue[]> = {}
-  for (const [id, values] of Object.entries(indicators)) {
-    series[id] = candles.map((entry, index) => ({ time: entry.time, value: values[index] ?? null }))
-  }
-  return MarketContext.from({ candles, indicators: series })
-}
-
-function contextWith(indicators: Record<string, (number | null)[]>): MarketContext {
-  return contextWithUpTo(indicators, CANDLES.length)
-}
-
 const yes: Rule = { name: 'yes', evaluate: () => true }
 const no: Rule = { name: 'no', evaluate: () => false }
+
+/** Contexto con las primeras `count` velas (prefijos anti look-ahead). */
+const contextWithUpTo = (indicators: Record<string, (number | null)[]>, count: number) =>
+  contextWith(CANDLES.slice(0, count), indicators)
 
 describe('rules', () => {
   describe('resolveRef', () => {
@@ -48,7 +36,7 @@ describe('rules', () => {
     })
 
     it('alias → valor del contexto en la vela actual y en la anterior', () => {
-      const withFast = contextWith({ fast: [1, 1, 1, 3] })
+      const withFast = contextWith(CANDLES, { fast: [1, 1, 1, 3] })
 
       expect(resolveRef(withFast, 'fast')).toBe(3)
       expect(resolveRef(withFast, 'fast', 1)).toBe(1)
@@ -59,7 +47,7 @@ describe('rules', () => {
     })
 
     it('back negativo con alias → RangeError', () => {
-      const withFast = contextWith({ fast: [1, 1, 1, 3] })
+      const withFast = contextWith(CANDLES, { fast: [1, 1, 1, 3] })
 
       expect(() => resolveRef(withFast, 'fast', -1)).toThrow(RangeError)
     })
@@ -67,40 +55,44 @@ describe('rules', () => {
 
   describe('CrossesAbove / CrossesBelow', () => {
     it('CrossesAbove es true cuando a cruza por encima de la constante en la última vela', () => {
-      const withFast = contextWith({ fast: [1, 1, 1, 3] })
+      const withFast = contextWith(CANDLES, { fast: [1, 1, 1, 3] })
 
       expect(new CrossesAbove('fast', 2).evaluate(withFast)).toBe(true)
     })
 
     it('sin cruce (siempre por encima o siempre por debajo) → false', () => {
-      expect(new CrossesAbove('fast', 2).evaluate(contextWith({ fast: [3, 3, 3, 3] }))).toBe(false)
-      expect(new CrossesAbove('fast', 2).evaluate(contextWith({ fast: [1, 1, 1, 1] }))).toBe(false)
+      expect(
+        new CrossesAbove('fast', 2).evaluate(contextWith(CANDLES, { fast: [3, 3, 3, 3] })),
+      ).toBe(false)
+      expect(
+        new CrossesAbove('fast', 2).evaluate(contextWith(CANDLES, { fast: [1, 1, 1, 1] })),
+      ).toBe(false)
     })
 
     it('un cruce por debajo no dispara CrossesAbove, y viceversa sí dispara CrossesBelow', () => {
-      const withFast = contextWith({ fast: [3, 3, 3, 1] })
+      const withFast = contextWith(CANDLES, { fast: [3, 3, 3, 1] })
 
       expect(new CrossesAbove('fast', 2).evaluate(withFast)).toBe(false)
       expect(new CrossesBelow('fast', 2).evaluate(withFast)).toBe(true)
     })
 
     it('cruce entre dos alias de indicadores', () => {
-      const withSeries = contextWith({ fast: [1, 1, 1, 3], slow: [2, 2, 2, 2] })
+      const withSeries = contextWith(CANDLES, { fast: [1, 1, 1, 3], slow: [2, 2, 2, 2] })
 
       expect(new CrossesAbove('fast', 'slow').evaluate(withSeries)).toBe(true)
     })
 
     it('calentamiento (null en la actual o en la anterior) → false', () => {
-      expect(new CrossesAbove('fast', 2).evaluate(contextWith({ fast: [1, 1, 3, null] }))).toBe(
-        false,
-      )
-      expect(new CrossesAbove('fast', 2).evaluate(contextWith({ fast: [1, 1, null, 3] }))).toBe(
-        false,
-      )
+      expect(
+        new CrossesAbove('fast', 2).evaluate(contextWith(CANDLES, { fast: [1, 1, 3, null] })),
+      ).toBe(false)
+      expect(
+        new CrossesAbove('fast', 2).evaluate(contextWith(CANDLES, { fast: [1, 1, null, 3] })),
+      ).toBe(false)
     })
 
     it('cruce desde la igualdad (prev = b, curr > b) → true', () => {
-      const withFast = contextWith({ fast: [1, 1, 2, 3] })
+      const withFast = contextWith(CANDLES, { fast: [1, 1, 2, 3] })
 
       expect(new CrossesAbove('fast', 2).evaluate(withFast)).toBe(true)
     })
@@ -108,25 +100,41 @@ describe('rules', () => {
 
   describe('Greater / Lower', () => {
     it('Greater: true con a > b; false con a <= b o dato faltante', () => {
-      expect(new Greater('rsi', 30).evaluate(contextWith({ rsi: [50, 50, 50, 75] }))).toBe(true)
-      expect(new Greater('rsi', 30).evaluate(contextWith({ rsi: [50, 50, 50, 25] }))).toBe(false)
-      expect(new Greater('rsi', 30).evaluate(contextWith({ rsi: [50, 50, 50, null] }))).toBe(false)
+      expect(new Greater('rsi', 30).evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, 75] }))).toBe(
+        true,
+      )
+      expect(new Greater('rsi', 30).evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, 25] }))).toBe(
+        false,
+      )
+      expect(
+        new Greater('rsi', 30).evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, null] })),
+      ).toBe(false)
     })
 
     it('Lower: true con a < b; false con a >= b o dato faltante', () => {
-      expect(new Lower('rsi', 30).evaluate(contextWith({ rsi: [50, 50, 50, 25] }))).toBe(true)
-      expect(new Lower('rsi', 30).evaluate(contextWith({ rsi: [50, 50, 50, 75] }))).toBe(false)
-      expect(new Lower('rsi', 30).evaluate(contextWith({ rsi: [50, 50, 50, null] }))).toBe(false)
+      expect(new Lower('rsi', 30).evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, 25] }))).toBe(
+        true,
+      )
+      expect(new Lower('rsi', 30).evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, 75] }))).toBe(
+        false,
+      )
+      expect(new Lower('rsi', 30).evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, null] }))).toBe(
+        false,
+      )
     })
 
     it('Equals: true con igualdad exacta; false con desviación o dato faltante', () => {
       const rule = new Equals('low', 'min100')
 
-      expect(rule.evaluate(contextWith({ low: [1, 1, 1, 5], min100: [1, 1, 1, 5] }))).toBe(true)
-      expect(rule.evaluate(contextWith({ low: [1, 1, 1, 5], min100: [1, 1, 1, 4.999999] }))).toBe(
-        false,
+      expect(rule.evaluate(contextWith(CANDLES, { low: [1, 1, 1, 5], min100: [1, 1, 1, 5] }))).toBe(
+        true,
       )
-      expect(rule.evaluate(contextWith({ low: [1, 1, 1, 5], min100: [1, 1, 1, null] }))).toBe(false)
+      expect(
+        rule.evaluate(contextWith(CANDLES, { low: [1, 1, 1, 5], min100: [1, 1, 1, 4.999999] })),
+      ).toBe(false)
+      expect(
+        rule.evaluate(contextWith(CANDLES, { low: [1, 1, 1, 5], min100: [1, 1, 1, null] })),
+      ).toBe(false)
     })
   })
 
@@ -187,43 +195,43 @@ describe('rules', () => {
     const signal = atValue('signal', 1)
 
     it('false si `then` no se cumple en la vela actual (camino corto)', () => {
-      const ctx = contextWith({ anchor: [1, 0, 0, 0], signal: [0, 0, 0, 0] })
+      const ctx = contextWith(CANDLES, { anchor: [1, 0, 0, 0], signal: [0, 0, 0, 0] })
 
       expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(false)
     })
 
     it('true en la primera `then` posterior al ancla', () => {
-      const ctx = contextWith({ anchor: [1, 0, 0, 0], signal: [0, 0, 0, 1] })
+      const ctx = contextWith(CANDLES, { anchor: [1, 0, 0, 0], signal: [0, 0, 0, 1] })
 
       expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(true)
     })
 
     it('false si ya hubo una `then` entre el ancla y la vela actual', () => {
-      const ctx = contextWith({ anchor: [1, 0, 0, 0], signal: [0, 1, 0, 1] })
+      const ctx = contextWith(CANDLES, { anchor: [1, 0, 0, 0], signal: [0, 1, 0, 1] })
 
       expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(false)
     })
 
     it('el ancla en la propia vela actual → true (hueco vacío)', () => {
-      const ctx = contextWith({ anchor: [0, 0, 0, 1], signal: [0, 0, 0, 1] })
+      const ctx = contextWith(CANDLES, { anchor: [0, 0, 0, 1], signal: [0, 0, 0, 1] })
 
       expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(true)
     })
 
     it('sin ancla en toda la ventana → false', () => {
-      const ctx = contextWith({ anchor: [0, 0, 0, 0], signal: [0, 0, 0, 1] })
+      const ctx = contextWith(CANDLES, { anchor: [0, 0, 0, 0], signal: [0, 0, 0, 1] })
 
       expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(false)
     })
 
     it('un ancla nuevo borra las `then` anteriores (re-ancla)', () => {
-      const ctx = contextWith({ anchor: [0, 0, 1, 0], signal: [1, 0, 0, 1] })
+      const ctx = contextWith(CANDLES, { anchor: [0, 0, 1, 0], signal: [1, 0, 0, 1] })
 
       expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(true)
     })
 
     it('calentamiento (null en la vela actual) → false', () => {
-      const ctx = contextWith({ anchor: [1, 0, 0, 0], signal: [0, 0, 0, null] })
+      const ctx = contextWith(CANDLES, { anchor: [1, 0, 0, 0], signal: [0, 0, 0, null] })
 
       expect(new FirstSince(anchor, signal).evaluate(ctx)).toBe(false)
     })
@@ -231,13 +239,13 @@ describe('rules', () => {
     it('sin look-ahead: evaluado en una vista desplazada equivale al prefijo', () => {
       const values = { anchor: [1, 0, 0, 0], signal: [0, 0, 1, 1] }
       const rule = new FirstSince(anchor, signal)
-      const displaced = contextWith(values).at(1) // vela 3000 (índice 2)
+      const displaced = contextWith(CANDLES, values).at(1) // vela 3000 (índice 2)
       const prefix = contextWithUpTo(values, 3)
 
       expect(rule.evaluate(displaced)).toBe(true)
       expect(rule.evaluate(displaced)).toBe(rule.evaluate(prefix))
       // En la vela completa (índice 3) ya no sería la primera: el futuro no cuenta.
-      expect(rule.evaluate(contextWith(values))).toBe(false)
+      expect(rule.evaluate(contextWith(CANDLES, values))).toBe(false)
     })
 
     it('name → "firstSince(ancla, condición)" (observabilidad)', () => {

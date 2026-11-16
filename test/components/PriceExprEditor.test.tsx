@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { PriceExprEditor } from '@/components/PriceExprEditor'
 import { PriceExpr, series, times } from '@/domain/strategies/priceExpr'
+import { bin } from '../support/priceExpr'
 
 const OPTIONS = ['close', 'fast', 'slow', 'umbral', 'entry']
 
@@ -41,20 +42,6 @@ function renderEditor(
 
 function field(container: ReturnType<typeof within>, name: string): HTMLElement {
   return container.getByLabelText(name)
-}
-
-/** Fixture de expresión binaria: `bin('+', series('fast'), series('slow'))`. */
-function bin(
-  op: '+' | '-' | '*' | '/',
-  left: PriceExpr | string,
-  right: PriceExpr | string,
-): PriceExpr {
-  return {
-    kind: 'binary',
-    op,
-    left: typeof left === 'string' ? series(left) : left,
-    right: typeof right === 'string' ? series(right) : right,
-  }
 }
 
 describe('PriceExprEditor — forma plana suma de productos (enmienda 15)', () => {

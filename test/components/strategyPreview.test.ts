@@ -8,12 +8,13 @@ import {
 } from '@/components/strategyPreview'
 import { Candle } from '@/domain/candles/candle'
 import { Rsi } from '@/domain/indicators/rsi'
-import { PriceExpr, series } from '@/domain/strategies/priceExpr'
+import { series } from '@/domain/strategies/priceExpr'
 import {
   buildStrategy,
   InvalidStrategyDefinitionError,
   StrategySpec,
 } from '@/domain/strategies/spec'
+import { bin } from '../support/priceExpr'
 
 const T0 = 1_700_000_000_000
 
@@ -46,20 +47,6 @@ function baseSpec(overrides: Partial<StrategySpec> = {}): StrategySpec {
       execution: 'market',
     },
     ...overrides,
-  }
-}
-
-/** Fixture de expresión binaria: `bin('+', 'entry', 'off')`. */
-function bin(
-  op: '+' | '-' | '*' | '/',
-  left: PriceExpr | string,
-  right: PriceExpr | string,
-): PriceExpr {
-  return {
-    kind: 'binary',
-    op,
-    left: typeof left === 'string' ? series(left) : left,
-    right: typeof right === 'string' ? series(right) : right,
   }
 }
 
