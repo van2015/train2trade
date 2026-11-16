@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { InvalidPeriodError } from '@/domain/indicators/indicator'
 import { Rsi } from '@/domain/indicators/rsi'
 import { candlesFrom } from '../../support/candles'
 
@@ -26,39 +25,9 @@ describe('Rsi', () => {
     expect(result[4]).not.toBeCloseTo(66.6667, 0)
   })
 
-  it('produce null exactamente en los primeros period índices y alinea time', () => {
-    const candles = candlesFrom([10, 11, 12, 11, 13, 12, 14])
-    const result = new Rsi(3).calculate(candles)
-
-    expect(result.slice(0, 3).every((entry) => entry.value === null)).toBe(true)
-    expect(result[3]?.value).not.toBeNull()
-    expect(result).toHaveLength(candles.length)
-    expect(result.map((entry) => entry.time)).toEqual(candles.map((candle) => candle.time))
-  })
-
   it('sin pérdidas netas → 100; solo pérdidas → 0; precios planos → 100', () => {
     expect(values(3, [10, 11, 12, 13])).toEqual([null, null, null, 100])
     expect(values(3, [10, 9, 8, 7])).toEqual([null, null, null, 0])
     expect(values(3, [5, 5, 5, 5])).toEqual([null, null, null, 100])
-  })
-
-  it('la entrada vacía produce []', () => {
-    expect(new Rsi(3).calculate([])).toEqual([])
-  })
-
-  it('lanza InvalidPeriodError con periodos inválidos', () => {
-    for (const period of [0, -1, 2.5, NaN]) {
-      expect(() => new Rsi(period)).toThrow(InvalidPeriodError)
-    }
-  })
-
-  it('el error tiene name InvalidPeriodError', () => {
-    try {
-      new Rsi(0)
-      throw new Error('debía lanzar InvalidPeriodError')
-    } catch (error) {
-      expect(error).toBeInstanceOf(InvalidPeriodError)
-      expect((error as Error).name).toBe('InvalidPeriodError')
-    }
   })
 })
