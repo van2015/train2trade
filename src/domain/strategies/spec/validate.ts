@@ -1,3 +1,4 @@
+import { isRecord } from '@/domain/guards'
 import { isUnitFraction } from '@/domain/numbers'
 import { assertPriceExpr } from '@/domain/strategies/priceExpr'
 import { InvalidStrategyDefinitionError, OrderExecution } from '@/domain/strategies/strategy'
@@ -254,8 +255,4 @@ function assertAlias(value: unknown, field: string): asserts value is string {
       value,
     )
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

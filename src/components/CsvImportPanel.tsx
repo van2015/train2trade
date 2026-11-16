@@ -9,7 +9,7 @@ const TIMESTAMP_FORMATS: readonly { value: CsvTimestampFormat; label: string }[]
 ]
 
 /** Lee un fichero como texto. Usa `FileReader` (disponible también en jsdom). */
-export function readFileText(file: File): Promise<string> {
+function readFileText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result ?? ''))

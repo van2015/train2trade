@@ -65,11 +65,11 @@ class RsiAccumulator {
       this.avgLoss = (this.avgLoss * (this.period - 1) + loss) / this.period
     }
 
-    return rsiFrom(this.avgGain, this.avgLoss)
+    return this.rsiFrom(this.avgGain, this.avgLoss)
   }
-}
 
-function rsiFrom(avgGain: number, avgLoss: number): number {
-  if (avgLoss === 0) return 100
-  return 100 - 100 / (1 + avgGain / avgLoss)
+  private rsiFrom(avgGain: number, avgLoss: number): number {
+    if (avgLoss === 0) return 100
+    return 100 - 100 / (1 + avgGain / avgLoss)
+  }
 }

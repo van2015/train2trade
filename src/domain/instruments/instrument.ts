@@ -8,13 +8,6 @@ export class InvalidInstrumentError extends DomainError {
   }
 }
 
-/** Trim + mayúsculas, solo `[A-Z0-9]`; `null` si no es válida. */
-function normalizePart(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const part = value.trim().toUpperCase()
-  return SYMBOL_PATTERN.test(part) ? part : null
-}
-
 /**
  * Par de trading inmutable (ej. `BTC/USDT`). Internado: `from('BTC/USDT') ===
  * of('BTC', 'USDT')`. Formato wire: string canónico.
@@ -24,6 +17,13 @@ export class Instrument {
   readonly quote: string
 
   private static readonly CACHE = new Map<string, Instrument>()
+
+  /** Trim + mayúsculas, solo `[A-Z0-9]`; `null` si no es válida. */
+  private static normalizePart(value: unknown): string | null {
+    if (typeof value !== 'string') return null
+    const part = value.trim().toUpperCase()
+    return SYMBOL_PATTERN.test(part) ? part : null
+  }
 
   private constructor(base: string, quote: string) {
     this.base = base
@@ -52,11 +52,11 @@ export class Instrument {
 
   /** Desde las partes separadas; normaliza y cachea (internado). */
   static of(base: unknown, quote: unknown): Instrument {
-    const normalizedBase = normalizePart(base)
+    const normalizedBase = this.normalizePart(base)
     if (normalizedBase === null) {
       throw new InvalidInstrumentError('la base debe ser alfanumérica (letras o dígitos)', base)
     }
-    const normalizedQuote = normalizePart(quote)
+    const normalizedQuote = this.normalizePart(quote)
     if (normalizedQuote === null) {
       throw new InvalidInstrumentError('la quote debe ser alfanumérica (letras o dígitos)', quote)
     }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { describeError } from '@/components/errorText'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { MarketReplayEngine } from '@/domain/replay/replayEngine'
@@ -28,10 +29,6 @@ const STRATEGY_LABELS: Record<StrategyState, string> = {
 
 /** Entradas del log que se pintan (el dominio guarda todas). */
 const VISIBLE_LOG_ENTRIES = 100
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
 
 /**
  * Panel de replay interactivo (Fase 5, §7B, UI mínima): formulario de la demo

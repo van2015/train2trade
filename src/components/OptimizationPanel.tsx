@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { describeError } from '@/components/errorText'
 import {
   MAX_OPTIMIZATION_RUNS,
   runOptimization,
@@ -46,10 +47,6 @@ function parametricIndicators(
 /** Rango por defecto centrado en el periodo declarado (±4 con paso 1). */
 function defaultRange(period: number): RangeFields {
   return { from: String(Math.max(1, period - 4)), to: String(period + 4), step: '1' }
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 /** Reúne los values por alias; el primer rango inválido aborta con su error. */

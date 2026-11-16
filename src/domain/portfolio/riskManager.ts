@@ -29,11 +29,6 @@ const EXPOSURE_EPSILON = 1e-9
  */
 const QTY_PRECISION = 12
 
-function roundDownQty(qty: number): number {
-  const factor = 10 ** QTY_PRECISION
-  return Math.floor(qty * factor) / factor
-}
-
 /**
  * Gestión de riesgo (§8): decide el **tamaño** de las entradas y aprueba los
  * aumentos, con independencia de las reglas de la estrategia. La estrategia
@@ -52,7 +47,7 @@ export class RiskManager {
 
   constructor(config: RiskConfig = {}) {
     const { maxPositionFraction = 1, minCashReserve = 0, feeBps = 0, slippageBps = 0 } = config
-    assertRiskConfig({ maxPositionFraction, minCashReserve, feeBps, slippageBps })
+    this.assertRiskConfig({ maxPositionFraction, minCashReserve, feeBps, slippageBps })
 
     this.maxPositionFraction = maxPositionFraction
     this.minCashReserve = minCashReserve
@@ -86,7 +81,7 @@ export class RiskManager {
    * admisible).
    */
   entryQty(portfolio: Portfolio, price: number): number | null {
-    assertPositive(price, 'price')
+    this.assertPositive(price, 'price')
 
     const equity = portfolio.equity(price)
     const funds = Math.min(
@@ -95,7 +90,7 @@ export class RiskManager {
     )
     if (funds <= 0) return null
 
-    const qty = roundDownQty(funds / this.unitCost(price))
+    const qty = this.roundDownQty(funds / this.unitCost(price))
     return qty > 0 ? qty : null
   }
 
@@ -106,8 +101,8 @@ export class RiskManager {
    * tras la reserva, descontada la comisión estimada. `null` si no es admisible.
    */
   addQty(portfolio: Portfolio, price: number, fraction: number): number | null {
-    assertPositive(price, 'price')
-    assertFraction(fraction, 'fraction')
+    this.assertPositive(price, 'price')
+    this.assertFraction(fraction, 'fraction')
 
     const equity = portfolio.equity(price)
     const headroom = equity * this.maxPositionFraction - portfolio.exposure(price)
@@ -115,7 +110,7 @@ export class RiskManager {
     const budget = Math.min(headroom, cashAvailable) * fraction
     if (budget <= 0) return null
 
-    const qty = roundDownQty(budget / this.unitCost(price))
+    const qty = this.roundDownQty(budget / this.unitCost(price))
     return qty > 0 ? qty : null
   }
 
@@ -124,8 +119,8 @@ export class RiskManager {
    * romper la reserva de efectivo ni el máximo de exposición?
    */
   canAdd(portfolio: Portfolio, price: number, qty: number): boolean {
-    assertPositive(price, 'price')
-    assertPositive(qty, 'qty')
+    this.assertPositive(price, 'price')
+    this.assertPositive(qty, 'qty')
 
     const equity = portfolio.equity(price)
     const cost = this.unitCost(price) * qty
@@ -134,47 +129,57 @@ export class RiskManager {
     const exposureAfter = portfolio.exposure(price) + price * qty
     return exposureAfter <= equity * this.maxPositionFraction + EXPOSURE_EPSILON
   }
-}
 
-/** Valida la config con defaults ya resueltos; lanza `InvalidRiskError`. */
-function assertRiskConfig(config: Required<RiskConfig>): void {
-  const { maxPositionFraction, minCashReserve, feeBps, slippageBps } = config
+  /**
+   * Decimales de cantidad (punto abierto #2 del plan): redondear hacia abajo
+   * garantiza que el coste de la orden no supere el presupuesto por FP (p. ej.
+   * `1000/95 * 95 > 1000`). Un exchange real usaría pasos de precisión mayores.
+   */
+  private roundDownQty(qty: number): number {
+    const factor = 10 ** QTY_PRECISION
+    return Math.floor(qty * factor) / factor
+  }
 
-  if (
-    typeof maxPositionFraction !== 'number' ||
-    !Number.isFinite(maxPositionFraction) ||
-    maxPositionFraction <= 0 ||
-    maxPositionFraction > 1
-  ) {
-    throw new InvalidRiskError(
-      'maxPositionFraction debe ser un número en (0, 1]',
-      maxPositionFraction,
-    )
-  }
-  if (
-    typeof minCashReserve !== 'number' ||
-    !Number.isFinite(minCashReserve) ||
-    minCashReserve < 0 ||
-    minCashReserve >= 1
-  ) {
-    throw new InvalidRiskError('minCashReserve debe ser un número en [0, 1)', minCashReserve)
-  }
-  if (typeof feeBps !== 'number' || !Number.isFinite(feeBps) || feeBps < 0) {
-    throw new InvalidRiskError('feeBps debe ser un número finito >= 0', feeBps)
-  }
-  if (typeof slippageBps !== 'number' || !Number.isFinite(slippageBps) || slippageBps < 0) {
-    throw new InvalidRiskError('slippageBps debe ser un número finito >= 0', slippageBps)
-  }
-}
+  /** Valida la config con defaults ya resueltos; lanza `InvalidRiskError`. */
+  private assertRiskConfig(config: Required<RiskConfig>): void {
+    const { maxPositionFraction, minCashReserve, feeBps, slippageBps } = config
 
-function assertPositive(value: number, label: string): void {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-    throw new InvalidRiskError(`${label} debe ser un número finito > 0`, value)
+    if (
+      typeof maxPositionFraction !== 'number' ||
+      !Number.isFinite(maxPositionFraction) ||
+      maxPositionFraction <= 0 ||
+      maxPositionFraction > 1
+    ) {
+      throw new InvalidRiskError(
+        'maxPositionFraction debe ser un número en (0, 1]',
+        maxPositionFraction,
+      )
+    }
+    if (
+      typeof minCashReserve !== 'number' ||
+      !Number.isFinite(minCashReserve) ||
+      minCashReserve < 0 ||
+      minCashReserve >= 1
+    ) {
+      throw new InvalidRiskError('minCashReserve debe ser un número en [0, 1)', minCashReserve)
+    }
+    if (typeof feeBps !== 'number' || !Number.isFinite(feeBps) || feeBps < 0) {
+      throw new InvalidRiskError('feeBps debe ser un número finito >= 0', feeBps)
+    }
+    if (typeof slippageBps !== 'number' || !Number.isFinite(slippageBps) || slippageBps < 0) {
+      throw new InvalidRiskError('slippageBps debe ser un número finito >= 0', slippageBps)
+    }
   }
-}
 
-function assertFraction(value: number, label: string): void {
-  if (!isUnitFraction(value)) {
-    throw new InvalidRiskError(`${label} debe ser un número en (0, 1]`, value)
+  private assertPositive(value: number, label: string): void {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+      throw new InvalidRiskError(`${label} debe ser un número finito > 0`, value)
+    }
+  }
+
+  private assertFraction(value: number, label: string): void {
+    if (!isUnitFraction(value)) {
+      throw new InvalidRiskError(`${label} debe ser un número en (0, 1]`, value)
+    }
   }
 }

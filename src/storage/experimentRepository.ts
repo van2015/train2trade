@@ -1,6 +1,7 @@
 import { ExperimentSnapshot } from '@/domain/backtest/experiment'
 import { Trade, TradeData } from '@/domain/execution/trade'
 import { Timeframe } from '@/domain/candles/timeframe'
+import { isFiniteNumber, isPositiveNumber, isRecord } from '@/domain/guards'
 import { CorruptedStorageError } from '@/storage/errors'
 
 /** Prefijo de claves (convive con `candles:` en el mismo Storage). */
@@ -45,7 +46,7 @@ export class ExperimentRepository {
     const key = `${KEY_PREFIX}${id}`
     const raw = this.storage.getItem(key)
     if (raw === null) return null
-    return parseSnapshot(raw, key)
+    return this.parseSnapshot(raw, key)
   }
 
   /** Todos los snapshots: `period.from` descendente; empate por `id` ascendente. */
@@ -55,9 +56,9 @@ export class ExperimentRepository {
       if (!key.startsWith(KEY_PREFIX)) continue
       const raw = this.storage.getItem(key)
       if (raw === null) continue
-      snapshots.push(parseSnapshot(raw, key))
+      snapshots.push(this.parseSnapshot(raw, key))
     }
-    return snapshots.sort(byPeriodThenId)
+    return snapshots.sort((a, b) => this.byPeriodThenId(a, b))
   }
 
   /** Borra la clave. `true` si había un snapshot. */
@@ -83,106 +84,94 @@ export class ExperimentRepository {
     }
     return keys
   }
-}
 
-/** Orden determinista: `period.from` descendente; empate por `id` ascendente. */
-function byPeriodThenId(a: ExperimentSnapshot, b: ExperimentSnapshot): number {
-  if (a.period.from !== b.period.from) return b.period.from - a.period.from
-  if (a.id === b.id) return 0
-  return a.id < b.id ? -1 : 1
-}
-
-/** Parsea y valida un snapshot del storage; cualquier problema → `CorruptedStorageError`. */
-function parseSnapshot(raw: string, key: string): ExperimentSnapshot {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch (error) {
-    throw new CorruptedStorageError('el JSON no es válido', key, error)
+  /** Orden determinista: `period.from` descendente; empate por `id` ascendente. */
+  private byPeriodThenId(a: ExperimentSnapshot, b: ExperimentSnapshot): number {
+    if (a.period.from !== b.period.from) return b.period.from - a.period.from
+    if (a.id === b.id) return 0
+    return a.id < b.id ? -1 : 1
   }
 
-  if (!isSnapshotShape(parsed)) {
-    throw new CorruptedStorageError('el snapshot no tiene la forma esperada', key, parsed)
+  /** Parsea y valida un snapshot del storage; cualquier problema → `CorruptedStorageError`. */
+  private parseSnapshot(raw: string, key: string): ExperimentSnapshot {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch (error) {
+      throw new CorruptedStorageError('el JSON no es válido', key, error)
+    }
+
+    if (!this.isSnapshotShape(parsed)) {
+      throw new CorruptedStorageError('el snapshot no tiene la forma esperada', key, parsed)
+    }
+
+    try {
+      return { ...parsed, trades: parsed.trades.map((trade) => Trade.from(trade)) }
+    } catch (error) {
+      throw new CorruptedStorageError('el snapshot contiene trades inválidos', key, error)
+    }
   }
 
-  try {
-    return { ...parsed, trades: parsed.trades.map((trade) => Trade.from(trade)) }
-  } catch (error) {
-    throw new CorruptedStorageError('el snapshot contiene trades inválidos', key, error)
+  /** Forma mínima del snapshot: tipos correctos; los trades se validan en `Trade.from`. */
+  private isSnapshotShape(value: unknown): value is SnapshotData {
+    if (!isRecord(value)) return false
+
+    return (
+      typeof value.id === 'string' &&
+      value.id !== '' &&
+      typeof value.strategyId === 'string' &&
+      typeof value.fingerprint === 'string' &&
+      (value.instrument === null || typeof value.instrument === 'string') &&
+      typeof value.timeframe === 'string' &&
+      Timeframe.isCode(value.timeframe) &&
+      this.isPeriod(value.period) &&
+      isPositiveNumber(value.initialCapital) &&
+      this.isExecution(value.execution) &&
+      this.isRisk(value.risk) &&
+      this.isMetrics(value.metrics) &&
+      isFiniteNumber(value.finalEquity) &&
+      this.isEquityCurve(value.equityCurve) &&
+      Array.isArray(value.trades) &&
+      value.trades.every((trade) => isRecord(trade))
+    )
   }
-}
 
-/** Forma mínima del snapshot: tipos correctos; los trades se validan en `Trade.from`. */
-function isSnapshotShape(value: unknown): value is SnapshotData {
-  if (!isRecord(value)) return false
+  private isPeriod(value: unknown): boolean {
+    return isRecord(value) && isFiniteNumber(value.from) && isFiniteNumber(value.to)
+  }
 
-  return (
-    typeof value.id === 'string' &&
-    value.id !== '' &&
-    typeof value.strategyId === 'string' &&
-    typeof value.fingerprint === 'string' &&
-    (value.instrument === null || typeof value.instrument === 'string') &&
-    typeof value.timeframe === 'string' &&
-    Timeframe.isCode(value.timeframe) &&
-    isPeriod(value.period) &&
-    isPositiveNumber(value.initialCapital) &&
-    isExecution(value.execution) &&
-    isRisk(value.risk) &&
-    isMetrics(value.metrics) &&
-    isFiniteNumber(value.finalEquity) &&
-    isEquityCurve(value.equityCurve) &&
-    Array.isArray(value.trades) &&
-    value.trades.every((trade) => isRecord(trade))
-  )
-}
+  private isExecution(value: unknown): boolean {
+    return (
+      isRecord(value) &&
+      isFiniteNumber(value.slippageBps) &&
+      isFiniteNumber(value.feeBps) &&
+      value.slippageBps >= 0 &&
+      value.feeBps >= 0
+    )
+  }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+  private isRisk(value: unknown): boolean {
+    return (
+      isRecord(value) &&
+      isFiniteNumber(value.maxPositionFraction) &&
+      isFiniteNumber(value.minCashReserve) &&
+      isFiniteNumber(value.feeBps) &&
+      isFiniteNumber(value.slippageBps)
+    )
+  }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
-}
+  private isMetrics(value: unknown): boolean {
+    if (!isRecord(value)) return false
+    return METRIC_KEYS.every((key) => {
+      const metric = value[key]
+      return metric === null || isFiniteNumber(metric)
+    })
+  }
 
-function isPositiveNumber(value: unknown): value is number {
-  return isFiniteNumber(value) && value > 0
-}
-
-function isPeriod(value: unknown): boolean {
-  return isRecord(value) && isFiniteNumber(value.from) && isFiniteNumber(value.to)
-}
-
-function isExecution(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    isFiniteNumber(value.slippageBps) &&
-    isFiniteNumber(value.feeBps) &&
-    value.slippageBps >= 0 &&
-    value.feeBps >= 0
-  )
-}
-
-function isRisk(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    isFiniteNumber(value.maxPositionFraction) &&
-    isFiniteNumber(value.minCashReserve) &&
-    isFiniteNumber(value.feeBps) &&
-    isFiniteNumber(value.slippageBps)
-  )
-}
-
-function isMetrics(value: unknown): boolean {
-  if (!isRecord(value)) return false
-  return METRIC_KEYS.every((key) => {
-    const metric = value[key]
-    return metric === null || isFiniteNumber(metric)
-  })
-}
-
-function isEquityCurve(value: unknown): boolean {
-  if (!Array.isArray(value)) return false
-  return value.every(
-    (point) => isRecord(point) && isFiniteNumber(point.time) && isFiniteNumber(point.equity),
-  )
+  private isEquityCurve(value: unknown): boolean {
+    if (!Array.isArray(value)) return false
+    return value.every(
+      (point) => isRecord(point) && isFiniteNumber(point.time) && isFiniteNumber(point.equity),
+    )
+  }
 }

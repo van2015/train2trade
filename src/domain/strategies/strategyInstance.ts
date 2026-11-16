@@ -64,9 +64,9 @@ export class StrategyInstance {
   /** Acción no aplicable al estado → `InvalidStrategyTransitionError` (bug de integración). */
   apply(decision: StrategyDecision): StrategyTransition {
     const from = this.current
-    const to = nextState(decision.action, from)
+    const to = this.nextState(decision.action, from)
     this.current = to
-    return { from, to, changed: from !== to, event: eventFor(decision.action, from, to) }
+    return { from, to, changed: from !== to, event: this.eventFor(decision.action, from, to) }
   }
 
   /** Relleno de la orden pendiente (lo notifica la ejecución); sin orden pendiente → error. */
@@ -93,6 +93,23 @@ export class StrategyInstance {
       changed: true,
       event: from === StrategyState.WaitingForEntryFill ? 'PositionOpened' : 'PositionClosed',
     }
+  }
+
+  private nextState(action: StrategyAction, from: StrategyState): StrategyState {
+    const to = TRANSITIONS[from][action]
+    if (to === undefined) {
+      throw new InvalidStrategyTransitionError(`${action} no es aplicable desde "${from}"`, action)
+    }
+    return to
+  }
+
+  private eventFor(
+    action: StrategyAction,
+    from: StrategyState,
+    to: StrategyState,
+  ): StrategyEvent | null {
+    if (from === to) return null
+    return EVENTS[action] ?? null
   }
 }
 
@@ -127,25 +144,8 @@ const TRANSITIONS: Record<StrategyState, Partial<Record<StrategyAction, Strategy
   },
 }
 
-function nextState(action: StrategyAction, from: StrategyState): StrategyState {
-  const to = TRANSITIONS[from][action]
-  if (to === undefined) {
-    throw new InvalidStrategyTransitionError(`${action} no es aplicable desde "${from}"`, action)
-  }
-  return to
-}
-
 const EVENTS: Partial<Record<StrategyAction, StrategyEvent>> = {
   [StrategyAction.RequestEntry]: 'StrategyConfirmed',
   [StrategyAction.Invalidate]: 'EntryCancelled',
   [StrategyAction.RequestExit]: 'ExitRequested',
-}
-
-function eventFor(
-  action: StrategyAction,
-  from: StrategyState,
-  to: StrategyState,
-): StrategyEvent | null {
-  if (from === to) return null
-  return EVENTS[action] ?? null
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { MarketDataProvider, TimeRange } from '@/api/marketDataProvider'
+import { describeError } from '@/components/errorText'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Experiment, ExperimentSnapshot } from '@/domain/backtest/experiment'
@@ -46,10 +47,6 @@ export interface AppProps {
 }
 
 type Status = { kind: 'success' | 'error'; text: string } | null
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
 
 /** localStorage del navegador; inaccesible (sandbox/cuota) → null y la UI sigue en memoria. */
 function browserStorage(): Storage | null {

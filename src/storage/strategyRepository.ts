@@ -91,7 +91,7 @@ export class StrategyRepository {
     const key = `${KEY_PREFIX}${id}`
     const raw = this.storage.getItem(key)
     if (raw === null) return null
-    return { id, ...parseSpec(raw, key) }
+    return { id, ...this.parseSpec(raw, key) }
   }
 
   /**
@@ -106,12 +106,12 @@ export class StrategyRepository {
       const raw = this.storage.getItem(key)
       if (raw === null) continue
       try {
-        snapshots.push({ id: key.slice(KEY_PREFIX.length), ...parseSpec(raw, key) })
+        snapshots.push({ id: key.slice(KEY_PREFIX.length), ...this.parseSpec(raw, key) })
       } catch {
         // Corrupta: se omite aquí; la ve corruptedKeys() y la retira repair().
       }
     }
-    return snapshots.sort(byNameThenVersion)
+    return snapshots.sort((a, b) => this.byNameThenVersion(a, b))
   }
 
   /** Claves de estrategias ilegibles (JSON o forma), en orden de storage. */
@@ -122,7 +122,7 @@ export class StrategyRepository {
       const raw = this.storage.getItem(key)
       if (raw === null) continue
       try {
-        parseSpec(raw, key)
+        this.parseSpec(raw, key)
       } catch {
         corrupted.push(key)
       }
@@ -175,28 +175,28 @@ export class StrategyRepository {
     }
     return keys
   }
-}
 
-/** Parsea y valida un spec del storage; cualquier problema → `CorruptedStorageError`. */
-function parseSpec(raw: string, key: string): StrategySpec {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch (error) {
-    throw new CorruptedStorageError('el JSON no es válido', key, error)
+  /** Parsea y valida un spec del storage; cualquier problema → `CorruptedStorageError`. */
+  private parseSpec(raw: string, key: string): StrategySpec {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch (error) {
+      throw new CorruptedStorageError('el JSON no es válido', key, error)
+    }
+
+    try {
+      return parseStrategySpec(parsed)
+    } catch (error) {
+      throw new CorruptedStorageError('el spec no tiene la forma esperada', key, error)
+    }
   }
 
-  try {
-    return parseStrategySpec(parsed)
-  } catch (error) {
-    throw new CorruptedStorageError('el spec no tiene la forma esperada', key, error)
+  /** Orden determinista: `name` ascendente, `version` descendente, empate por `id`. */
+  private byNameThenVersion(a: StrategySnapshot, b: StrategySnapshot): number {
+    if (a.name !== b.name) return a.name < b.name ? -1 : 1
+    if (a.version !== b.version) return b.version - a.version
+    if (a.id === b.id) return 0
+    return a.id < b.id ? -1 : 1
   }
-}
-
-/** Orden determinista: `name` ascendente, `version` descendente, empate por `id`. */
-function byNameThenVersion(a: StrategySnapshot, b: StrategySnapshot): number {
-  if (a.name !== b.name) return a.name < b.name ? -1 : 1
-  if (a.version !== b.version) return b.version - a.version
-  if (a.id === b.id) return 0
-  return a.id < b.id ? -1 : 1
 }

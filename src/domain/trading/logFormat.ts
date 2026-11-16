@@ -8,7 +8,7 @@ import { Order, OrderSide } from '@/domain/execution/order'
  */
 
 /** Cantidad/precio legibles: 8 decimales sin ceros sobrantes (texto de log). */
-export function formatAmount(value: number): string {
+function formatAmount(value: number): string {
   return String(Number(value.toFixed(8)))
 }
 

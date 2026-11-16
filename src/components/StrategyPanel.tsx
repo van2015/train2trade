@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { describeError } from '@/components/errorText'
 import { Candle } from '@/domain/candles/candle'
 import { canonicalHash, strategyFingerprint } from '@/domain/strategies/fingerprint'
 import { buildStrategy, StrategySpec } from '@/domain/strategies/spec'
@@ -30,10 +31,6 @@ export interface StrategyPanelProps {
 const TEMPLATE: StrategySpec = { ...DEMO_STRATEGY_SPEC, name: '' }
 
 type Editing = { original: StrategySnapshot | null; spec: StrategySpec }
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
 
 /** Copia de trabajo sin `id` (el `id` es la clave hash y se recalcula al guardar). */
 function toDraft(snapshot: StrategySnapshot): StrategySpec {

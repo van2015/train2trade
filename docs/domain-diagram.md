@@ -22,8 +22,8 @@
 ## 1. Diagrama de paquetes
 
 Mermaid no incluye `packageDiagram` (es de PlantUML); se representa con `flowchart TB` + `subgraph`:
-raíz `src/domain/` — **11 subcarpetas + 2 módulos raíz** (`errors.ts`, `numbers.ts`) → tipos de cada
-paquete — y `src/storage/` (adaptador de persistencia).
+raíz `src/domain/` — **11 subcarpetas + 3 módulos raíz** (`errors.ts`, `numbers.ts`, `guards.ts`) →
+tipos de cada paquete — y `src/storage/` (adaptador de persistencia).
 
 ```mermaid
 flowchart TB
@@ -36,6 +36,10 @@ flowchart TB
 
     subgraph numbers["numbers.ts (raíz, hoja)"]
         IsUnitFraction["isUnitFraction(value)"]
+    end
+
+    subgraph guards["guards.ts (raíz, hoja)"]
+        Guards["isRecord / isFiniteNumber / isPositiveNumber"]
     end
 
     subgraph candles["candles/"]
@@ -156,6 +160,7 @@ flowchart TB
 
     Domain --> errors
     Domain --> numbers
+    Domain --> guards
     Domain --> candles
     Domain --> instruments
     Domain --> indicators
@@ -178,6 +183,7 @@ flowchart TB
     strategies -.-> indicators
     strategies -.-> errors
     strategies -.-> numbers
+    strategies -.-> guards
     execution -.-> candles
     execution -.-> errors
     portfolio -.-> execution
@@ -213,13 +219,14 @@ flowchart TB
     storage -.-> strategies
     storage -.-> backtest
     storage -.-> errors
+    storage -.-> guards
 ```
 
 - **Sólida** `──►` = pertenencia (raíz `src/domain/` o `src/storage/` → paquete).
 - **Discontinua** `- -►` = dependencia de importación (paquete → paquete del que importa).
 - Capas que emergen de arriba abajo: `replay`/`testforward` → `trading` → `strategies`/`portfolio` →
-  `execution`/`indicators` → `candles`/`instruments`/`time` → `errors` y `numbers` (dos hojas
-  raíz, abajo del todo); `storage` es la capa de adaptadores por encima de
+  `execution`/`indicators` → `candles`/`instruments`/`time` → `errors`, `numbers` y `guards` (tres
+  hojas raíz, abajo del todo); `storage` es la capa de adaptadores por encima de
   `candles`/`instruments`/`execution`/`strategies`/`backtest`.
 - **Sin ciclos**: `execution` **no** importa de `portfolio` gracias al puerto
   `Account` (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y
@@ -232,6 +239,10 @@ flowchart TB
   la capa de ejecución y ambos consumidores lo importan sin subir a `backtest`.
 - **`numbers.ts` es una hoja sin imports** (`isUnitFraction`): la comparten `strategies`,
   `portfolio` y `replay` sin que `portfolio` tenga que depender de `strategies`.
+- **`guards.ts` es una hoja sin imports** (predicados de forma `isRecord`, `isFiniteNumber`,
+  `isPositiveNumber`): la comparten `strategies` y `storage`; unifica las copias idénticas de
+  `isRecord` que vivían en `marketContext.ts`, `priceExpr.ts`, `spec/validate.ts` y
+  `experimentRepository.ts` (refactor 2026-11-16).
 
 ### Detalle de las dependencias (las mismas flechas discontinuas del diagrama)
 
@@ -239,10 +250,11 @@ flowchart TB
 | ------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `errors`      | —                                                                                     | raíz de la jerarquía de errores                                                                       |
 | `numbers`     | —                                                                                     | hoja: `isUnitFraction` compartida sin invertir dependencias                                           |
+| `guards`      | —                                                                                     | hoja: predicados de forma (`isRecord`, `isFiniteNumber`, `isPositiveNumber`) compartidos              |
 | `candles`     | `errors`                                                                              |                                                                                                       |
 | `instruments` | `errors`                                                                              |                                                                                                       |
 | `indicators`  | `candles`, `errors`                                                                   | `Sma`/`Ema`/`Rsi`/`LowestLow`/`Constant`                                                              |
-| `strategies`  | `candles`, `indicators`, `errors`, `numbers`                                          | incluye `spec/` (tipos + validate + build + aliases) y `priceExpr.ts`                                 |
+| `strategies`  | `candles`, `indicators`, `errors`, `numbers`, `guards`                                | incluye `spec/` (tipos + validate + build + aliases) y `priceExpr.ts`                                 |
 | `execution`   | `candles`, `errors`                                                                   | usa el puerto `Account` (sin dependencia de `portfolio`); contiene `Trade` y `RecordingBroker`        |
 | `portfolio`   | `execution`, `errors`, `numbers`                                                      | `Position`/`Fill`/`OrderSide` de `execution`                                                          |
 | `trading`     | `candles`, `strategies`, `execution`, `portfolio`, `time`, `errors`                   | `StrategyRunner` + `TradingSession` (motor común vela a vela, §7) + `logFormat`                       |
@@ -250,7 +262,7 @@ flowchart TB
 | `backtest`    | `candles`, `strategies`, `execution`, `instruments`, `portfolio`, `trading`, `errors` | motor + `Experiment` (§7/§9); consume `TradingSession` en `runBacktest`                               |
 | `replay`      | `trading`, `execution`, `candles`, `numbers`, `errors`                                | replay interactivo (§7B): envuelve `TradingSession` con `RecordingBroker`                             |
 | `testforward` | `trading`, `strategies`, `execution`, `candles`, `errors`                             | test-forward interactivo (§2): envuelve `TradingSession` con `TestForwardBroker`                      |
-| `storage`     | `candles`, `instruments`, `execution`, `strategies`, `backtest`, `errors`             | adaptadores con `Storage` inyectado: `CandleRepository`, `ExperimentRepository`, `StrategyRepository` |
+| `storage`     | `candles`, `instruments`, `execution`, `strategies`, `backtest`, `errors`, `guards`   | adaptadores con `Storage` inyectado: `CandleRepository`, `ExperimentRepository`, `StrategyRepository` |
 
 > El ciclo histórico `execution ↔ portfolio` se resolvió con el puerto `Account`
 > (`src/domain/execution/account.ts`): `HistoricalBroker` depende de la interfaz y `Portfolio` la
@@ -1277,31 +1289,32 @@ TP/SL, triggers y veto se ejecutan solos (§2.1.5).
 
 No son clases, pero viven en `src/domain/`:
 
-| Archivo                             | Exporta                                                                                                                                                                           |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `errors.ts`                         | `formatValue(value)`, `invalidMessage(prefix, reason, raw)`                                                                                                                       |
-| `numbers.ts`                        | `isUnitFraction(value)` — hoja compartida por `strategies`/`portfolio`/`replay`                                                                                                   |
-| `candles/normalize.ts`              | `normalizeCandles(raw)` — deduplica y ordena                                                                                                                                      |
-| `candles/pricePosition.ts`          | `assertFinitePrice(price)`                                                                                                                                                        |
-| `indicators/indicator.ts`           | `assertPeriod(period)`, `sortedByTime(candles)`                                                                                                                                   |
-| `strategies/rules.ts`               | `resolveRef(context, ref, back)` — alias o constante                                                                                                                              |
-| `strategies/priceExpr.ts`           | `series(id)`, `times(a, b)`, `formatPriceExpr(expr)`, `assertPriceExpr(expr)`, `evaluatePriceExpr(expr, context)`                                                                 |
-| `strategies/spec/types.ts`          | formas serializables: `StrategySpec`, `RuleSpec`, `IndicatorSpec`, `EntrySpec`, `TriggerSpec`, `ConditionOp`, `SeriesClass`, `SeriesClasses`, `OperationContext`, `TriggerAction` |
-| `strategies/spec/validate.ts`       | `assertStrategySpec(value)`, `parseStrategySpec(value)`, `assertRuleSpec(value)` — forma → `InvalidStrategyDefinitionError`                                                       |
-| `strategies/spec/build.ts`          | `buildStrategy(spec)`, `buildRule(spec, classes)`, `buildIndicator(spec)` — semántica → `Strategy`                                                                                |
-| `strategies/spec/aliases.ts`        | `operationAliases(context)`, `compatibleClasses(a, b)`, `seriesClasses(spec)`, `priceOperandAliases(classes, operations)`, `ruleOperandAliases(...)`, `classOfKind(kind)`         |
-| `strategies/fingerprint.ts`         | `canonicalJson(value)`, `strategyFingerprint(strategy)`, `canonicalHash(value)` (§12C)                                                                                            |
-| `execution/costs.ts`                | `withSlippage(price, bps)`, `withFee(price, bps)`, `feeFor(notional, bps)`, `BPS`                                                                                                 |
-| `execution/order.ts`                | `createOrder(spec)` — regla de tipo compartida (`null` ⇔ Market)                                                                                                                  |
-| `trading/tradingSession.ts`         | `findConfigProblem(config)` — validación compartida (§7)                                                                                                                          |
-| `trading/logFormat.ts`              | `formatAmount(v)`, `formatOrderSent(order)`, `formatManualOrderSent(order)`, `formatFill(fill, manual)`, `formatOrderRejected(...)`, `formatOrderCancelled(id)`                   |
-| `replay/speed.ts`                   | `replayIntervalMs(timeframe, speed)`, `REPLAY_SPEEDS`, `MIN_REPLAY_INTERVAL_MS`, `MAX_REPLAY_INTERVAL_MS`                                                                         |
-| `testforward/confirmationPoints.ts` | `confirmationPoints(strategy, candles)` — índices de pausa posibles (§2.2)                                                                                                        |
-| `backtest/backtest.ts`              | `runBacktest(config)`                                                                                                                                                             |
-| `backtest/compare.ts`               | `compareExperiments(snapshots)`, `rankBy(rows, metric)` (§9)                                                                                                                      |
-| `backtest/metrics.ts`               | `netProfit`, `roi`, `maxDrawdown`, `sharpe`, `profitFactor`, `winRate`, `avgTrade`, `expectancy`, `computeMetrics(input)`, además `sortByMetricDesc(items, metric)`               |
-| `backtest/optimization.ts`          | `runOptimization(config)`, `MAX_OPTIMIZATION_RUNS` (§13)                                                                                                                          |
-| `backtest/robustness.ts`            | `analyzeRobustness(result, options)` (§13)                                                                                                                                        |
+| Archivo                             | Exporta                                                                                                                                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `errors.ts`                         | `formatValue(value)`, `invalidMessage(prefix, reason, raw)`                                                                                                                            |
+| `numbers.ts`                        | `isUnitFraction(value)` — hoja compartida por `strategies`/`portfolio`/`replay`                                                                                                        |
+| `guards.ts`                         | `isRecord(value)`, `isFiniteNumber(value)`, `isPositiveNumber(value)` — predicados de forma compartidos por `strategies` y `storage`                                                   |
+| `candles/normalize.ts`              | `normalizeCandles(raw)` — deduplica y ordena                                                                                                                                           |
+| `candles/pricePosition.ts`          | `assertFinitePrice(price)`                                                                                                                                                             |
+| `indicators/indicator.ts`           | `assertPeriod(period)`, `sortedByTime(candles)`                                                                                                                                        |
+| `strategies/rules.ts`               | `resolveRef(context, ref, back)` — alias o constante                                                                                                                                   |
+| `strategies/priceExpr.ts`           | `series(id)`, `times(a, b)`, `formatPriceExpr(expr)`, `assertPriceExpr(expr)`, `evaluatePriceExpr(expr, context)`                                                                      |
+| `strategies/spec/types.ts`          | formas serializables: `StrategySpec`, `RuleSpec`, `IndicatorSpec`, `EntrySpec`, `TriggerSpec`, `ConditionOp`, `SeriesClass`, `SeriesClasses`, `OperationContext`, `TriggerAction`      |
+| `strategies/spec/validate.ts`       | `assertStrategySpec(value)`, `parseStrategySpec(value)`, `assertRuleSpec(value)` — forma → `InvalidStrategyDefinitionError`                                                            |
+| `strategies/spec/build.ts`          | `buildStrategy(spec)`, `buildRule(spec, classes)`, `buildIndicator(spec)` — semántica → `Strategy`                                                                                     |
+| `strategies/spec/aliases.ts`        | `operationAliases(context)`, `compatibleClasses(a, b)`, `seriesClasses(spec)`, `priceOperandAliases(classes, operations)`, `ruleOperandAliases(...)`, `classOfKind(kind)`              |
+| `strategies/fingerprint.ts`         | `canonicalJson(value)`, `strategyFingerprint(strategy)`, `canonicalHash(value)` (§12C)                                                                                                 |
+| `execution/costs.ts`                | `withSlippage(price, bps)`, `withFee(price, bps)`, `feeFor(notional, bps)`, `BPS`                                                                                                      |
+| `execution/order.ts`                | `createOrder(spec)` — regla de tipo compartida (`null` ⇔ Market)                                                                                                                       |
+| `trading/tradingSession.ts`         | `findConfigProblem(config)` — validación compartida (§7)                                                                                                                               |
+| `trading/logFormat.ts`              | `formatOrderSent(order)`, `formatManualOrderSent(order)`, `formatFill(fill, manual)`, `formatOrderRejected(...)`, `formatOrderCancelled(id)` (además el helper interno `formatAmount`) |
+| `replay/speed.ts`                   | `replayIntervalMs(timeframe, speed)`, `REPLAY_SPEEDS`, `MIN_REPLAY_INTERVAL_MS`, `MAX_REPLAY_INTERVAL_MS`                                                                              |
+| `testforward/confirmationPoints.ts` | `confirmationPoints(strategy, candles)` — índices de pausa posibles (§2.2)                                                                                                             |
+| `backtest/backtest.ts`              | `runBacktest(config)`                                                                                                                                                                  |
+| `backtest/compare.ts`               | `compareExperiments(snapshots)`, `rankBy(rows, metric)` (§9)                                                                                                                           |
+| `backtest/metrics.ts`               | `netProfit`, `roi`, `maxDrawdown`, `sharpe`, `profitFactor`, `winRate`, `avgTrade`, `expectancy`, `computeMetrics(input)`, además `sortByMetricDesc(items, metric)`                    |
+| `backtest/optimization.ts`          | `runOptimization(config)`, `MAX_OPTIMIZATION_RUNS` (§13)                                                                                                                               |
+| `backtest/robustness.ts`            | `analyzeRobustness(result, options)` (§13)                                                                                                                                             |
 
 Tipos (alias/DTO de construcción): `CandleFields`, `TimeframeCode`, `CsvDelimiter`,
 `CsvTimestampFormat`, `CsvColumnRef`, `CsvCandlesImporterOptions`, `SeriesRef`, `PriceSeriesRef`,

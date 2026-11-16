@@ -142,20 +142,20 @@ export class Signal {
     readonly rule: Rule,
     readonly config: SignalConfig = {},
   ) {
-    assertSignalConfig(action, config)
+    this.assertSignalConfig(action, config)
     this.name = `${action}: ${rule.name}${config.price !== undefined ? ` @ ${formatPriceExpr(config.price)}` : ''}`
   }
-}
 
-/**
- * Valida `config` según la acción: `fraction` obligatoria en add/reduce
- * (0 < f <= 1) y prohibida en el resto; `price` debe ser una expresión de
- * precio válida (sin literales numéricos). Lanza en el primer campo inválido.
- */
-function assertSignalConfig(action: SignalAction, config: SignalConfig): void {
-  const { fraction, price } = config
-  assertFraction(action, fraction)
-  if (price !== undefined) assertPriceExpr(price)
+  /**
+   * Valida `config` según la acción: `fraction` obligatoria en add/reduce
+   * (0 < f <= 1) y prohibida en el resto; `price` debe ser una expresión de
+   * precio válida (sin literales numéricos). Lanza en el primer campo inválido.
+   */
+  private assertSignalConfig(action: SignalAction, config: SignalConfig): void {
+    const { fraction, price } = config
+    assertFraction(action, fraction)
+    if (price !== undefined) assertPriceExpr(price)
+  }
 }
 
 /** Fracción obligatoria en add/reduce (0 < f <= 1), prohibida en el resto. */
@@ -219,8 +219,8 @@ export class Strategy {
     if (signals.length === 0) {
       throw new InvalidStrategyDefinitionError('se requiere al menos una señal', signals.length)
     }
-    if (takeProfit !== undefined) assertPriceLevel(takeProfit, 'takeProfit')
-    if (stopLoss !== undefined) assertPriceLevel(stopLoss, 'stopLoss')
+    if (takeProfit !== undefined) this.assertPriceLevel(takeProfit, 'takeProfit')
+    if (stopLoss !== undefined) this.assertPriceLevel(stopLoss, 'stopLoss')
 
     this.name = name
     this.version = version
@@ -263,7 +263,7 @@ export class Strategy {
       this.invalidationRule !== null && this.invalidationRule.evaluate(ctx)
         ? this.invalidationRule.name
         : null
-    if (vetoReason !== null && !open) return invalidated(vetoReason)
+    if (vetoReason !== null && !open) return this.invalidated(vetoReason)
     const vetoed = vetoReason !== null
 
     const levelExitDecision = this.firstLevelExit(ctx, levels)
@@ -275,7 +275,7 @@ export class Strategy {
     const trigger = this.firstTriggerDecision(ctx, open, vetoed)
     if (trigger !== null) return trigger
 
-    if (vetoReason !== null) return invalidated(vetoReason)
+    if (vetoReason !== null) return this.invalidated(vetoReason)
     return { action: StrategyAction.None, fraction: null, price: null, reason: null }
   }
 
@@ -285,10 +285,10 @@ export class Strategy {
    */
   private firstLevelExit(context: MarketContext, levels: OperationLevels): StrategyDecision | null {
     if (levels.sl !== null && levels.sl !== undefined && context.current.low <= levels.sl) {
-      return levelExit('stop_loss', levels.sl, this.stopLoss?.execution ?? 'market')
+      return this.levelExit('stop_loss', levels.sl, this.stopLoss?.execution ?? 'market')
     }
     if (levels.tp !== null && levels.tp !== undefined && context.current.high >= levels.tp) {
-      return levelExit('take_profit', levels.tp, this.takeProfit?.execution ?? 'market')
+      return this.levelExit('take_profit', levels.tp, this.takeProfit?.execution ?? 'market')
     }
     return null
   }
@@ -362,7 +362,7 @@ export class Strategy {
     vetoed: boolean,
   ): { signal: Signal; price: number | null } | null {
     for (const signal of this.signals) {
-      if (!isApplicable(signal.action, open, vetoed)) continue
+      if (!this.isApplicable(signal.action, open, vetoed)) continue
       if (!signal.rule.evaluate(context)) continue
 
       let price: number | null = null
@@ -388,7 +388,7 @@ export class Strategy {
     vetoed: boolean,
   ): { trigger: Trigger; price: number } | null {
     for (const trigger of this.triggers) {
-      if (!isApplicable(trigger.action, open, vetoed)) continue
+      if (!this.isApplicable(trigger.action, open, vetoed)) continue
       const price = evaluatePriceExpr(trigger.price, context)
       if (price === null) continue
 
@@ -405,40 +405,40 @@ export class Strategy {
   toString(): string {
     return `${this.name}@${this.version}`
   }
-}
 
-/** Validación de un nivel TP/SL: expresión válida + ejecución conocida. */
-function assertPriceLevel(level: PriceLevel, field: string): void {
-  assertPriceExpr(level.price)
-  if (level.execution !== 'limit' && level.execution !== 'market') {
-    throw new InvalidStrategyDefinitionError(
-      `${field}.execution debe ser "limit" o "market"`,
-      level.execution,
-    )
+  /** Validación de un nivel TP/SL: expresión válida + ejecución conocida. */
+  private assertPriceLevel(level: PriceLevel, field: string): void {
+    assertPriceExpr(level.price)
+    if (level.execution !== 'limit' && level.execution !== 'market') {
+      throw new InvalidStrategyDefinitionError(
+        `${field}.execution debe ser "limit" o "market"`,
+        level.execution,
+      )
+    }
   }
-}
 
-/**
- * Decisión de salida por nivel (SL/TP): `limit` lleva el precio en la
- * decisión (orden `Limit` en el nivel); `market` va sin precio (orden
- * `Market` a la apertura siguiente) — la presencia de precio ⇔ limit.
- */
-function levelExit(reason: string, level: number, execution: OrderExecution): StrategyDecision {
-  return {
-    action: StrategyAction.RequestExit,
-    fraction: null,
-    price: execution === 'limit' ? level : null,
-    reason,
+  /**
+   * Decisión de salida por nivel (SL/TP): `limit` lleva el precio en la
+   * decisión (orden `Limit` en el nivel); `market` va sin precio (orden
+   * `Market` a la apertura siguiente) — la presencia de precio ⇔ limit.
+   */
+  private levelExit(reason: string, level: number, execution: OrderExecution): StrategyDecision {
+    return {
+      action: StrategyAction.RequestExit,
+      fraction: null,
+      price: execution === 'limit' ? level : null,
+      reason,
+    }
   }
-}
 
-function isApplicable(action: SignalAction, open: boolean, vetoed: boolean): boolean {
-  if (action === StrategyAction.RequestEntry) return !open
-  if (action === StrategyAction.RequestAdd) return open && !vetoed // el veto nunca bloquea cerrar
-  return open
-}
+  private isApplicable(action: SignalAction, open: boolean, vetoed: boolean): boolean {
+    if (action === StrategyAction.RequestEntry) return !open
+    if (action === StrategyAction.RequestAdd) return open && !vetoed // el veto nunca bloquea cerrar
+    return open
+  }
 
-/** Decisión de veto: la invalidación anula la señal (y retira la orden de entrada). */
-function invalidated(reason: string): StrategyDecision {
-  return { action: StrategyAction.Invalidate, fraction: null, price: null, reason }
+  /** Decisión de veto: la invalidación anula la señal (y retira la orden de entrada). */
+  private invalidated(reason: string): StrategyDecision {
+    return { action: StrategyAction.Invalidate, fraction: null, price: null, reason }
+  }
 }

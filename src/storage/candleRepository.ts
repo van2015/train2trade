@@ -17,14 +17,6 @@ export interface CandleRange {
   to?: number
 }
 
-function keyOf(instrument: Instrument, timeframe: Timeframe): string {
-  return `${KEY_PREFIX}${instrument.toString()}:${timeframe.toString()}`
-}
-
-function bySymbol(a: Instrument, b: Instrument): number {
-  return a.toString() < b.toString() ? -1 : 1
-}
-
 /**
  * Repositorio de velas con `Storage` inyectado (localStorage en prod, doble en
  * memoria en tests). Clave `candles:BTC/USDT:1h`; corrupta → `CorruptedStorageError`.
@@ -40,7 +32,7 @@ export class CandleRepository {
   save(instrument: Instrument, timeframe: Timeframe, candles: readonly Candle[]): void {
     if (candles.length === 0) return
 
-    const key = keyOf(instrument, timeframe)
+    const key = this.keyOf(instrument, timeframe)
     const merged = normalizeCandles([...this.read(key), ...candles])
     this.storage.setItem(key, JSON.stringify(merged))
   }
@@ -53,7 +45,7 @@ export class CandleRepository {
       throw new RangeError('Rango de fechas inválido: from no puede ser mayor que to')
     }
 
-    const candles = this.read(keyOf(instrument, timeframe))
+    const candles = this.read(this.keyOf(instrument, timeframe))
     if (from === undefined && to === undefined) return candles
 
     return candles.filter(
@@ -64,12 +56,12 @@ export class CandleRepository {
 
   /** Número de velas almacenadas para esa clave (0 si no existe). */
   count(instrument: Instrument, timeframe: Timeframe): number {
-    return this.read(keyOf(instrument, timeframe)).length
+    return this.read(this.keyOf(instrument, timeframe)).length
   }
 
   /** Borra la clave. `true` si había datos. */
   remove(instrument: Instrument, timeframe: Timeframe): boolean {
-    const key = keyOf(instrument, timeframe)
+    const key = this.keyOf(instrument, timeframe)
     const existed = this.storage.getItem(key) !== null
     this.storage.removeItem(key)
     return existed
@@ -102,7 +94,7 @@ export class CandleRepository {
       }
     }
 
-    return [...symbols].map((symbol) => Instrument.from(symbol)).sort(bySymbol)
+    return [...symbols].map((symbol) => Instrument.from(symbol)).sort((a, b) => this.bySymbol(a, b))
   }
 
   /** Elimina todas las claves de velas (solo las nuestras). */
@@ -141,5 +133,13 @@ export class CandleRepository {
     } catch (error) {
       throw new CorruptedStorageError('el array contiene velas inválidas', key, error)
     }
+  }
+
+  private keyOf(instrument: Instrument, timeframe: Timeframe): string {
+    return `${KEY_PREFIX}${instrument.toString()}:${timeframe.toString()}`
+  }
+
+  private bySymbol(a: Instrument, b: Instrument): number {
+    return a.toString() < b.toString() ? -1 : 1
   }
 }

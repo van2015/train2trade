@@ -17,17 +17,6 @@ export class InvalidCandlesError extends DomainError {
   }
 }
 
-function toFiniteNumber(value: unknown): number | null {
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null
-  }
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : null
-  }
-  return null
-}
-
 /**
  * Value object inmutable OHLCV. Los invariantes (campos finitos, `high >= low`)
  * los garantiza `Candle.from`.
@@ -59,15 +48,26 @@ export class Candle {
   }
 
   /** Campos extraídos y validados de un objeto crudo: números finitos y `high >= low`. */
+  private static toFiniteNumber(value: unknown): number | null {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null
+    }
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : null
+    }
+    return null
+  }
+
   private static toCandleFields(value: object): CandleFields {
     const record = value as Record<string, unknown>
     const fields = {
-      time: toFiniteNumber(record.time),
-      open: toFiniteNumber(record.open),
-      high: toFiniteNumber(record.high),
-      low: toFiniteNumber(record.low),
-      close: toFiniteNumber(record.close),
-      volume: toFiniteNumber(record.volume),
+      time: this.toFiniteNumber(record.time),
+      open: this.toFiniteNumber(record.open),
+      high: this.toFiniteNumber(record.high),
+      low: this.toFiniteNumber(record.low),
+      close: this.toFiniteNumber(record.close),
+      volume: this.toFiniteNumber(record.volume),
     } as Record<keyof CandleFields, number | null>
 
     for (const key of ['time', 'open', 'high', 'low', 'close', 'volume'] as const) {
@@ -128,11 +128,11 @@ export class Candle {
   }
 
   closePosition(price: number): LevelPosition {
-    return levelPositionOf(this.close, price)
+    return this.levelPositionOf(this.close, price)
   }
 
   openPosition(price: number): LevelPosition {
-    return levelPositionOf(this.open, price)
+    return this.levelPositionOf(this.open, price)
   }
 
   closesAbove(price: number): boolean {
@@ -181,11 +181,11 @@ export class Candle {
       volume: this.volume,
     }
   }
-}
 
-function levelPositionOf(value: number, level: number): LevelPosition {
-  assertFinitePrice(level)
-  if (value > level) return LevelPosition.Above
-  if (value === level) return LevelPosition.At
-  return LevelPosition.Below
+  private levelPositionOf(value: number, level: number): LevelPosition {
+    assertFinitePrice(level)
+    if (value > level) return LevelPosition.Above
+    if (value === level) return LevelPosition.At
+    return LevelPosition.Below
+  }
 }

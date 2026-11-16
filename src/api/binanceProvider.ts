@@ -43,7 +43,7 @@ export class BinanceProvider implements MarketDataProvider {
     }
 
     if (!response.ok) {
-      const detail = await readErrorMessage(response)
+      const detail = await this.readErrorMessage(response)
       const suffix = detail === '' ? '' : `: ${detail}`
       throw new MarketDataError(`El exchange respondió ${response.status}${suffix}`)
     }
@@ -59,7 +59,7 @@ export class BinanceProvider implements MarketDataProvider {
       throw new MarketDataError('Se esperaba un array de velas', payload)
     }
 
-    const candles = normalizeCandles(payload.map(toCandleFields))
+    const candles = normalizeCandles(payload.map((row) => this.toCandleFields(row)))
     if (candles.length === 0 && payload.length > 0) {
       throw new MarketDataError('La respuesta no contiene velas válidas', payload)
     }
@@ -84,28 +84,28 @@ export class BinanceProvider implements MarketDataProvider {
 
     return `${this.baseUrl}/api/v3/klines?${params.toString()}`
   }
-}
 
-/**
- * Fila de klines → campos de vela; `null` si la forma no es la esperada
- * (la descartará `normalizeCandles`).
- */
-function toCandleFields(row: unknown): unknown {
-  if (!Array.isArray(row) || row.length < 6) return null
-  const [time, open, high, low, close, volume] = row
-  return { time, open, high, low, close, volume }
-}
-
-/** Extrae `msg` del cuerpo de error de Binance si existe (best effort). */
-async function readErrorMessage(response: Response): Promise<string> {
-  try {
-    const body: unknown = await response.json()
-    if (body !== null && typeof body === 'object' && 'msg' in body) {
-      const message = (body as { msg: unknown }).msg
-      if (typeof message === 'string') return message
-    }
-  } catch {
-    // Cuerpo no JSON o ilegible: nos quedamos sin detalle.
+  /**
+   * Fila de klines → campos de vela; `null` si la forma no es la esperada
+   * (la descartará `normalizeCandles`).
+   */
+  private toCandleFields(row: unknown): unknown {
+    if (!Array.isArray(row) || row.length < 6) return null
+    const [time, open, high, low, close, volume] = row
+    return { time, open, high, low, close, volume }
   }
-  return ''
+
+  /** Extrae `msg` del cuerpo de error de Binance si existe (best effort). */
+  private async readErrorMessage(response: Response): Promise<string> {
+    try {
+      const body: unknown = await response.json()
+      if (body !== null && typeof body === 'object' && 'msg' in body) {
+        const message = (body as { msg: unknown }).msg
+        if (typeof message === 'string') return message
+      }
+    } catch {
+      // Cuerpo no JSON o ilegible: nos quedamos sin detalle.
+    }
+    return ''
+  }
 }

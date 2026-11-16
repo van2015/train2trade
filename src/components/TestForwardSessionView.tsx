@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { describeError } from '@/components/errorText'
 import { Candle } from '@/domain/candles/candle'
 import { evaluatePriceExpr } from '@/domain/strategies/priceExpr'
 import { Strategy } from '@/domain/strategies/strategy'
@@ -30,10 +31,6 @@ const STATUS_LABELS = {
 
 /** Entradas del log que se pintan (el dominio guarda todas). */
 const VISIBLE_LOG_ENTRIES = 100
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
 
 /**
  * UI de la sesión de test-forward (§2.3, patrón Replay): se monta **siempre**

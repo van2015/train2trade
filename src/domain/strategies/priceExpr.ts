@@ -1,4 +1,5 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
+import { isRecord } from '@/domain/guards'
 import { MarketContext } from '@/domain/strategies/marketContext'
 
 export class InvalidPriceExprError extends DomainError {
@@ -117,8 +118,4 @@ function evaluate(expr: PriceExpr, context: MarketContext): number | null {
     case '/':
       return right === 0 ? null : left / right
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

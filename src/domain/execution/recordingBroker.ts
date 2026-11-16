@@ -108,7 +108,7 @@ export class RecordingBroker implements Broker {
     // Un relleno de venta sin posición previa es imposible: el broker la
     // rechaza antes (long-only), así que no hay registro que construir.
     if (fill.side === OrderSide.Sell && positionBefore !== null) {
-      this.tradeLog.push(buildTrade(fill, positionBefore))
+      this.tradeLog.push(this.buildTrade(fill, positionBefore))
     }
   }
 
@@ -119,17 +119,17 @@ export class RecordingBroker implements Broker {
   pendingOrders(): readonly Order[] {
     return this.inner.pendingOrders()
   }
-}
 
-function buildTrade(fill: Fill, positionBefore: Position): Trade {
-  return new Trade({
-    entryTime: positionBefore.openedAt,
-    entryPrice: positionBefore.avgEntryPrice,
-    exitTime: fill.time,
-    exitPrice: fill.price,
-    qty: fill.qty,
-    // Misma fórmula que `Position.applyFill` (fuente única en el dominio).
-    pnl: positionBefore.realizedPnlFor(fill),
-    fees: fill.fee,
-  })
+  private buildTrade(fill: Fill, positionBefore: Position): Trade {
+    return new Trade({
+      entryTime: positionBefore.openedAt,
+      entryPrice: positionBefore.avgEntryPrice,
+      exitTime: fill.time,
+      exitPrice: fill.price,
+      qty: fill.qty,
+      // Misma fórmula que `Position.applyFill` (fuente única en el dominio).
+      pnl: positionBefore.realizedPnlFor(fill),
+      fees: fill.fee,
+    })
+  }
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { describeError } from '@/components/errorText'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { buildStrategy, StrategySpec } from '@/domain/strategies/spec'
@@ -14,10 +15,6 @@ export interface TestForwardPanelProps {
   strategy: StrategySpec | null
   /** Nueva sesión iniciada (§2.3): App la guarda, corta el gráfico y abre la pestaña. */
   onStart: (session: TestForwardSession) => void
-}
-
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 /**

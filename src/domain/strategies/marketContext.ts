@@ -1,4 +1,5 @@
 import { DomainError, invalidMessage } from '@/domain/errors'
+import { isRecord } from '@/domain/guards'
 import { Candle } from '@/domain/candles/candle'
 import { IndicatorValue } from '@/domain/indicators/indicator'
 
@@ -65,11 +66,11 @@ export class MarketContext {
     if (data instanceof MarketContext) return data
 
     const { candles, indicators, levels } = data
-    validateCandles(candles)
+    this.validateCandles(candles)
     return new MarketContext(
       Object.freeze([...candles]),
-      buildFrozenSeries(indicators, candles),
-      freezeLevels(validateLevels(levels)),
+      this.buildFrozenSeries(indicators, candles),
+      this.freezeLevels(this.validateLevels(levels)),
       candles.length - 1,
     )
   }
@@ -124,7 +125,7 @@ export class MarketContext {
     return new MarketContext(
       this.visibleCandles,
       this.series,
-      freezeLevels(validateLevels({ ...this.levelsValue, ...levels })),
+      MarketContext.freezeLevels(MarketContext.validateLevels({ ...this.levelsValue, ...levels })),
       this.base,
     )
   }
@@ -185,79 +186,75 @@ export class MarketContext {
     if (candle === undefined) return null
     return candle[id as BuiltinField]
   }
-}
 
-/** Valida los niveles: cada valor debe ser `null` o un número finito (o ausente). */
-function validateLevels(levels: OperationLevels | undefined): OperationLevels {
-  if (levels === undefined) return {}
-  if (!isRecord(levels)) {
-    throw new MarketContextError('levels debe ser un objeto', levels)
-  }
-
-  for (const key of ['entry', 'sl', 'tp'] as const) {
-    const value = levels[key]
-    if (value === undefined || value === null) continue
-    if (typeof value !== 'number' || !Number.isFinite(value)) {
-      throw new MarketContextError(`levels.${key} debe ser null o un número finito`, value)
+  /** Valida los niveles: cada valor debe ser `null` o un número finito (o ausente). */
+  private static validateLevels(levels: OperationLevels | undefined): OperationLevels {
+    if (levels === undefined) return {}
+    if (!isRecord(levels)) {
+      throw new MarketContextError('levels debe ser un objeto', levels)
     }
-  }
-  return levels
-}
 
-function freezeLevels(levels: OperationLevels): OperationLevels {
-  return Object.freeze({ ...levels })
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function validateCandles(candles: readonly Candle[]): void {
-  if (candles.length === 0) {
-    throw new MarketContextError('se necesita al menos una vela', candles)
-  }
-
-  let previousTime = Number.NEGATIVE_INFINITY
-  for (const candle of candles) {
-    if (candle.time <= previousTime) {
-      throw new MarketContextError(
-        candle.time === previousTime
-          ? 'las velas tienen time duplicado'
-          : 'las velas están fuera de orden (deben ser ascendentes por time)',
-        candle.time,
-      )
-    }
-    previousTime = candle.time
-  }
-}
-
-function buildFrozenSeries(
-  indicators: Readonly<Record<string, readonly IndicatorValue[]>> | undefined,
-  candles: readonly Candle[],
-): Readonly<Record<string, readonly IndicatorValue[]>> {
-  const frozen: Record<string, readonly IndicatorValue[]> = Object.assign(
-    Object.create(null) as Record<string, readonly IndicatorValue[]>,
-  )
-
-  for (const [id, series] of Object.entries(indicators ?? {})) {
-    if (series.length !== candles.length) {
-      throw new MarketContextError(
-        `la serie "${id}" tiene ${series.length} valores y hay ${candles.length} velas`,
-        series.length,
-      )
-    }
-    for (let index = 0; index < series.length; index += 1) {
-      const entry = series[index]
-      const candle = candles[index]
-      if (entry === undefined || candle === undefined || entry.time !== candle.time) {
-        throw new MarketContextError(
-          `la serie "${id}" no está alineada con las velas en el índice ${index}`,
-          entry?.time,
-        )
+    for (const key of ['entry', 'sl', 'tp'] as const) {
+      const value = levels[key]
+      if (value === undefined || value === null) continue
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new MarketContextError(`levels.${key} debe ser null o un número finito`, value)
       }
     }
-    frozen[id] = Object.freeze([...series])
+    return levels
   }
 
-  return Object.freeze(frozen)
+  private static freezeLevels(levels: OperationLevels): OperationLevels {
+    return Object.freeze({ ...levels })
+  }
+
+  private static validateCandles(candles: readonly Candle[]): void {
+    if (candles.length === 0) {
+      throw new MarketContextError('se necesita al menos una vela', candles)
+    }
+
+    let previousTime = Number.NEGATIVE_INFINITY
+    for (const candle of candles) {
+      if (candle.time <= previousTime) {
+        throw new MarketContextError(
+          candle.time === previousTime
+            ? 'las velas tienen time duplicado'
+            : 'las velas están fuera de orden (deben ser ascendentes por time)',
+          candle.time,
+        )
+      }
+      previousTime = candle.time
+    }
+  }
+
+  private static buildFrozenSeries(
+    indicators: Readonly<Record<string, readonly IndicatorValue[]>> | undefined,
+    candles: readonly Candle[],
+  ): Readonly<Record<string, readonly IndicatorValue[]>> {
+    const frozen: Record<string, readonly IndicatorValue[]> = Object.assign(
+      Object.create(null) as Record<string, readonly IndicatorValue[]>,
+    )
+
+    for (const [id, series] of Object.entries(indicators ?? {})) {
+      if (series.length !== candles.length) {
+        throw new MarketContextError(
+          `la serie "${id}" tiene ${series.length} valores y hay ${candles.length} velas`,
+          series.length,
+        )
+      }
+      for (let index = 0; index < series.length; index += 1) {
+        const entry = series[index]
+        const candle = candles[index]
+        if (entry === undefined || candle === undefined || entry.time !== candle.time) {
+          throw new MarketContextError(
+            `la serie "${id}" no está alineada con las velas en el índice ${index}`,
+            entry?.time,
+          )
+        }
+      }
+      frozen[id] = Object.freeze([...series])
+    }
+
+    return Object.freeze(frozen)
+  }
 }
