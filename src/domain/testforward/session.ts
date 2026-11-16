@@ -4,7 +4,7 @@ import { DomainError, invalidMessage } from '@/domain/errors'
 import { Account } from '@/domain/execution/account'
 import { Broker } from '@/domain/execution/broker'
 import { Fill } from '@/domain/execution/fill'
-import { Order, OrderSide, OrderStatus, OrderType } from '@/domain/execution/order'
+import { Order, OrderStatus } from '@/domain/execution/order'
 import { MarketContext, OperationLevels } from '@/domain/strategies/marketContext'
 import { Strategy, StrategyAction, StrategyDecision } from '@/domain/strategies/strategy'
 import { StrategyState } from '@/domain/strategies/strategyInstance'
@@ -63,13 +63,13 @@ const NONE: StrategyDecision = {
  */
 class TestForwardStrategy extends Strategy {
   /** Confirmación detectada en la última evaluación (null si no hubo). */
-  confirmation: Confirmation | null = null
+  private confirmationValue: Confirmation | null = null
   /** Override de sesión: undefined = automático, null = desactivado, número = manual. */
-  slOverride: number | null | undefined = undefined
-  tpOverride: number | null | undefined = undefined
+  private slOverride: number | null | undefined = undefined
+  private tpOverride: number | null | undefined = undefined
   /** Orden propia (entrada/salida aceptada) en vuelo → silencia nuevas señales. */
-  entryBlocked = false
-  exitBlocked = false
+  private entryBlocked = false
+  private exitBlocked = false
 
   constructor(base: Strategy) {
     super({
@@ -84,9 +84,43 @@ class TestForwardStrategy extends Strategy {
     })
   }
 
+  /** Confirmación pausada pendiente de `decide()`; null si no la hubo (§2.1). */
+  get confirmation(): Confirmation | null {
+    return this.confirmationValue
+  }
+
+  /** Overrides de niveles (undefined = automático, null = desactivado, número = manual). */
+  get levelOverrides(): { sl: number | null | undefined; tp: number | null | undefined } {
+    return { sl: this.slOverride, tp: this.tpOverride }
+  }
+
+  /** Fija el override de un nivel (`sl`/`tp`) desde los controles de la sesión (§2.3). */
+  setLevelOverride(kind: 'sl' | 'tp', value: number | null | undefined): void {
+    if (kind === 'sl') this.slOverride = value
+    else this.tpOverride = value
+  }
+
+  /** Orden propia aceptada en vuelo → no se piden nuevas del mismo tipo (§2.1). */
+  blockOwnOrder(kind: ConfirmationKind): void {
+    if (kind === 'entry') this.entryBlocked = true
+    else this.exitBlocked = true
+  }
+
+  /** Resolución de la orden propia de `kind` → vuelve a admitir señales. */
+  releaseOwnOrder(kind: ConfirmationKind): void {
+    if (kind === 'entry') this.entryBlocked = false
+    else this.exitBlocked = false
+  }
+
+  /** Resolución de la orden propia → ninguna queda silenciada. */
+  releaseOwnOrders(): void {
+    this.entryBlocked = false
+    this.exitBlocked = false
+  }
+
   override evaluate(context: MarketContext, open: boolean): StrategyDecision {
     const decision = super.evaluate(this.injectLevels(context), open)
-    this.confirmation = null
+    this.confirmationValue = null
 
     if (
       decision.action !== StrategyAction.RequestEntry &&
@@ -98,7 +132,7 @@ class TestForwardStrategy extends Strategy {
 
     const kind = decision.action === StrategyAction.RequestEntry ? 'entry' : 'exit'
     const blocked = kind === 'entry' ? this.entryBlocked : this.exitBlocked
-    if (!blocked) this.confirmation = { kind, decision }
+    if (!blocked) this.confirmationValue = { kind, decision }
     return NONE // la ejecución de la señal la decide el usuario
   }
 
@@ -212,7 +246,7 @@ export class TestForwardSession {
 
   /** Overrides de niveles (undefined = automático, null = desactivado, número = manual). */
   get levelOverrides(): { sl: number | null | undefined; tp: number | null | undefined } {
-    return { sl: this.strategyValue.slOverride, tp: this.strategyValue.tpOverride }
+    return this.strategyValue.levelOverrides
   }
 
   /** Log de decisiones (§2.1), en orden; copia estable para la UI. */
@@ -295,12 +329,12 @@ export class TestForwardSession {
    * Solo surte efecto si la estrategia declara el nivel (§1.5).
    */
   setTakeProfit(price: number | null, enabled: boolean): void {
-    this.strategyValue.tpOverride = this.levelOverride(price, enabled, 'takeProfit')
+    this.strategyValue.setLevelOverride('tp', this.levelOverride(price, enabled, 'takeProfit'))
   }
 
   /** Igual que `setTakeProfit` para el stop-loss. */
   setStopLoss(price: number | null, enabled: boolean): void {
-    this.strategyValue.slOverride = this.levelOverride(price, enabled, 'stopLoss')
+    this.strategyValue.setLevelOverride('sl', this.levelOverride(price, enabled, 'stopLoss'))
   }
 
   private levelOverride(
@@ -380,40 +414,29 @@ export class TestForwardSession {
   private submitTake(confirmation: Confirmation): void {
     const { decision } = confirmation
     const isEntry = confirmation.kind === 'entry'
-    const price = decision.price
-    const reference = price ?? this.lastCandle().close
-    const position = this.sessionValue.portfolio.position
-    const qty = isEntry
-      ? this.sessionValue.riskManager.entryQty(this.sessionValue.portfolio, reference)
-      : position !== null && position.isOpen
-        ? position.qty
-        : null
 
-    if (qty === null || qty <= 0) {
+    const submission = this.sessionValue.submitDecisionOrder({
+      decision,
+      kind: confirmation.kind,
+      nextId: () => {
+        this.takeSeq += 1
+        return `t${this.takeSeq}`
+      },
+    })
+
+    if (submission === null) {
       const text = isEntry ? 'Entrada no admitida (riesgo)' : 'Salida no admitida (sin posición)'
       this.pushLog('decision', text)
       return
     }
 
     this.pushLog('decision', isEntry ? 'Entrada tomada' : 'Salida ejecutada')
-    const transition = this.sessionValue.instance.apply(decision)
-    if (transition.event !== null) this.pushLog('event', transition.event)
+    if (submission.transition.event !== null) this.pushLog('event', submission.transition.event)
 
-    this.takeSeq += 1
-    const order = new Order({
-      id: `t${this.takeSeq}`,
-      side: isEntry ? OrderSide.Buy : OrderSide.Sell,
-      type: price === null ? OrderType.Market : OrderType.Limit,
-      qty,
-      price: price ?? undefined,
-      createdAt: this.now(),
-    })
-    this.sessionValue.broker.submitOrder(order)
-    this.pendingTake = { order, kind: confirmation.kind }
-    if (isEntry) this.strategyValue.entryBlocked = true
-    else this.strategyValue.exitBlocked = true
+    this.pendingTake = { order: submission.order, kind: confirmation.kind }
+    this.strategyValue.blockOwnOrder(confirmation.kind)
 
-    this.pushLog('order', formatOrderSent(order))
+    this.pushLog('order', formatOrderSent(submission.order))
   }
 
   /**
@@ -445,9 +468,9 @@ export class TestForwardSession {
     if (pending.order.isPending) {
       // El veto retira la orden de entrada aceptada (misma semántica que el runner).
       if (pending.kind === 'entry' && events.includes('EntryCancelled')) {
-        this.sessionValue.broker.cancelOrder(pending.order.id)
+        this.sessionValue.cancelOrder(pending.order.id)
         this.pendingTake = null
-        this.strategyValue.entryBlocked = false
+        this.strategyValue.releaseOwnOrder('entry')
         this.pushLog('rejection', `Orden de entrada retirada por veto (${pending.order.id})`)
       }
       return
@@ -464,27 +487,10 @@ export class TestForwardSession {
       this.pushLog('rejection', `Orden no ejecutada (${pending.order.id}): ${reason}`)
     }
     this.pendingTake = null
-    this.strategyValue.entryBlocked = false
-    this.strategyValue.exitBlocked = false
-  }
-
-  /** Última vela procesada (la de la confirmación) o la primera si no hay. */
-  private lastCandle(): Candle {
-    const candles = this.sessionValue.candles
-    return candles[this.sessionValue.cursor - 1] ?? candles[0] ?? emptyCandle()
-  }
-
-  /** Tiempo de simulación actual (§12A); antes del primer avance, la primera vela. */
-  private now(): number {
-    return this.sessionValue.clock.now ?? this.lastCandle().time
+    this.strategyValue.releaseOwnOrders()
   }
 
   private pushLog(kind: TestForwardLogKind, text: string): void {
-    this.logEntries.push({ time: this.now(), kind, text })
+    this.logEntries.push({ time: this.sessionValue.referenceTime(), kind, text })
   }
-}
-
-/** Imposible con config válida (TradingSession exige ≥ 1 vela); evita `undefined`. */
-function emptyCandle(): Candle {
-  return Candle.from({ time: 0, open: 0, high: 0, low: 0, close: 0, volume: 0 })
 }

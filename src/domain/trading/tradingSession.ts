@@ -5,12 +5,19 @@ import { Account } from '@/domain/execution/account'
 import { Broker } from '@/domain/execution/broker'
 import { ExecutionModelConfig, NextOpenExecutionModel } from '@/domain/execution/executionModel'
 import { HistoricalBroker } from '@/domain/execution/historicalBroker'
+import { createOrder, Order, OrderSide } from '@/domain/execution/order'
+import { Position } from '@/domain/execution/position'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 import { RiskConfig, RiskManager } from '@/domain/portfolio/riskManager'
-import { Strategy } from '@/domain/strategies/strategy'
+import { Strategy, StrategyDecision } from '@/domain/strategies/strategy'
 import { StrategyInstance } from '@/domain/strategies/strategyInstance'
 import { MarketClock } from '@/domain/time/marketClock'
-import { ExecutionEvent, StrategyRunner } from '@/domain/trading/strategyRunner'
+import {
+  DecisionOrderRequest,
+  DecisionOrderSubmission,
+  ExecutionEvent,
+  StrategyRunner,
+} from '@/domain/trading/strategyRunner'
 
 /**
  * Riesgo de una sesión **sin costes**: `feeBps`/`slippageBps` no se aceptan
@@ -164,9 +171,92 @@ export class TradingSession<B extends Broker = Broker> {
     return this.cursorValue >= this.candles.length
   }
 
+  /** Posición larga abierta; `null` sin posición o tras el cierre total (§8). */
+  get position(): Position | null {
+    return this.portfolio.position
+  }
+
   /** Secuencia aplanada de eventos de ejecución (§12D), en orden. */
   get events(): readonly ExecutionEvent[] {
     return [...this.eventLog]
+  }
+
+  /**
+   * Órdenes todavía en vuelo (esperando relleno, cancelación o rechazo):
+   * regla de "orden única en vuelo" que imponen replay y test-forward.
+   */
+  pendingOrderCount(): number {
+    return this.broker.pendingOrders().length
+  }
+
+  /**
+   * Cantidad admisible para **aumentar** la posición con `fraction` del
+   * presupuesto disponible (§8), valorando a la referencia de la sesión.
+   * `null` si el riesgo no la admite (mismo contrato que `RiskManager.addQty`).
+   */
+  addQty(fraction: number): number | null {
+    return this.riskManager.addQty(this.portfolio, this.referencePrice(), fraction)
+  }
+
+  /**
+   * Precio de referencia para valorar una operación manual: cierre de la
+   * última vela procesada; antes del primer avance, apertura de la primera
+   * vela (la orden rellena justo en esa apertura, anti look-ahead).
+   */
+  referencePrice(): number {
+    const last = this.candles[this.cursorValue - 1]
+    return last !== undefined ? last.close : this.firstCandle().open
+  }
+
+  /**
+   * Tiempo de simulación para una orden nueva (§12A): el reloj actual o, sin
+   * haber avanzado, el timestamp de la primera vela.
+   */
+  referenceTime(): number {
+    return this.clock.now ?? this.firstCandle().time
+  }
+
+  /**
+   * Construye y envía una orden **market** al broker en el tiempo de
+   * simulación actual (operaciones manuales del replay, §7B). El `id` lo
+   * aporta el llamante (`m<n>`, determinista) y el tipo se infiere de la
+   * ausencia de precio (`createOrder`).
+   */
+  submitOrder(spec: { id: string; side: OrderSide; qty: number }): Order {
+    const order = createOrder({
+      id: spec.id,
+      side: spec.side,
+      price: null,
+      qty: spec.qty,
+      createdAt: this.referenceTime(),
+    })
+    this.broker.submitOrder(order)
+    return order
+  }
+
+  /** Cancela una orden pendiente de la sesión (par de `submitOrder`). */
+  cancelOrder(orderId: string): void {
+    this.broker.cancelOrder(orderId)
+  }
+
+  /**
+   * Envía la orden de una decisión de entrada/salida con la **misma
+   * semántica** que el runner (§6/§8): sizing, transición de instancia e
+   * inferencia de tipo de orden viven en `StrategyRunner.submitDecisionOrder`,
+   * compartida por todos los caminos. La sesión aporta aquí la referencia de
+   * precio y el tiempo de simulación (lo que antes calculaba cada consumidor).
+   *
+   * `null` ⇒ operación no admisible (sin fondos / sin posición): no se envía
+   * nada ni cambia el ciclo. `nextId` solo se invoca si se envía.
+   */
+  submitDecisionOrder(
+    request: Omit<DecisionOrderRequest, 'referencePrice' | 'time'>,
+  ): DecisionOrderSubmission | null {
+    return this.runner.submitDecisionOrder({
+      ...request,
+      referencePrice: this.referencePrice(),
+      time: this.referenceTime(),
+    })
   }
 
   /**
@@ -195,5 +285,14 @@ export class TradingSession<B extends Broker = Broker> {
     this.cursorValue = index + 1
 
     return { index, candle, events, equity: this.portfolio.equity(candle.close) }
+  }
+
+  /** Primera vela de la sesión (≥ 1 por `findConfigProblem`); evita `undefined`. */
+  private firstCandle(): Candle {
+    const first = this.candles[0]
+    if (first === undefined) {
+      throw new TradingSessionError('la sesión no tiene velas', this.candles.length)
+    }
+    return first
   }
 }

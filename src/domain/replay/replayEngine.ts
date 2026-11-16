@@ -3,7 +3,7 @@ import { DomainError, invalidMessage } from '@/domain/errors'
 import { Account } from '@/domain/execution/account'
 import { Broker } from '@/domain/execution/broker'
 import { Fill } from '@/domain/execution/fill'
-import { Order, OrderSide, OrderStatus, OrderType } from '@/domain/execution/order'
+import { Order, OrderSide, OrderStatus } from '@/domain/execution/order'
 import {
   formatFill,
   formatManualOrderSent,
@@ -334,11 +334,7 @@ export class MarketReplayEngine {
     this.assertCanTrade()
     this.assertFraction(fraction)
 
-    const qty = this.sessionValue.riskManager.addQty(
-      this.sessionValue.portfolio,
-      this.referencePrice(),
-      fraction,
-    )
+    const qty = this.sessionValue.addQty(fraction)
     if (qty === null) return null
     return this.submitManual(OrderSide.Buy, qty)
   }
@@ -351,7 +347,7 @@ export class MarketReplayEngine {
     this.assertCanTrade()
     this.assertFraction(fraction)
 
-    const position = this.sessionValue.portfolio.position
+    const position = this.sessionValue.position
     if (position === null || !position.isOpen) return null
 
     const qty = position.qty * fraction
@@ -367,7 +363,7 @@ export class MarketReplayEngine {
         'finished',
       )
     }
-    if (this.sessionValue.broker.pendingOrders().length > 0) {
+    if (this.sessionValue.pendingOrderCount() > 0) {
       throw new ReplayError(
         'ya hay una orden en vuelo (manual o de la estrategia): espera a que se resuelva',
         'pending',
@@ -386,43 +382,10 @@ export class MarketReplayEngine {
     }
   }
 
-  /**
-   * Precio de referencia para valorar la operación: cierre de la última vela
-   * procesada; antes del primer paso, la apertura de la primera vela (la
-   * orden rellena justo en esa apertura).
-   */
-  private referencePrice(): number {
-    const candles = this.sessionValue.candles
-    const last = candles[this.sessionValue.cursor - 1]
-    if (last !== undefined) return last.close
-
-    const first = candles[0]
-    if (first === undefined) {
-      throw new ReplayError('la sesión no tiene velas', candles.length)
-    }
-    return first.open
-  }
-
-  /** Tiempo para la orden manual: reloj actual o, sin avanzar, la primera vela. */
-  private referenceTime(): number {
-    const now = this.sessionValue.clock.now
-    if (now !== null) return now
-
-    const first = this.sessionValue.candles[0]
-    if (first === undefined) {
-      throw new ReplayError('la sesión no tiene velas', this.sessionValue.candles.length)
-    }
-    return first.time
-  }
-
   private submitManual(side: OrderSide, qty: number): Order {
     this.manualSeq += 1
-    const id = `m${this.manualSeq}`
-    const time = this.referenceTime()
-    const order = new Order({ id, side, type: OrderType.Market, qty, createdAt: time })
-
-    this.sessionValue.broker.submitOrder(order)
-    this.replayLog.noteManualOrder(order, time)
+    const order = this.sessionValue.submitOrder({ id: `m${this.manualSeq}`, side, qty })
+    this.replayLog.noteManualOrder(order, order.createdAt)
     return order
   }
 }

@@ -1,17 +1,47 @@
 import { Candle } from '@/domain/candles/candle'
 import { Broker } from '@/domain/execution/broker'
 import { Fill } from '@/domain/execution/fill'
-import { Order, OrderSide, OrderType } from '@/domain/execution/order'
+import { createOrder, Order, OrderSide } from '@/domain/execution/order'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 import { RiskManager } from '@/domain/portfolio/riskManager'
 import { MarketContext, OperationLevels } from '@/domain/strategies/marketContext'
 import { Strategy, StrategyAction, StrategyDecision } from '@/domain/strategies/strategy'
-import { StrategyEvent, StrategyInstance } from '@/domain/strategies/strategyInstance'
+import {
+  StrategyEvent,
+  StrategyInstance,
+  StrategyTransition,
+} from '@/domain/strategies/strategyInstance'
 import { MarketClock } from '@/domain/time/marketClock'
 
 /** Eventos del ciclo: los de dominio de la instancia + los de la ejecución (§12D). */
 export type ExecutionEvent =
   StrategyEvent | 'OrderSubmitted' | 'OrderFilled' | 'OrderRejected' | 'OrderCancelled'
+
+/**
+ * Orden enviada por `submitDecisionOrder` junto con la transición de instancia
+ * que la precede (el llamante la registra como evento/log).
+ */
+export interface DecisionOrderSubmission {
+  order: Order
+  transition: StrategyTransition
+}
+
+/**
+ * Petición de envío de una decisión de entrada/salida: `referencePrice` y
+ * `time` los aporta quien controla el reloj (el runner, la vela procesada; la
+ * sesión, su referencia de simulación).
+ */
+export interface DecisionOrderRequest {
+  decision: StrategyDecision
+  /** `entry` ⇔ sizing de entrada; `exit` ⇔ posición completa (§6/§8). */
+  kind: 'entry' | 'exit'
+  /** Precio de referencia para valorar una entrada market (cierre de la vela). */
+  referencePrice: number
+  /** `createdAt` de la orden: tiempo de simulación (§12A). */
+  time: number
+  /** Id de la orden; solo se invoca si la operación resulta admisible. */
+  nextId: () => string
+}
 
 /** Propósito de la orden en vuelo: determina qué hace la instancia al rellenar. */
 type OrderKind = 'entry' | 'exit' | 'adjust'
@@ -166,20 +196,18 @@ export class StrategyRunner {
       return []
     }
 
-    const price = decision.price ?? context.current.close
-    const qty = this.risk.entryQty(this.portfolio, price)
-    if (qty === null) return [] // sin fondos: no se confirma ni se envía
+    const submission = this.submitDecisionOrder({
+      decision,
+      kind: 'entry',
+      referencePrice: context.current.close,
+      time,
+      nextId: () => this.nextOrderId(),
+    })
+    if (submission === null) return [] // sin fondos: no se confirma ni se envía
 
-    const events: ExecutionEvent[] = []
-    const transition = this.instance.apply(decision) // → WaitingForEntryFill
-    if (transition.event !== null) events.push(transition.event)
-
-    const order = this.createOrder(OrderSide.Buy, decision.price, qty, time)
-    this.broker.submitOrder(order)
-    this.pendingOrder = order
+    this.pendingOrder = submission.order
     this.pendingKind = 'entry'
-    events.push('OrderSubmitted')
-    return events
+    return this.submittedEvents(submission)
   }
 
   private submitExit(
@@ -187,8 +215,9 @@ export class StrategyRunner {
     context: MarketContext,
     time: number,
   ): ExecutionEvent[] {
+    // Guard previo al bookkeeping: sin posición no se cierra (y no se toca nada).
     const position = this.portfolio.position
-    if (position === null || !position.isOpen) return [] // sin posición no se cierra
+    if (position === null || !position.isOpen) return []
 
     const events: ExecutionEvent[] = []
     if (this.pendingOrder !== null) {
@@ -202,13 +231,63 @@ export class StrategyRunner {
       }
     }
 
-    const transition = this.instance.apply(decision) // → WaitingForExitFill
-    if (transition.event !== null) events.push(transition.event)
+    const submission = this.submitDecisionOrder({
+      decision,
+      kind: 'exit',
+      referencePrice: context.current.close,
+      time,
+      nextId: () => this.nextOrderId(),
+    })
+    // Inalcanzable (la guardia de arriba ya exige posición abierta con qty > 0).
+    if (submission === null) return events
 
-    const order = this.createOrder(OrderSide.Sell, decision.price, position.qty, time)
-    this.broker.submitOrder(order)
-    this.pendingOrder = order
+    this.pendingOrder = submission.order
     this.pendingKind = 'exit'
+    events.push(...this.submittedEvents(submission))
+    return events
+  }
+
+  /**
+   * **Primitiva de envío compartida** (§6/§8): sizing de la decisión (entrada →
+   * `RiskManager.entryQty` con el precio de la decisión o el de referencia;
+   * salida → posición completa), transición de instancia y orden construida con
+   * la regla común (`createOrder`: presencia de precio ⇔ `Limit`) enviada al
+   * broker. El `nextId` del request se invoca **solo si la operación es
+   * admisible**, así la secuencia de ids no avanza con intentos descartados.
+   *
+   * `null` ⇒ no admisible (sin fondos / sin posición): no se envía nada ni se
+   * transiciona el ciclo. La usan `submitEntry`/`submitExit` (runner) y la
+   * sesión (órdenes aceptadas por el usuario en test-forward): misma
+   * semántica de sizing/precio/orden en todos los caminos.
+   */
+  submitDecisionOrder(request: DecisionOrderRequest): DecisionOrderSubmission | null {
+    const { decision, kind, referencePrice, time, nextId } = request
+
+    const position = this.portfolio.position
+    const qty =
+      kind === 'entry'
+        ? this.risk.entryQty(this.portfolio, decision.price ?? referencePrice)
+        : position !== null && position.isOpen
+          ? position.qty
+          : null
+    if (qty === null || qty <= 0) return null
+
+    const transition = this.instance.apply(decision) // → WaitingFor{Entry,Exit}Fill
+    const order = createOrder({
+      id: nextId(),
+      side: kind === 'entry' ? OrderSide.Buy : OrderSide.Sell,
+      price: decision.price,
+      qty,
+      createdAt: time,
+    })
+    this.broker.submitOrder(order)
+    return { order, transition }
+  }
+
+  /** Eventos de un envío aceptado: la transición de instancia + el envío (§12D). */
+  private submittedEvents(submission: DecisionOrderSubmission): ExecutionEvent[] {
+    const events: ExecutionEvent[] = []
+    if (submission.transition.event !== null) events.push(submission.transition.event)
     events.push('OrderSubmitted')
     return events
   }
@@ -235,7 +314,13 @@ export class StrategyRunner {
 
     this.instance.apply(decision) // self-loop: el ciclo no cambia
     const side = decision.action === StrategyAction.RequestReduce ? OrderSide.Sell : OrderSide.Buy
-    const order = this.createOrder(side, decision.price, qty, time)
+    const order = createOrder({
+      id: this.nextOrderId(),
+      side,
+      price: decision.price,
+      qty,
+      createdAt: time,
+    })
     this.broker.submitOrder(order)
     this.pendingOrder = order
     this.pendingKind = 'adjust'
@@ -251,15 +336,9 @@ export class StrategyRunner {
     return ['OrderCancelled']
   }
 
-  private createOrder(side: OrderSide, price: number | null, qty: number, time: number): Order {
+  /** Siguiente id del runner (`o<n>`): determinista y solo avanza al enviar. */
+  private nextOrderId(): string {
     this.orderSeq += 1
-    return new Order({
-      id: `o${this.orderSeq}`,
-      side,
-      type: price === null ? OrderType.Market : OrderType.Limit,
-      qty,
-      price: price ?? undefined,
-      createdAt: time,
-    })
+    return `o${this.orderSeq}`
   }
 }

@@ -113,6 +113,36 @@ export class Order {
   }
 }
 
+/**
+ * Especificación de una orden antes de validarla: `price` es el precio de la
+ * decisión, no el de la orden construida.
+ */
+export interface OrderSpec {
+  id: string
+  side: OrderSide
+  /** `null` ⇔ `Market` (va sin precio); número ⇔ `Limit` (lleva `price`). */
+  price: number | null
+  qty: number
+  createdAt: number
+}
+
+/**
+ * Crea la orden con la regla de tipo **compartida** (decisión 6): la presencia
+ * de precio ⇔ orden `Limit`, la ausencia ⇔ orden `Market`. Fuente única de
+ * `StrategyRunner` (señales), del replay (manuales) y del test-forward
+ * (takes), para que esa decisión viva en un solo sitio.
+ */
+export function createOrder(spec: OrderSpec): Order {
+  return new Order({
+    id: spec.id,
+    side: spec.side,
+    type: spec.price === null ? OrderType.Market : OrderType.Limit,
+    qty: spec.qty,
+    price: spec.price ?? undefined,
+    createdAt: spec.createdAt,
+  })
+}
+
 /** Valida el payload de la orden; lanza `InvalidOrderError` en el primer campo inválido. */
 function validateOrderData(data: OrderData): void {
   const { id, side, type, qty, price, createdAt } = data
