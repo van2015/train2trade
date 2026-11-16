@@ -69,10 +69,14 @@ describe('normalizeCandles', () => {
     expect(normalizeCandles(raw).map((c) => c.time)).toEqual([4000])
   })
 
-  it('lanza ante entrada que no es un array', () => {
-    expect(() => normalizeCandles(null)).toThrow()
-    expect(() => normalizeCandles({ trades: [] })).toThrow()
-    expect(() => normalizeCandles('[]')).toThrow()
+  const NOT_ARRAY: Array<[string, unknown]> = [
+    ['null', null],
+    ['objeto', { trades: [] }],
+    ['string', '[]'],
+  ]
+
+  it.each(NOT_ARRAY)('lanza ante %s (la entrada no es un array)', (_label, input) => {
+    expect(() => normalizeCandles(input)).toThrow()
   })
 
   it('devuelve [] para array vacío', () => {

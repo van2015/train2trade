@@ -62,26 +62,27 @@ describe('Order — construcción', () => {
     expect(() => marketBuy(overrides)).toThrow(InvalidOrderError)
   })
 
-  it('una orden limit exige un price finito > 0', () => {
-    const base: OrderData = {
-      id: 'o3',
-      side: OrderSide.Buy,
-      type: OrderType.Limit,
-      qty: 1,
-      createdAt,
-    }
-    expect(() => new Order(base)).toThrow(InvalidOrderError)
-    expect(() => new Order({ ...base, price: 0 })).toThrow(InvalidOrderError)
-    expect(() => new Order({ ...base, price: -5 })).toThrow(InvalidOrderError)
-    expect(() => new Order({ ...base, price: Number.NaN })).toThrow(InvalidOrderError)
-    expect(() => new Order({ ...base, price: '100' as unknown as number })).toThrow(
-      InvalidOrderError,
-    )
+  const LIMIT: OrderData = {
+    id: 'o3',
+    side: OrderSide.Buy,
+    type: OrderType.Limit,
+    qty: 1,
+    createdAt,
+  }
+  const badPrices: Array<[string, number | null | undefined]> = [
+    ['price ausente', undefined],
+    ['price cero', 0],
+    ['price negativo', -5],
+    ['price NaN', Number.NaN],
+    ['price no number', '100' as unknown as number],
+  ]
+
+  it.each(badPrices)('una orden limit: %s → InvalidOrderError', (_label, price) => {
+    expect(() => new Order({ ...LIMIT, price })).toThrow(InvalidOrderError)
   })
 
-  it('una orden de mercado no admite price', () => {
-    expect(() => marketBuy({ price: 100 })).toThrow(InvalidOrderError)
-    expect(() => marketBuy({ price: null })).toThrow(InvalidOrderError)
+  it.each([100, null] as const)('una orden de mercado no admite price: %s', (price) => {
+    expect(() => marketBuy({ price })).toThrow(InvalidOrderError)
   })
 
   it('el error fija this.name y formatea el valor recibido', () => {

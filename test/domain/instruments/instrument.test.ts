@@ -32,29 +32,21 @@ describe('Instrument', () => {
       )
     })
 
-    it('lanza InvalidInstrumentError con un string sin separador', () => {
-      expect(() => Instrument.from('BTCUSDT')).toThrow(InvalidInstrumentError)
-    })
+    const INVALID: Array<[string, () => unknown]> = [
+      ['string sin separador', () => Instrument.from('BTCUSDT')],
+      ['más de dos partes', () => Instrument.from('BTC/USDT/ETH')],
+      ['partes vacías', () => Instrument.from('/USDT')],
+      ['quote vacía en el objeto', () => Instrument.from({ base: 'BTC', quote: '  ' })],
+      ['caracteres no alfanuméricos (string)', () => Instrument.from('BT-C/USDT')],
+      ['caracteres no alfanuméricos (partes)', () => Instrument.of('BT$C', 'USDT')],
+      ['null', () => Instrument.from(null)],
+      ['undefined', () => Instrument.from(undefined)],
+      ['número', () => Instrument.from(42)],
+      ['objeto sin quote', () => Instrument.from({ base: 'BTC' })],
+    ]
 
-    it('lanza InvalidInstrumentError con más de dos partes', () => {
-      expect(() => Instrument.from('BTC/USDT/ETH')).toThrow(InvalidInstrumentError)
-    })
-
-    it('lanza InvalidInstrumentError con partes vacías', () => {
-      expect(() => Instrument.from('/USDT')).toThrow(InvalidInstrumentError)
-      expect(() => Instrument.from({ base: 'BTC', quote: '  ' })).toThrow(InvalidInstrumentError)
-    })
-
-    it('lanza InvalidInstrumentError con caracteres no alfanuméricos', () => {
-      expect(() => Instrument.from('BT-C/USDT')).toThrow(InvalidInstrumentError)
-      expect(() => Instrument.of('BT$C', 'USDT')).toThrow(InvalidInstrumentError)
-    })
-
-    it('lanza InvalidInstrumentError con valores que no son string ni objeto', () => {
-      expect(() => Instrument.from(null)).toThrow(InvalidInstrumentError)
-      expect(() => Instrument.from(undefined)).toThrow(InvalidInstrumentError)
-      expect(() => Instrument.from(42)).toThrow(InvalidInstrumentError)
-      expect(() => Instrument.from({ base: 'BTC' })).toThrow(InvalidInstrumentError)
+    it.each(INVALID)('lanza InvalidInstrumentError con %s', (_label, build) => {
+      expect(build).toThrow(InvalidInstrumentError)
     })
 
     it('el error tiene name InvalidInstrumentError', () => {

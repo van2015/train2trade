@@ -82,16 +82,17 @@ describe('RiskManager — entryQty (tamaño de la entrada)', () => {
     expect(risk.addQty(portfolio, 100, 1)).toBeCloseTo(1_000 / (100 * 1.001 * 1.001), 9)
   })
 
-  it('devuelve null sin efectivo disponible y valida el precio', () => {
+  it('devuelve null sin efectivo disponible', () => {
     const risk = new RiskManager()
     const spent = new Portfolio(100)
     spent.applyFill(buy(1, 100)) // cash 0 → sin fondos
     expect(risk.entryQty(spent, 100)).toBeNull()
+  })
 
+  it.each([0, -1, Number.NaN] as const)('entryQty rechaza price %s → InvalidRiskError', (price) => {
+    const risk = new RiskManager()
     const portfolio = new Portfolio(1_000)
-    expect(() => risk.entryQty(portfolio, 0)).toThrow(InvalidRiskError)
-    expect(() => risk.entryQty(portfolio, -1)).toThrow(InvalidRiskError)
-    expect(() => risk.entryQty(portfolio, Number.NaN)).toThrow(InvalidRiskError)
+    expect(() => risk.entryQty(portfolio, price)).toThrow(InvalidRiskError)
   })
 })
 
@@ -120,12 +121,14 @@ describe('RiskManager — canAdd (aprobación de aumentos)', () => {
     expect(new RiskManager().canAdd(portfolio, 100, 1)).toBe(true)
   })
 
-  it('valida price y qty', () => {
+  it.each([
+    ['price cero', 0, 1],
+    ['qty negativa', 100, -1],
+    ['qty NaN', 100, Number.NaN],
+  ] as const)('canAdd rechaza %s → InvalidRiskError', (_label, price, qty) => {
     const risk = new RiskManager()
     const portfolio = new Portfolio(1_000)
-    expect(() => risk.canAdd(portfolio, 0, 1)).toThrow(InvalidRiskError)
-    expect(() => risk.canAdd(portfolio, 100, -1)).toThrow(InvalidRiskError)
-    expect(() => risk.canAdd(portfolio, 100, Number.NaN)).toThrow(InvalidRiskError)
+    expect(() => risk.canAdd(portfolio, price, qty)).toThrow(InvalidRiskError)
   })
 })
 
@@ -163,12 +166,14 @@ describe('RiskManager — addQty (tamaño de los aumentos)', () => {
     expect(risk.addQty(portfolio, 100, 1)).toBeCloseTo(600 / 101, 10)
   })
 
-  it('valida price y fraction', () => {
+  it.each([
+    ['fraction cero', 100, 0],
+    ['fraction > 1', 100, 1.5],
+    ['fraction NaN', 100, Number.NaN],
+    ['price negativo', -1, 0.5],
+  ] as const)('addQty rechaza %s → InvalidRiskError', (_label, price, fraction) => {
     const risk = new RiskManager()
     const portfolio = new Portfolio(1_000)
-    expect(() => risk.addQty(portfolio, 100, 0)).toThrow(InvalidRiskError)
-    expect(() => risk.addQty(portfolio, 100, 1.5)).toThrow(InvalidRiskError)
-    expect(() => risk.addQty(portfolio, 100, Number.NaN)).toThrow(InvalidRiskError)
-    expect(() => risk.addQty(portfolio, -1, 0.5)).toThrow(InvalidRiskError)
+    expect(() => risk.addQty(portfolio, price, fraction)).toThrow(InvalidRiskError)
   })
 })

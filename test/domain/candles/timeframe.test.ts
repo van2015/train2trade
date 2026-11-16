@@ -10,16 +10,20 @@ describe('Timeframe', () => {
     }
   })
 
-  it('from parsea códigos y lanza ante desconocidos o tipos inválidos', () => {
+  it('from parsea un código conocido', () => {
     expect(Timeframe.from('15m')).toBe(Timeframe.FIFTEEN_MINUTES)
+  })
 
-    expect(() => Timeframe.from('7m')).toThrow(InvalidTimeframeError)
-    expect(() => Timeframe.from('2h')).toThrow(InvalidTimeframeError)
-    expect(() => Timeframe.from('')).toThrow(InvalidTimeframeError)
-    expect(() => Timeframe.from('1M')).toThrow(InvalidTimeframeError) // mayúscula distinguida
-    expect(() => Timeframe.from(42)).toThrow(InvalidTimeframeError)
-    expect(() => Timeframe.from(undefined)).toThrow(InvalidTimeframeError)
-    expect(() => Timeframe.from(null)).toThrow(InvalidTimeframeError)
+  it.each([
+    ['código desconocido', '7m'],
+    ['intervalo no soportado', '2h'],
+    ['código vacío', ''],
+    ['mayúscula distinguida', '1M'],
+    ['número', 42],
+    ['undefined', undefined],
+    ['null', null],
+  ] as const)('from rechaza %s → InvalidTimeframeError', (_label, value) => {
+    expect(() => Timeframe.from(value)).toThrow(InvalidTimeframeError)
   })
 
   it('el error de parseo es informativo (nombre y códigos válidos)', () => {

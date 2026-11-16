@@ -86,9 +86,13 @@ describe('Trade — roundtrip JSON (persistencia, Fase 6)', () => {
     expect(restored.durationMs).toBe(60_000)
   })
 
-  it('Trade.from valida: no objeto o campos inválidos → InvalidTradeError', () => {
-    expect(() => Trade.from(null as unknown as TradeData)).toThrow(InvalidTradeError)
-    expect(() => Trade.from({ ...tradeData, qty: -1 })).toThrow(InvalidTradeError)
-    expect(() => Trade.from({ ...tradeData, exitTime: entryTime - 1 })).toThrow(InvalidTradeError)
+  const FROM_INVALID: Array<[string, () => unknown]> = [
+    ['null en vez de objeto', () => Trade.from(null as unknown as TradeData)],
+    ['qty negativa', () => Trade.from({ ...tradeData, qty: -1 })],
+    ['exitTime anterior a entryTime', () => Trade.from({ ...tradeData, exitTime: entryTime - 1 })],
+  ]
+
+  it.each(FROM_INVALID)('Trade.from valida %s → InvalidTradeError', (_label, build) => {
+    expect(build).toThrow(InvalidTradeError)
   })
 })
