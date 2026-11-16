@@ -45,7 +45,7 @@ describe('Fill — construcción', () => {
     )
   })
 
-  it('el error fija this.name y formatea el valor recibido', () => {
+  it('InvalidFillError fija this.name y formatea el valor recibido', () => {
     try {
       new Fill({ ...fillData, price: -1 })
       expect.unreachable('debería lanzar InvalidFillError')

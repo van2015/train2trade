@@ -55,7 +55,7 @@ describe('MarketClock — advanceTo', () => {
     expect(clock.now).toBeNull()
   })
 
-  it('el error fija this.name y formatea el valor recibido', () => {
+  it('MarketClockError fija this.name y formatea el valor recibido', () => {
     try {
       new MarketClock().advanceTo(-1)
       expect.unreachable('debería lanzar MarketClockError')

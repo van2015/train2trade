@@ -57,7 +57,7 @@ describe('Trade — construcción', () => {
     expect(() => new Trade({ ...tradeData, ...overrides })).toThrow(InvalidTradeError)
   })
 
-  it('el error fija this.name y formatea el valor recibido', () => {
+  it('InvalidTradeError fija this.name y formatea el valor recibido', () => {
     try {
       new Trade({ ...tradeData, qty: 0 })
       expect.unreachable('debería lanzar InvalidTradeError')

@@ -30,7 +30,7 @@ describe('RiskManager — configuración', () => {
     expect(() => new RiskManager(config as unknown as RiskConfig)).toThrow(InvalidRiskError)
   })
 
-  it('expone la config efectiva con los defaults ya resueltos', () => {
+  it('RiskManager expone la config efectiva con los defaults ya resueltos', () => {
     expect(new RiskManager().config).toEqual({
       maxPositionFraction: 1,
       minCashReserve: 0,

@@ -340,19 +340,3 @@ describe('RuleEditor — atajo de constante junto a los operandos (riesgo §1.8)
     expect(onChange).toHaveBeenLastCalledWith({ ...CONDITION, a: 'c1', b: 'c1' })
   })
 })
-
-describe('RuleEditor — atajo de constante junto a los operandos (riesgo §1.8)', () => {
-  it('el botón llama al atajo y asigna el alias devuelto al operando', () => {
-    const onAddConstant = vi.fn(() => 'c1')
-    const onChange = vi.fn()
-    const container = renderRule(CONDITION, undefined, onChange, onAddConstant)
-
-    fireEvent.click(container.getByLabelText('Regla operando a añadir constante'))
-
-    expect(onAddConstant).toHaveBeenCalledTimes(1)
-    expect(onChange).toHaveBeenLastCalledWith({ ...CONDITION, a: 'c1' })
-
-    fireEvent.click(container.getByLabelText('Regla operando b añadir constante'))
-    expect(onChange).toHaveBeenLastCalledWith({ ...CONDITION, a: 'c1', b: 'c1' })
-  })
-})

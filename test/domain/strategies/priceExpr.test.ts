@@ -76,7 +76,7 @@ describe('PriceExpr', () => {
       ).toThrow(InvalidPriceExprError)
     })
 
-    it('hijo inválido en cualquier profundidad → error', () => {
+    it('assertPriceExpr rechaza un hijo inválido en cualquier profundidad', () => {
       const malformed = {
         kind: 'binary',
         op: '+',

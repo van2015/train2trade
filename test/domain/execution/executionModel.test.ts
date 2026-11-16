@@ -58,7 +58,7 @@ describe('NextOpenExecutionModel — configuración', () => {
     )
   })
 
-  it('expone la config efectiva con los defaults ya resueltos', () => {
+  it('NextOpenExecutionModel expone la config efectiva con los defaults ya resueltos', () => {
     expect(new NextOpenExecutionModel().config).toEqual({ slippageBps: 0, feeBps: 0 })
     expect(new NextOpenExecutionModel({ slippageBps: 10, feeBps: 25 }).config).toEqual({
       slippageBps: 10,

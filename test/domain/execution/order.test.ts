@@ -85,7 +85,7 @@ describe('Order — construcción', () => {
     expect(() => marketBuy({ price })).toThrow(InvalidOrderError)
   })
 
-  it('el error fija this.name y formatea el valor recibido', () => {
+  it('InvalidOrderError fija this.name y formatea el valor recibido', () => {
     try {
       marketBuy({ qty: 0 })
       expect.unreachable('debería lanzar InvalidOrderError')

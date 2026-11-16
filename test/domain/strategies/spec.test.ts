@@ -114,7 +114,7 @@ describe('RuleSpec', () => {
       expect(() => assertRuleSpec(null)).toThrow(InvalidStrategyDefinitionError)
     })
 
-    it('hijo inválido en cualquier profundidad → error', () => {
+    it('assertRuleSpec rechaza un hijo inválido en cualquier profundidad', () => {
       const malformed = {
         kind: 'and',
         rules: [
