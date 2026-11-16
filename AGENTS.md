@@ -49,6 +49,7 @@ pnpm test:watch     # Vitest en watch
 pnpm typecheck      # tsc --noEmit (sin errores antes de dar por terminada una tarea)
 pnpm format         # Prettier: formatear todo el repo
 pnpm format:check   # Prettier: verificar formato sin escribir (para CI)
+pnpm docs:check     # Mermaid: validar los bloques de los .md (docs/ y AGENTS.md)
 ```
 
 ## Formato
@@ -93,8 +94,9 @@ sin tocar su firma, tests, estilos y `src/components/**`.
 
 Comprobaciones al terminar:
 
-- los bloques Mermaid siguen parseando (`mermaid.parse`); si se añaden etiquetas de arista con
-  paréntesis u otros caracteres especiales, van entre comillas dobles;
+- `pnpm docs:check` — valida los bloques Mermaid con el parser real (`scripts/checkMermaid.mjs`);
+  si se añaden etiquetas de arista con paréntesis u otros caracteres especiales, van entre comillas
+  dobles;
 - las rutas y ficheros citados en el texto existen (nada de símbolos recién eliminados);
 - `pnpm format` deja el Markdown conforme.
 
