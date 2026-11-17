@@ -14,7 +14,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:mutation": "stryker run",
     "typecheck": "tsc --noEmit",
+    "imports:check": "node scripts/unusedImports.mjs",
+    "imports:fix": "node scripts/unusedImports.mjs --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "docs:check": "node scripts/checkMermaid.mjs"
@@ -25,6 +28,9 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/typescript-checker": "10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "^16.0.1",
     "@types/node": "^26.6.6",

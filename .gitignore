@@ -9,6 +9,10 @@ build/
 # Test coverage
 coverage/
 
+# Mutation testing (Stryker)
+.stryker-tmp/
+reports/
+
 # Logs
 logs/
 *.log

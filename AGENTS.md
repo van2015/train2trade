@@ -55,7 +55,10 @@ pnpm install       # instalar dependencias
 ```bash
 pnpm test           # Vitest en modo run (CI)
 pnpm test:watch     # Vitest en watch
+pnpm test:coverage  # Vitest con cobertura V8 (informe + coverage-final.json)
 pnpm typecheck      # tsc --noEmit (sin errores antes de dar por terminada una tarea)
+pnpm imports:check  # imports sin uso en src/ y test/ (exit 1 si hay)
+pnpm imports:fix    # eliminar los imports sin uso
 pnpm format         # Prettier: formatear todo el repo
 pnpm format:check   # Prettier: verificar formato sin escribir (para CI)
 pnpm docs:check     # Mermaid: validar los bloques de los .md (docs/ y AGENTS.md)
@@ -76,7 +79,7 @@ Antes de dar por terminada una tarea: `pnpm format`. No añadir estilos a mano n
 ## Al terminar una tarea
 
 ```bash
-pnpm test && pnpm typecheck && pnpm format:check   # los tres en verde
+pnpm test && pnpm typecheck && pnpm format:check && pnpm imports:check   # los cuatro en verde
 ```
 
 Si la tarea ha tocado `src/domain/**` o `src/storage/**`, revisar además
