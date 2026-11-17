@@ -165,7 +165,21 @@ describe('RuleSpec', () => {
       expect(() =>
         assertRuleSpec({
           kind: 'first_since',
+          then: { kind: 'condition', op: '>', a: 'close', b: 'ema12' },
+        }),
+      ).toThrow('"first_since" requiere las ramas "since" y "then"')
+      expect(() =>
+        assertRuleSpec({
+          kind: 'first_since',
           since: { kind: 'condition', op: '>', a: 'close', b: 'ema12' },
+        }),
+      ).toThrow('"first_since" requiere las ramas "since" y "then"')
+      // la rama `then` también se valida (no se omite)
+      expect(() =>
+        assertRuleSpec({
+          kind: 'first_since',
+          since: { kind: 'condition', op: '>', a: 'close', b: 'ema12' },
+          then: { kind: 'xor', rules: [] },
         }),
       ).toThrow(InvalidStrategyDefinitionError)
       expect(() =>
@@ -406,6 +420,9 @@ describe('parseStrategySpec (validación para persistencia)', () => {
     expect(() => parseStrategySpec({ ...validSpec(), name: '' })).toThrow(
       InvalidStrategyDefinitionError,
     )
+    expect(() => parseStrategySpec({ ...validSpec(), name: '   ' })).toThrow(
+      'el name no puede estar vacío',
+    )
     expect(() => parseStrategySpec({ ...validSpec(), version: 0 })).toThrow(
       'la version debe ser un entero >= 1',
     )
@@ -449,6 +466,16 @@ describe('parseStrategySpec (validación para persistencia)', () => {
         entry: { rule: base.entry.rule, price: series('fast'), execution: 'stop' },
       }),
     ).toThrow('entry.execution debe ser "limit" o "market"')
+    // la forma de la regla y la expresión de precio también se validan
+    expect(() => parseStrategySpec({ ...base, entry: { rule: 'x', execution: 'market' } })).toThrow(
+      InvalidStrategyDefinitionError,
+    )
+    expect(() =>
+      parseStrategySpec({
+        ...base,
+        entry: { rule: base.entry.rule, price: 99 as never, execution: 'limit' },
+      }),
+    ).toThrow(InvalidPriceExprError)
   })
 
   it('tp/sl: price y execution obligatorios', () => {
@@ -472,6 +499,12 @@ describe('parseStrategySpec (validación para persistencia)', () => {
         triggers: [{ price: series('fast'), action: 'sell', execution: 'market' }],
       }),
     ).toThrow('trigger.action debe ser request_entry/request_add/request_reduce/request_exit')
+    expect(() =>
+      parseStrategySpec({
+        ...base,
+        triggers: [{ price: 99 as never, action: 'request_exit', execution: 'market' }],
+      }),
+    ).toThrow(InvalidPriceExprError)
     expect(() =>
       parseStrategySpec({
         ...base,

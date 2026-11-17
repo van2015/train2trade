@@ -99,6 +99,10 @@ describe('comportamiento de la vela', () => {
     expect(Candle.from(fields()).equals(Candle.from(fields()))).toBe(true)
     expect(Candle.from(fields()).equals(Candle.from(fields({ close: 12 })))).toBe(false)
     expect(Candle.from(fields()).equals(Candle.from(fields({ time: 1 })))).toBe(false)
+    expect(Candle.from(fields()).equals(Candle.from(fields({ open: 9 })))).toBe(false)
+    expect(Candle.from(fields()).equals(Candle.from(fields({ high: 13 })))).toBe(false)
+    expect(Candle.from(fields()).equals(Candle.from(fields({ low: 8 })))).toBe(false)
+    expect(Candle.from(fields()).equals(Candle.from(fields({ volume: 2 })))).toBe(false)
   })
 
   it('serializa a JSON plano y hace round-trip con from()', () => {

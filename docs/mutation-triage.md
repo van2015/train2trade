@@ -152,6 +152,24 @@ resto <12 c/u.
         ×1 (L220), case `None` duplicado sin efecto ×1 (L162), `L168` de solo
         `pendingOrder !== null` (el `null`+`pendingKind null` entra en un cancel no-op)
         ×1 y `L315` self-loop de add ×1.
+  - [x] **B4** — `candles` (csv11 + candle9), `replay` (9+speed1), `strategies/strategy`
+        (10) y `spec/validate` (9): run previo **92,64 %** con50 vivos → run final
+        **97,60 % y15 vivos** (35 muertos con14 tests →1206 en total): `equals` con los4
+        campos restantes; strict con línea de solo espacios, `parseRow` de tiempo con
+        espacios (recorte antes de parsear), documento en blanco con `columns` nombrados,
+        `detectDelimiter` LF y empate; resoluciones que no se re-registran / vuelven a
+        registrarse tras `reset` (regla sin estado — el `enterOnce` tiene closure que
+        sobrevive al reset), conteos de envíos y rellenos del ciclo completo y orden
+        manual + estrategia en el log; `name` con tipo o espacios, `first_since` con
+        mensajes (ramas ausentes) y `then` invalidado, regla/precio de entrada y precio
+        de trigger literales, toque exacto en ambos lados, venta sin toque, regla
+        direccional de venta con precio bajo el low (construcción de trigger `reduce`
+        — también mata `isSignalAction`) y nivel TP literal. **Los15 restantes son
+        equivalentes documentados**: csv (L179 default `'skip'`, L182 guard `<=` con
+        `undefined`, L207 `?? ''`, L213 shift uniforme), speed (typeof vs `Number.isFinite`),
+        candle (L55×4 trim, L164 shortcut de `equals`), replay (L85 ids disjuntos
+        `m*`/`o*`, L355 `qty` de manualSell inalcanzable), validate (L138 typeof) y
+        strategy (L337 `{entry,sl,tp}` → `{}` con solo lecturas doblemente guardadas).
 - [x] **Lote C — mensajes de error de dominio: COMPLETADO** (subconjunto de los 213
       `StringLiteral`, C1–C7 — política aplicada: texto de contrato de errores `*Error` de
       dominio; logs/observabilidad no se persiguen; ver equivalentes en la sección 4).

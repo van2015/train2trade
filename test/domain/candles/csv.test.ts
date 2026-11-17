@@ -29,6 +29,14 @@ describe('CsvCandlesImporter', () => {
     it('detecta tabulador', () => {
       expect(CsvCandlesImporter.detectDelimiter('time\topen\n1000\t10')).toBe('\t')
     })
+
+    it('detecta de la primera línea no vacía aunque el documento use LF (no solo CRLF)', () => {
+      expect(CsvCandlesImporter.detectDelimiter('a;b\nx,y,z')).toBe(';')
+    })
+
+    it('con empate de conteo gana el primer candidato (orden , ; tab)', () => {
+      expect(CsvCandlesImporter.detectDelimiter('a,b;c')).toBe(',')
+    })
   })
 
   describe('parse', () => {
@@ -152,9 +160,15 @@ describe('CsvCandlesImporter', () => {
 
     it('con onInvalidRow throw las líneas en blanco se omiten (no son filas)', () => {
       const importer = new CsvCandlesImporter({ onInvalidRow: 'throw' })
-      const text = [HEADER, '1000,10,12,9,11,100', '', '2000,10,12,9,11,100'].join('\n')
+      const text = [HEADER, '1000,10,12,9,11,100', '', '   ', '2000,10,12,9,11,100'].join('\n')
 
       expect(importer.parse(text)).toEqual([candle(), candle({ time: 2000 })])
+    })
+
+    it('documento en blanco → [] incluso con columns nombrados', () => {
+      const importer = new CsvCandlesImporter({ columns: { close: { column: 'Cierre' } } })
+
+      expect(importer.parse('   \n  ')).toEqual([])
     })
 
     it('omite las filas inválidas con onInvalidRow skip (por defecto)', () => {
@@ -211,6 +225,20 @@ describe('CsvCandlesImporter', () => {
       )
       expect(() => importer.parseRow('1000,,12,9,11,100')).toThrow(/falta el valor de "open"/)
       expect(() => importer.parseRow('')).toThrow(InvalidCsvError)
+    })
+
+    it('celda de tiempo con solo espacios → "falta el valor" (se recorta antes de parsear)', () => {
+      const importer = new CsvCandlesImporter()
+
+      expect(() => importer.parseRow('   ,10,12,9,11,100')).toThrow('falta el valor de "time"')
+    })
+
+    it('celda de tiempo con espacios alrededor → el mensaje usa el valor recortado', () => {
+      const importer = new CsvCandlesImporter()
+
+      expect(() => importer.parseRow(' abc ,10,12,9,11,100')).toThrow(
+        'el tiempo "abc" no es un número válido',
+      )
     })
   })
 })

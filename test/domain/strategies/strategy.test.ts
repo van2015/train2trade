@@ -122,6 +122,16 @@ describe('Strategy (construcción)', () => {
     ).toThrow('el name no puede estar vacío')
   })
 
+  it('name con tipo no string o solo espacios → InvalidStrategyDefinitionError', () => {
+    const signal = () => new Signal(StrategyAction.RequestEntry, rule('a', true))
+    expect(() => new Strategy({ name: '   ', signals: [signal()] })).toThrow(
+      'el name no puede estar vacío',
+    )
+    expect(() => new Strategy({ name: 42 as never, signals: [signal()] })).toThrow(
+      InvalidStrategyDefinitionError,
+    )
+  })
+
   it('version inválida (0, 2.5) → InvalidStrategyDefinitionError', () => {
     for (const version of [0, 2.5]) {
       expect(
@@ -163,6 +173,14 @@ describe('Strategy (construcción)', () => {
     expect(() => strategyWith(signal, { stopLoss: bad })).toThrow(
       'stopLoss.execution debe ser "limit" o "market"',
     )
+  })
+
+  it('takeProfit/stopLoss exigen una expresión de precio válida', () => {
+    const signal = [new Signal(StrategyAction.RequestEntry, rule('a', true))]
+
+    expect(() =>
+      strategyWith(signal, { takeProfit: { price: 99 as never, execution: 'limit' } }),
+    ).toThrow(InvalidPriceExprError)
   })
 
   it('el error tiene name InvalidStrategyDefinitionError', () => {
@@ -718,6 +736,47 @@ describe('Strategy.evaluate (triggers)', () => {
 
     expect(decision.action).toBe(StrategyAction.RequestExit)
     expect(decision.price).toBe(13)
+  })
+
+  it('toque exacto en ambos lados (low === price y high === price) → dispara', () => {
+    const buy = triggerStrategy(StrategyAction.RequestEntry, 12, 'limit')
+    expect(buy.evaluate(buy.buildContext(CANDLES), false).action).toBe(StrategyAction.RequestEntry)
+
+    const sell = triggerStrategy(StrategyAction.RequestExit, 14, 'limit')
+    expect(sell.evaluate(sell.buildContext(CANDLES, { entry: 100 }), true).action).toBe(
+      StrategyAction.RequestExit,
+    )
+  })
+
+  it('venta sin toque → no dispara', () => {
+    const strategy = triggerStrategy(StrategyAction.RequestExit, 100, 'limit')
+
+    expect(strategy.evaluate(strategy.buildContext(CANDLES, { entry: 100 }), true).action).toBe(
+      StrategyAction.None,
+    )
+  })
+
+  it('regla direccional de venta: el toque se mide con high aunque el precio quede bajo el low', () => {
+    // low = 12 > 11: la regla de compra no tocaría, pero es una venta (high = 14 ≥ 11).
+    const exit = triggerStrategy(StrategyAction.RequestExit, 11, 'limit')
+    expect(exit.evaluate(exit.buildContext(CANDLES, { entry: 100 }), true).action).toBe(
+      StrategyAction.RequestExit,
+    )
+
+    const reduce = strategyWith([neverSignal()], {
+      triggers: [
+        new Trigger({
+          price: series('lvl'),
+          action: StrategyAction.RequestReduce,
+          execution: 'market',
+          fraction: 0.5,
+        }),
+      ],
+      indicators: { lvl: new Constant(11) },
+    })
+    expect(reduce.evaluate(reduce.buildContext(CANDLES, { entry: 100 }), true).action).toBe(
+      StrategyAction.RequestReduce,
+    )
   })
 
   it('sin toque → no dispara', () => {

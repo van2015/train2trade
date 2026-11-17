@@ -220,6 +220,63 @@ describe('MarketReplayEngine — paso y log', () => {
     expect(engine.log.filter((entry) => entry.kind === 'rejection')).toHaveLength(1)
   })
 
+  it('una resolución no se re-registra en los barridos de los pasos siguientes', () => {
+    const engine = openEngine({
+      strategy: enterOnceStrategy(),
+      candles: candlesFrom([100, 1000, 1000, 1000]),
+    })
+    engine.step()
+    engine.step() // o1 rechazado (registrado una vez)
+    engine.step() // barrido extra: la resolución ya está registrada
+    engine.step()
+
+    expect(engine.log.filter((entry) => entry.kind === 'rejection')).toHaveLength(1)
+  })
+
+  it('tras reset, la misma resolución vuelve a registrarse (los ids se reinician)', () => {
+    // Regla sin estado: dispara solo en la primera vela → una señal por recorrido.
+    const reentry = () =>
+      new Strategy({
+        name: 'reentry',
+        signals: [
+          new Signal(StrategyAction.RequestEntry, {
+            name: 'at-first',
+            evaluate: (context) => context.length === 1,
+          }),
+        ],
+      })
+    const engine = openEngine({
+      strategy: reentry(),
+      candles: candlesFrom([100, 1000]), // decide en i0 @100, abre en i1 @1000 → rechazo
+    })
+    engine.step()
+    engine.step() // o1 rechazado
+    engine.reset()
+
+    engine.step()
+    engine.step() // o1 rechazado otra vez (mismo id tras reset)
+
+    expect(engine.log.filter((entry) => entry.kind === 'rejection')).toHaveLength(1)
+  })
+
+  it('el log registra todos los envíos y rellenos del ciclo (append-only por índice)', () => {
+    const engine = openEngine() // cruce E2E: entrada (i4) + salida (i7)
+    runToEnd(engine)
+
+    const log = engine.log
+    expect(log.filter((entry) => entry.kind === 'order')).toHaveLength(2) // envío entrada + salida
+    expect(log.filter((entry) => entry.kind === 'fill')).toHaveLength(2) // relleno entrada + salida
+  })
+
+  it('el orden manual y el envío de estrategia conviven en el log', () => {
+    const engine = openEngine({ strategy: enterOnceStrategy() })
+    engine.manualBuy(0.5) // nota m1 en el log (antes del primer paso)
+    engine.step() // enterOnce dispara en i0 → la estrategia envía o1
+
+    expect(engine.log.some((entry) => entry.kind === 'manual')).toBe(true)
+    expect(engine.log.some((entry) => entry.kind === 'order' && entry.orderId === 'o1')).toBe(true)
+  })
+
   it('las cancelaciones por veto se registran en el log', () => {
     const engine = openEngine({ strategy: vetoStrategy(), candles: candlesFrom([100, 100, 100]) })
     engine.step()
