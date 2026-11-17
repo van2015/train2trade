@@ -29,6 +29,7 @@ describe('Fill — construcción', () => {
 
   it.each([
     ['orderId vacío', { orderId: '' }, 'el orderId no puede estar vacío'],
+    ['orderId con solo espacios', { orderId: '   ' }, 'el orderId no puede estar vacío'],
     ['orderId no string', { orderId: 3 }, 'el orderId no puede estar vacío'],
     ['side desconocido', { side: 'long' }, 'side debe ser "buy" o "sell"'],
     ['price cero', { price: 0 }, 'price debe ser un número finito > 0'],
@@ -39,6 +40,7 @@ describe('Fill — construcción', () => {
     ['qty no finita', { qty: Number.POSITIVE_INFINITY }, 'qty debe ser un número finito > 0'],
     ['fee no finita', { fee: Number.NaN }, 'fee debe ser un número finito >= 0'],
     ['time no finito', { time: 'ayer' }, 'time debe ser un timestamp finito (ms)'],
+    ['time NaN', { time: Number.NaN }, 'time debe ser un timestamp finito (ms)'],
   ] as const)('rechaza %s con InvalidFillError y su mensaje', (_label, overrides, message) => {
     const build = () => new Fill({ ...fillData, ...overrides } as unknown as FillData)
     expect(build).toThrow(InvalidFillError)

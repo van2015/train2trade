@@ -59,15 +59,33 @@ describe('Trade — construcción', () => {
     ],
     ['entryPrice cero', { entryPrice: 0 }, 'entryPrice debe ser un número finito > 0'],
     ['entryPrice negativo', { entryPrice: -10 }, 'entryPrice debe ser un número finito > 0'],
+    [
+      'entryPrice no finito',
+      { entryPrice: Number.NaN },
+      'entryPrice debe ser un número finito > 0',
+    ],
+    [
+      'entryPrice no number',
+      { entryPrice: '100' as unknown as number },
+      'entryPrice debe ser un número finito > 0',
+    ],
+    ['exitPrice cero', { exitPrice: 0 }, 'exitPrice debe ser un número finito > 0'],
     ['exitPrice no finito', { exitPrice: Number.NaN }, 'exitPrice debe ser un número finito > 0'],
     ['qty cero', { qty: 0 }, 'qty debe ser un número finito > 0'],
     ['qty negativa', { qty: -1 }, 'qty debe ser un número finito > 0'],
+    ['qty no finita', { qty: Number.NaN }, 'qty debe ser un número finito > 0'],
+    ['qty no number', { qty: '2' as unknown as number }, 'qty debe ser un número finito > 0'],
     ['pnl no finito', { pnl: Number.NaN }, 'pnl debe ser un número finito'],
     ['fees negativas', { fees: -0.01 }, 'fees debe ser un número finito >= 0'],
     ['fees no finitas', { fees: Number.NaN }, 'fees debe ser un número finito >= 0'],
   ] as const)('rechaza %s con InvalidTradeError y su mensaje', (_label, overrides, message) => {
     expect(() => new Trade({ ...tradeData, ...overrides })).toThrow(InvalidTradeError)
     expect(() => new Trade({ ...tradeData, ...overrides })).toThrow(message)
+  })
+
+  it('acepta el timestamp 0 (época) en ambos extremos', () => {
+    expect(() => new Trade({ ...tradeData, entryTime: 0 })).not.toThrow()
+    expect(new Trade({ ...tradeData, entryTime: 0 }).entryTime).toBe(0)
   })
 
   it('InvalidTradeError fija this.name y formatea el valor recibido', () => {
@@ -104,6 +122,11 @@ describe('Trade — roundtrip JSON (persistencia, Fase 6)', () => {
     [
       'null en vez de objeto',
       () => Trade.from(null as unknown as TradeData),
+      'los datos deben ser un objeto',
+    ],
+    [
+      'número en vez de objeto',
+      () => Trade.from(42 as unknown as TradeData),
       'los datos deben ser un objeto',
     ],
     [

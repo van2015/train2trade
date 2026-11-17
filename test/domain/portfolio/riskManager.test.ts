@@ -42,6 +42,11 @@ describe('RiskManager — configuración', () => {
       'minCashReserve debe ser un número en [0, 1)',
     ],
     ['minCashReserve >= 1', { minCashReserve: 1 }, 'minCashReserve debe ser un número en [0, 1)'],
+    [
+      'minCashReserve no finito',
+      { minCashReserve: Number.NaN },
+      'minCashReserve debe ser un número en [0, 1)',
+    ],
     ['feeBps negativo', { feeBps: -1 }, 'feeBps debe ser un número finito >= 0'],
     [
       'feeBps no finito',
@@ -129,6 +134,14 @@ describe('RiskManager — entryQty (tamaño de la entrada)', () => {
     expect(risk.entryQty(spent, 100)).toBeNull()
   })
 
+  it('presupuesto positivo pero inferior a la cantidad mínima → null (nunca 0)', () => {
+    // funds = 1000 × 1e-15 > 0, pero qty = 1e-14 redondea a 0 con QTY_PRECISION.
+    expect(
+      new RiskManager({ maxPositionFraction: 1e-15 }).entryQty(new Portfolio(1_000), 100),
+    ).toBeNull()
+    expect(new RiskManager().addQty(new Portfolio(1_000), 100, 1e-15)).toBeNull()
+  })
+
   it.each([0, -1, Number.NaN] as const)('entryQty rechaza price %s → InvalidRiskError', (price) => {
     const risk = new RiskManager()
     const portfolio = new Portfolio(1_000)
@@ -160,6 +173,24 @@ describe('RiskManager — canAdd (aprobación de aumentos)', () => {
     const risk = new RiskManager({ feeBps: 100 }) // coste con fee 101 > 100
     expect(risk.canAdd(portfolio, 100, 1)).toBe(false)
     expect(new RiskManager().canAdd(portfolio, 100, 1)).toBe(true)
+  })
+
+  it('el coste del aumento es unitCost × qty (no inverso)', () => {
+    const portfolio = new Portfolio(1_000)
+    portfolio.applyFill(buy(7.99, 100)) // cash 201, exposición 799
+    const risk = new RiskManager({ feeBps: 100 }) // coste = 101 × 2 = 202 > 201 → no admisible
+
+    expect(risk.canAdd(portfolio, 100, 2)).toBe(false)
+    // sin comisión: coste 200 ≤ 201 y exposición 999 ≤ 1000 → admisible
+    expect(new RiskManager().canAdd(portfolio, 100, 2)).toBe(true)
+  })
+
+  it('la tolerancia de exposición admite el tope exacto + epsilon (FP)', () => {
+    const portfolio = new Portfolio(1_000)
+    const risk = new RiskManager({ maxPositionFraction: 0.5 }) // tope 500 + 1e-9
+    // exposureAfter === equity × frac + EXPOSURE_EPSILON exactamente
+    expect(risk.canAdd(portfolio, 1, 500.000000001)).toBe(true)
+    expect(risk.canAdd(portfolio, 1, 500.00000001)).toBe(false)
   })
 
   it.each([

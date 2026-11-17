@@ -241,6 +241,23 @@ describe('StrategyRunner — veto (invalidación)', () => {
     expect(runner.onCandle([C0])).toEqual([])
     expect(runner.instance.state).toBe(StrategyState.WaitingForSignal)
   })
+
+  it('el veto nunca cancela la orden de salida pendiente (cerrar siempre es admisible)', () => {
+    const { flags, runner, broker } = setup(undefined, undefined, { exitLimitPrice: 1000 })
+    flags.entry = true
+    runner.onCandle([C0])
+    flags.entry = false
+    runner.onCandle([C0, C1]) // posición abierta
+    flags.exit = true
+    runner.onCandle([C0, C1, C2]) // salida limit en vuelo
+    flags.exit = false
+
+    flags.veto = true
+    const events = runner.onCandle([C0, C1, C2, candle(3, { open: 105 })])
+
+    expect(events).not.toContain('OrderCancelled')
+    expect(broker.pendingOrders()).toHaveLength(1)
+  })
 })
 
 describe('StrategyRunner — ciclo completo', () => {
@@ -358,6 +375,24 @@ describe('StrategyRunner — Add y Reduce', () => {
     expect(runner.instance.state).toBe(StrategyState.WaitingForExitFill)
     expect(broker.pendingOrders()).toHaveLength(1)
     expect(broker.pendingOrders()[0]?.side).toBe(OrderSide.Sell)
+  })
+
+  it('con una orden de salida en vuelo, la señal add no duplica el envío', () => {
+    const { flags, runner, broker } = setup({ maxPositionFraction: 0.5 }, undefined, {
+      exitLimitPrice: 1000,
+    })
+    flags.entry = true
+    runner.onCandle([C0])
+    flags.entry = false
+    runner.onCandle([C0, C1]) // abierta: 5 @ 100, cash 500
+    flags.exit = true
+    runner.onCandle([C0, C1, C2]) // salida limit en vuelo
+    flags.exit = false
+
+    flags.add = true
+    // la bajada a 90 libera holgura: addQty sería admisible, pero hay una orden en vuelo
+    expect(runner.onCandle([C0, C1, C2, candle(3, { open: 90 })])).toEqual([])
+    expect(broker.pendingOrders()).toHaveLength(1)
   })
 })
 

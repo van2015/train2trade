@@ -201,6 +201,25 @@ function tpAndExitStrategy(): Strategy {
   })
 }
 
+/**
+ * Entrada `close > SMA(2)`, TP limit (110) y salida limit (100): la salida
+ * manual rellena primero (open 105 ≥ 100) mientras el TP del runner sigue en
+ * vuelo — doble vía de órdenes (estrategia + manual) en el mismo broker.
+ */
+function tpPendingExitStrategy(): Strategy {
+  return new Strategy({
+    name: 'tp-pending-exit',
+    indicators: { fast: new Sma(2), tpPx: new Constant(110), exitPx: new Constant(100) },
+    signals: [
+      new Signal(StrategyAction.RequestEntry, new Greater('close', 'fast')),
+      new Signal(StrategyAction.RequestExit, new Lower('close', 'fast'), {
+        price: series('exitPx'),
+      }),
+    ],
+    takeProfit: { price: series('tpPx'), execution: 'limit' },
+  })
+}
+
 function config(strategy: Strategy, candles: Candle[] = CANDLES): TradingSessionConfig {
   return { strategy, candles, timeframe: Timeframe.HOUR, initialCapital: 1_000 }
 }
@@ -344,6 +363,31 @@ describe('TestForwardSession — salida por regla con decisión (§2.1)', () => 
     expect(tf.session.portfolio.position).toBeNull()
     expect(tf.log.some((entry) => entry.text.includes('Orden no ejecutada'))).toBe(true)
     expect(tf.log.some((entry) => entry.text.includes('sin posición abierta'))).toBe(true)
+  })
+
+  it('la salida manual rellena mientras el TP del runner sigue en vuelo (doble vía)', () => {
+    const candles: Candle[] = [
+      ...flat([100, 95, 98, 100, 140, 140, 90]),
+      Candle.from({ time: t0 + 7 * stepMs, open: 105, high: 105, low: 85, close: 85, volume: 1 }),
+    ]
+    const tf = new TestForwardSession(config(tpPendingExitStrategy(), candles), () => 1) // destino i4
+
+    tf.start() // pausa en i4 (el punto intermedio i1..i3 se descarta)
+    expect(tf.confirmation?.kind).toBe('entry')
+    tf.decide(true)
+    tf.step() // i5: relleno de la entrada + el TP limit (110) queda en vuelo
+
+    expect(tf.session.broker.pendingOrders()).toHaveLength(1) // solo el TP del runner
+
+    tf.step() // i6: la regla de salida dispara → pausa
+    expect(tf.confirmation?.kind).toBe('exit')
+    tf.decide(true) // salida manual limit (100)
+
+    tf.step() // i7: la manual rellena (open 105 ≥ 100); el TP (110) sigue pendiente
+
+    expect(tf.session.portfolio.position?.isOpen ?? false).toBe(false)
+    expect(tf.status).toBe('finished') // i7 fue la última vela procesada
+    expect(tf.session.broker.pendingOrders()).toHaveLength(1) // el TP no se toca
   })
 })
 

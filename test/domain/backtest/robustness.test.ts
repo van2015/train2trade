@@ -70,6 +70,15 @@ describe('analyzeRobustness — estadísticas sobre runs válidos (§13)', () =>
     expect(report.stdev).toBe(0)
     expect(report.plateau).toEqual({ neighbors: 0, avg: null, worst: null })
   })
+
+  it('stdev con tres valores usa la desviación muestral (n−1)', () => {
+    const report = analyzeRobustness(
+      result([run({ a: 1 }, 10), run({ a: 2 }, 30), run({ a: 3 }, 50)], { a: [1, 2, 3] }),
+    )
+
+    // ss = 400 + 0 + 400 = 800 → var = 800 / 2 = 400 → √400 = 20
+    expect(report.stdev).toBeCloseTo(20, 10)
+  })
 })
 
 describe('analyzeRobustness — plateau (vecindario ±1 paso)', () => {
@@ -186,6 +195,15 @@ describe('analyzeRobustness — umbral y sensibilidad (§13)', () => {
       { param: 'x', spread: 0 },
       { param: 'y', spread: 0 },
     ])
+  })
+
+  it('un valor de rejilla sin métricas no ensucia la sensibilidad', () => {
+    const report = analyzeRobustness(
+      result([run({ a: 1 }, 10), run({ a: 2 }, null), run({ a: 3 }, 20)], { a: [1, 2, 3] }),
+    )
+
+    // medias 10 y 20 (a2 se excluye por null) → spread 10
+    expect(report.sensitivity).toEqual([{ param: 'a', spread: 10 }])
   })
 
   it('determinismo: mismo input → mismo informe', () => {

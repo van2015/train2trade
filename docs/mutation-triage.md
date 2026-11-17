@@ -123,6 +123,35 @@ resto <12 c/u.
         L72, L142) y3 textos de log (`entrada`/`salida`, `reason ??`) por política.
         **Verificación final:89,70 % y exactamente los36 aceptados** (metrics18 +
         session17 + confirmationPoints1); ninguno inesperado.
+  - [x] **B2** — `portfolio/riskManager` (17) y `backtest/robustness` (13): run previo
+        **85,97 %** con30 vivos → run final **90,95 % y19 vivos** (11 muertos con6 tests
+        nuevos →1180 en total): fila NaN de `minCashReserve`, presupuesto positivo <
+        cantidad mínima → `null` (entryQty y addQty), coste `unitCost × qty` (no
+        inverso) con fee, tope de exposición **exacto + epsilon**
+        (`500.000000001` verificado en FP), sensibilidad con valor de rejilla todo-null
+        y stdev con3 valores (n−1). **Los19 restantes son equivalentes documentados**:
+        robustness (10): typeof vs `Number.isFinite` sin coerción (L52), bounds de
+        plateau absorbidos por el lookup de `canonicalJson` (L107×5 + L104 defensivo),
+        `means.length === 0` inalcanzable (L146), sort de sensibilidad con el patrón V8
+        ya verificado en B1 (L152×2); riskManager (10): guards `funds/budget ≤ 0`
+        redundantes con el `qty > 0` (L91×2, L111×2) y `typeof` vs `Number.isFinite`
+        sin coerción (L148, L159, L166, L169, L175).
+  - [x] **B3** — `trading/strategyRunner` (16), `execution/trade` (14) y
+        `execution/fill` (6): run previo **85,19 %** con36 vivos → run final
+        **91,77 % y20 vivos** (16 muertos →1192 en total): orderId con solo espacios y
+        `time NaN` (fill); filas `entryPrice` string/NaN, `exitPrice` cero, `qty`
+        string/NaN, `Trade.from(42)` y timestamp `0` válido (trade); **veto con salida
+        pendiente** (la salida nunca se cancela ×3), **add sin duplicar** con orden en
+        vuelo (×1) y el **test de doble vía** en test-forward (la salida manual rellena
+        mientras el TP del runner sigue en vuelo — único escenario donde el guard de
+        `consumeFills` es observable, ×2). **Los20 restantes son equivalentes
+        documentados**: typeof vs `Number.isFinite` sin coerción ×9 (fill4 + trade6… de
+        los cuales L106/L100 con sus variantes), guards `qty <= 0`/posición
+        redundantes con los productores ×4, refresh de `instance.apply` como self-loop
+        ×2 (L195/L229), `submitExit` sin posición reenviado por `submitDecisionOrder`
+        ×1 (L220), case `None` duplicado sin efecto ×1 (L162), `L168` de solo
+        `pendingOrder !== null` (el `null`+`pendingKind null` entra en un cancel no-op)
+        ×1 y `L315` self-loop de add ×1.
 - [x] **Lote C — mensajes de error de dominio: COMPLETADO** (subconjunto de los 213
       `StringLiteral`, C1–C7 — política aplicada: texto de contrato de errores `*Error` de
       dominio; logs/observabilidad no se persiguen; ver equivalentes en la sección 4).
