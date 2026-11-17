@@ -129,6 +129,24 @@ describe('Order — transiciones de estado', () => {
     expect(order.rejectReason).toBe('capital insuficiente')
   })
 
+  it('reject con motivo vacío o solo espacios → InvalidOrderError', () => {
+    expect(() => marketBuy().reject('   ')).toThrow('reject requiere un motivo no vacío')
+    expect(() => marketBuy().reject(3 as never)).toThrow(InvalidOrderError)
+  })
+
+  it('el error de limit sin price informa (recibido: null)', () => {
+    expect(
+      () =>
+        new Order({
+          id: 'o-limit',
+          side: OrderSide.Buy,
+          type: OrderType.Limit,
+          qty: 1,
+          createdAt,
+        }),
+    ).toThrow('(recibido: null)')
+  })
+
   it.each([
     ['fill', (order: Order) => order.fill()],
     ['cancel', (order: Order) => order.cancel()],

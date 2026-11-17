@@ -151,6 +151,18 @@ describe('HistoricalBroker — cancelación', () => {
     expect(broker.account.position).toBeNull()
   })
 
+  it('cancelOrder con varias pendientes cancela solo la del id', () => {
+    const broker = makeBroker()
+    const first = broker.submitOrder(order('o1'))
+    const second = broker.submitOrder(order('o2'))
+
+    broker.cancelOrder('o2')
+
+    expect(second.status).toBe(OrderStatus.Cancelled)
+    expect(first.status).toBe(OrderStatus.Pending)
+    expect(broker.pendingOrders().map((entry) => entry.id)).toEqual(['o1'])
+  })
+
   it('cancelOrder con id inexistente o ya resuelta lanza InvalidOrderError', () => {
     const broker = makeBroker()
     expect(() => broker.cancelOrder('no-existe')).toThrow(InvalidOrderError)

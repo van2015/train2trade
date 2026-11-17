@@ -28,11 +28,12 @@ export default {
     fileName: 'reports/mutation/mutation.json',
   },
   thresholds: {
-    high: 80,
+    high: 90,
     low: 60,
-    // Ratchet: piso = score actual (78,6 %) − 5 →73. Informativo: si un cambio
-    // lo baja por debajo, `stryker run` sale con código1. Se sube al mejorar.
-    break: 73,
+    // Ratchet M4 (2026-11-17): piso = score de cierre (95,1 %) − 5 → 90. Stryker sale
+    // con código1 si un cambio lo baja por debajo. CI recomendado: `pnpm test:mutation`
+    // en un job programado (~21 min), no en cada push.
+    break: 90,
   },
   concurrency: 4,
   // Los mutantes "static" (código que se ejecuta al cargar el módulo) suponen

@@ -52,13 +52,31 @@ el detalle vivo está en `reports/mutation/mutation.json` (generado, no versiona
      con `operationAliases('exitRule')` = los3 alias de operación, el guard de `assertOperand`
      (`OPERATION_ALIASES.includes(x) && !allowed.includes(x)`) nunca es `true` en ese contexto →
      la etiqueta no puede observarse en ningún mensaje.
+   - Variantes finales del cierre (2026-11-17): `typeof x !== 'number'` vs
+     `!Number.isFinite(x)` en `marketContext:200` (levels), `marketClock:27`, `portfolio:35`
+     y `tradingSession:61` (mismo patrón equivalente demostrado en B2/B3/B5: `Number.isFinite`
+     sin coerción rechaza todo no-número) y `backtest:111` (`closeOpenPosition` devuelve
+     `true` en vez de `false` sin posición: solo elige entre dos cálculos de `equity()`
+     idénticos; el cierre propiamente dicho no llega a ejecutarse).
 
 ## Historial del ratchet
 
-| Fecha      | Score  | `break` | Notas                                                                            |
-| ---------- | ------ | ------- | -------------------------------------------------------------------------------- |
-| 2026-11-16 | 78,6 % | 73      | Baseline M2 (tras M0/M1 piloto en candles+indicators: 82,3 %)                    |
-| 2026-11-17 | 89,6 % | 73      | Tras Lote A + C1–C7 (run full 23m52s: 4393 mutantes, 2414+10 muertos, 267 vivos) |
+| Fecha      | Score      | `break` | Notas                                                                                                                                                                                                               |
+| ---------- | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-16 | 78,6 %     | 73      | Baseline M2 (tras M0/M1 piloto en candles+indicators: 82,3 %)                                                                                                                                                       |
+| 2026-11-17 | 89,6 %     | 73      | Tras Lote A + C1–C7 (run full 23m52s: 4393 mutantes, 2414+10 muertos, 267 vivos)                                                                                                                                    |
+| 2026-11-17 | **95,1 %** | **90**  | **Cierre: Lote B completo (B1–B6). Run full 21m32s: 4393 mutantes, 2564+11 muertos, 116 vivos (todos documentados como equivalentes/defensivos/logs) + 16 NoCoverage aceptados. M4 aplicado: `break` = score − 5.** |
+
+## Cobertura de líneas
+
+- **Estado (2026-11-17, tras Lotes A/C/B):** 8062 declaraciones cubiertas de8438
+  (95,54 % stmts/lines), estable y determinista entre runs (`pnpm test:coverage`).
+- `src/` está **intacto** (`git status src/` limpio): toda la sesión de mutación solo
+  añadió tests (1119 → 1222), así que no puede haber pérdida real de cobertura.
+- El baseline histórico **8065** se calculó con un script propio que se perdió en una
+  limpieza de `/tmp`; con las variantes de recuento estándar (stmts, líneas únicas,
+  líneas de inicio) el resultado actual es8062 — la diferencia (−3, 0,04 %) es de
+  metodología, no una regresión.
 
 **Desglose de los267 vivos del run final** (Lote B — lógica): `testforward/session` 52 en el
 run full (7 mensajes → muertos en C7 + 1 log aceptado + 44 lógica; el run acotado post-C7 da
@@ -185,6 +203,25 @@ resto <12 c/u.
         (L82), claves únicas en el sort (L106/L107), división por cero absorbida por
         `isFinite` aguas abajo (L119) y null-check redundante con `Number.isFinite`
         (L100).
+  - [x] **B6 (última tanda)** — colas: `instruments`4, `spec/aliases`4, `spec/build`4,
+        `execution/order`4, `strategies/rules`4, `historicalBroker`1, `indicators`
+        (ema1, lowestLow2, rsi2, constant1): run previo **95,59 %** con27 vivos
+        (`costs`, `position`, `compare`, `normalize`, `numbers`, `account`, `broker`,
+        `recordingBroker`, `timeframe` **limpios**). Escribidos9 tests nuevos (1222 en
+        total): internado de `Instrument` (misma clave → misma instancia), las3
+        combinaciones `undefined` de `compatibleClasses`, RSI con pérdidas en semilla y
+        en Wilder ([10,9,8,9,8] y [10,11,10,9] → 33.33/22.22/33.33), `reject('   ')` y
+        raw `(recibido: null)` de limit sin price, casos de cruce (igualdad actual,
+        serie ya por debajo), `Lower` en igualdad, `Any(no, yes)`, cancelación
+        selectiva con dos pendientes, `buildRule` con spec inválido y operandos
+        izquierdo/derecho de precio binario. Run final: **27 →11 vivos** (los11
+        equivalentes: `equals` de `Instrument` ×3 por internado, `sum` de EMA no
+        re-leído tras la semilla, `minOf` ×2, typeof ×3, etiqueta `exitRule` y `||` de
+        `compatibleClasses`). **Notas de proceso:** el test de internado no mató a `L69`
+        la primera vez (el mapa de cobertura per-test de Stryker no lo atribuyó a la
+        línea — se empaquetó la aserción en el test `parsea…` que sí estaba atribuido);
+        y `rsi L62` exigía una serie con pérdida justo en la vela que fija la semilla.
+        **Lote B COMPLETADO:267 →125 vivos (142 muertos en6 lotes).**
 - [x] **Lote C — mensajes de error de dominio: COMPLETADO** (subconjunto de los 213
       `StringLiteral`, C1–C7 — política aplicada: texto de contrato de errores `*Error` de
       dominio; logs/observabilidad no se persiguen; ver equivalentes en la sección 4).

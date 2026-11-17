@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BacktestError, findConfigProblem, runBacktest } from '@/domain/backtest/backtest'
+import { feeFor } from '@/domain/execution/costs'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { MarketContextError } from '@/domain/strategies/marketContext'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
@@ -147,6 +148,8 @@ describe('runBacktest — cierre opcional de posición (closePositionAtEnd, Fase
     expect(trade?.exitTime).toBe(CANDLES[CANDLES.length - 1]?.time)
     expect(trade?.exitPrice).toBeCloseTo(99.9, 10) // venta con slippage 10 bps sobre 100
     expect(trade?.fees).toBeGreaterThan(0)
+    // misma fórmula que NextOpenExecutionModel: fee = price × qty × bps / 10 000
+    expect(trade?.fees).toBeCloseTo(feeFor(99.9 * (trade?.qty ?? 0), 10), 10)
 
     expect(result.orders).toHaveLength(2)
     const closeOrder = result.orders[1]

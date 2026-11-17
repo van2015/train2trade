@@ -7,6 +7,7 @@ describe('Instrument', () => {
 
       expect(instrument.base).toBe('BTC')
       expect(instrument.quote).toBe('USDT')
+      expect(Instrument.from('BTC/USDT')).toBe(instrument) // internado: misma instancia
     })
 
     it('normaliza espacios y minúsculas: " btc / usdt " → BTC/USDT', () => {
@@ -24,6 +25,12 @@ describe('Instrument', () => {
       const instrument = Instrument.of('BTC', 'USDT')
 
       expect(Instrument.from(instrument)).toBe(instrument)
+    })
+
+    it('los instrumentos están internados: misma clave → misma instancia', () => {
+      expect(Instrument.from('BTC/USDT')).toBe(Instrument.from('BTC/USDT'))
+      expect(Instrument.of('BTC', 'USDT')).toBe(Instrument.of('BTC', 'USDT'))
+      expect(Instrument.from(' btc / usdt ')).toBe(Instrument.from('BTC/USDT'))
     })
 
     it('acepta un par sin separador en el objeto', () => {

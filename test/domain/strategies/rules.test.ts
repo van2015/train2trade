@@ -96,6 +96,18 @@ describe('rules', () => {
 
       expect(new CrossesAbove('fast', 2).evaluate(withFast)).toBe(true)
     })
+
+    it('sin cruce si el actual toca la igualdad (curr === b) → false', () => {
+      expect(
+        new CrossesAbove('fast', 2).evaluate(contextWith(CANDLES, { fast: [1, 1, 1, 2] })),
+      ).toBe(false)
+    })
+
+    it('sin cruce si la serie ya estaba por debajo (prev < b) → false', () => {
+      expect(
+        new CrossesBelow('fast', 2).evaluate(contextWith(CANDLES, { fast: [1, 1, 1, 0] })),
+      ).toBe(false)
+    })
   })
 
   describe('Greater / Lower', () => {
@@ -116,6 +128,9 @@ describe('rules', () => {
         true,
       )
       expect(new Lower('rsi', 30).evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, 75] }))).toBe(
+        false,
+      )
+      expect(new Lower('rsi', 30).evaluate(contextWith(CANDLES, { rsi: [30, 30, 30, 30] }))).toBe(
         false,
       )
       expect(new Lower('rsi', 30).evaluate(contextWith(CANDLES, { rsi: [50, 50, 50, null] }))).toBe(
@@ -162,6 +177,7 @@ describe('rules', () => {
 
     it('Any es true con alguna verdadera, con cortocircuito', () => {
       expect(new Any(yes, no).evaluate(context)).toBe(true)
+      expect(new Any(no, yes).evaluate(context)).toBe(true) // la falsa primero no decide
       expect(new Any(no, no).evaluate(context)).toBe(false)
 
       let calls = 0

@@ -193,6 +193,13 @@ describe('RuleSpec', () => {
   })
 
   describe('buildRule (árbol → reglas de dominio)', () => {
+    it('revalida la forma del spec (es la puerta de entrada exportada)', () => {
+      expect(() => buildRule('bad' as never, CLASSES)).toThrow(InvalidStrategyDefinitionError)
+      expect(() => buildRule({ kind: 'xor' } as never, CLASSES)).toThrow(
+        InvalidStrategyDefinitionError,
+      )
+    })
+
     it('condición → CrossesAbove/CrossesBelow/Greater/Lower', () => {
       expect(
         buildRule(
@@ -653,6 +660,27 @@ describe('buildStrategy', () => {
         entry: { rule: base.entry.rule, price: series('ghost'), execution: 'limit' },
       }),
     ).toThrow('el alias "ghost" no está registrado en la estrategia')
+    // operandos de una binaria: también se validan los dos lados
+    expect(() =>
+      buildStrategy({
+        ...base,
+        entry: {
+          rule: base.entry.rule,
+          price: { kind: 'binary', op: '+', left: series('r'), right: series('fast') },
+          execution: 'limit',
+        },
+      }),
+    ).toThrow('los osciladores no forman precios (r) en entry.price')
+    expect(() =>
+      buildStrategy({
+        ...base,
+        entry: {
+          rule: base.entry.rule,
+          price: { kind: 'binary', op: '+', left: series('fast'), right: series('r') },
+          execution: 'limit',
+        },
+      }),
+    ).toThrow('los osciladores no forman precios (r) en entry.price')
   })
 
   it('alias de operación: disponibles según el contexto (§1.1)', () => {
@@ -923,6 +951,9 @@ describe('API para el editor (enmienda 16)', () => {
     expect(compatibleClasses('constant', 'oscillator')).toBe(true)
     expect(compatibleClasses('price', 'constant')).toBe(true)
     expect(compatibleClasses(undefined, 'price')).toBe(false)
+    expect(compatibleClasses(undefined, undefined)).toBe(false)
+    expect(compatibleClasses(undefined, 'constant')).toBe(false)
+    expect(compatibleClasses('constant', undefined)).toBe(false)
   })
 })
 
