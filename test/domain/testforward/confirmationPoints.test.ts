@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { Sma } from '@/domain/indicators/sma'
 import { Greater, Rule } from '@/domain/strategies/rules'
+import { series } from '@/domain/strategies/priceExpr'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { confirmationPoints } from '@/domain/testforward/confirmationPoints'
 import { crossStrategy } from '../../support/strategies'
@@ -76,5 +77,20 @@ describe('confirmationPoints — barrido estadoless (§2.2)', () => {
   it('calentamiento: la regla no dispara mientras la media sea null', () => {
     const short = CANDLES.slice(0, 2) // SMA(3) sin datos
     expect(confirmationPoints(closeAboveSma(), short)).toEqual([])
+  })
+
+  it('el precio limit en calentamiento descarta el punto aunque la regla dispare', () => {
+    const strategy = new Strategy({
+      name: 'limit-warmup',
+      indicators: { s: new Sma(3), slow: new Sma(6) },
+      signals: [
+        new Signal(StrategyAction.RequestEntry, new Greater('close', 's'), {
+          price: series('slow'),
+        }),
+      ],
+    })
+
+    // i4: la regla dispara pero `slow` aún es null → la señal se descarta; en i5 resuelve.
+    expect(confirmationPoints(strategy, CANDLES)).toEqual([5])
   })
 })

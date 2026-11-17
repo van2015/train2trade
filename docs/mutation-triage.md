@@ -101,6 +101,28 @@ resto <12 c/u.
         `robustness:95` (los tres con comentario "Inalcanzable" en el código),
         `metrics:180` (`firstPoint`: `assertCurve` lanza primero con el mismo mensaje).
 - [ ] **Lote B — lógica sobreviviente** (518 − mensajes): prioridad por score de fichero.
+  - [x] **B1** — `testforward/session+confirmationPoints` (48) y `backtest/metrics` (34):
+        escritos **16 tests nuevos** (1174 en total). `testforward`:31 muertos en11 tests
+        (bloqueo de orden propia en vuelo entrada/salida, veto→reconfirmación, reentrada
+        tras cerrar, señal `add` sin confirmación — con velas sin gap i4→i5 para que la
+        entrada rellene, confirmación en la última vela, jump detenido en el destino,
+        id `t1`, precio limit en calentamiento); `metrics`:22 muertos en8 tests
+        (guards de equity no positivo, validación de sharpe, retornos no finitos,
+        varianza muestral n−1, empates en expectancy, `sortByMetricDesc`).
+        **Aceptados como equivalentes/defensivos** — recorridos demostrados: - `metrics` (18): `+= 0`/`+= -0` en profitFactor, identidad de la media en
+        expectancy con `wins = todos`, guards redundantes (`assertX` +
+        `firstPoint`/`lastPoint`/`sharpe` interno → mismo error), **`typeof` vs
+        `Number.isFinite`** (no coerce → el chequeo de tipo es redundante: L164 y
+        session L347), y los **5 mutantes de `sortByMetricDesc`** (empates/`nulls`):
+        verificado empíricamente que el sort de V8 **nunca** presenta comparaciones
+        de empate con `a.index < b.index` (200 entradas aleatorias, n=4..100 → 0),
+        así que `index − b.index`, `index + b.index` y `return 1` tienen siempre el
+        mismo efecto; los tests se mantienen como contrato de estabilidad. - `testforward` (17): `confirmation ⇒ awaiting` (L271), sync de jump
+        redundante (L305), `sl`/`tp` ausentes del contexto (L149/150), guards
+        defensivos inalcanzables (L456, L470-c11-35, L370, L383, L361, L111-true,
+        L72, L142) y3 textos de log (`entrada`/`salida`, `reason ??`) por política.
+        **Verificación final:89,70 % y exactamente los36 aceptados** (metrics18 +
+        session17 + confirmationPoints1); ninguno inesperado.
 - [x] **Lote C — mensajes de error de dominio: COMPLETADO** (subconjunto de los 213
       `StringLiteral`, C1–C7 — política aplicada: texto de contrato de errores `*Error` de
       dominio; logs/observabilidad no se persiguen; ver equivalentes en la sección 4).

@@ -12,6 +12,7 @@ import {
   profitFactor,
   roi,
   sharpe,
+  sortByMetricDesc,
   winRate,
 } from '@/domain/backtest/metrics'
 import { Timeframe } from '@/domain/candles/timeframe'
@@ -66,6 +67,7 @@ describe('metrics — netProfit y roi', () => {
     expect(() => roi(equityCurve(1_000), Number.NaN)).toThrow(
       'initialCapital debe ser un número finito > 0',
     )
+    expect(() => netProfit(equityCurve(1_000), '1000' as unknown as number)).toThrow(MetricsError)
   })
 
   it('el error tiene name MetricsError y el dominio en el mensaje', () => {
@@ -92,6 +94,11 @@ describe('metrics — maxDrawdown', () => {
     expect(() => maxDrawdown([])).toThrow(MetricsError)
     expect(() => maxDrawdown([])).toThrow('el equityCurve no puede estar vacío')
   })
+
+  it('el guard de equity no positivo evita divisiones por cero (curva no financiada)', () => {
+    expect(maxDrawdown(equityCurve(0, -100))).toBe(0)
+    expect(maxDrawdown(equityCurve(-10, 0, -5))).toBe(0)
+  })
 })
 
 describe('metrics — sharpe', () => {
@@ -111,6 +118,29 @@ describe('metrics — sharpe', () => {
   it('serie descendente → sharpe negativo; constante → ±∞', () => {
     expect(sharpe(equityCurve(1_000, 900, 810), Timeframe.DAY)).toBeLessThan(0)
     expect(sharpe(equityCurve(1_000, 1_100, 1_210), Timeframe.DAY)).toBe(Number.POSITIVE_INFINITY)
+  })
+
+  it('valida la curva y el timeframe con MetricsError', () => {
+    expect(() => sharpe([], Timeframe.DAY)).toThrow(MetricsError)
+    expect(() => sharpe(equityCurve(1_000, 1_100, 1_210), '1h' as unknown as Timeframe)).toThrow(
+      MetricsError,
+    )
+  })
+
+  it('ignora los retornos con equity no positivo o no finito', () => {
+    expect(sharpe(equityCurve(1_000, -1_000, 1_100), Timeframe.DAY)).toBeNull()
+    expect(sharpe(equityCurve(1_000, Number.POSITIVE_INFINITY, 2_000), Timeframe.DAY)).toBeNull()
+  })
+
+  it('la varianza es muestral (n−1) con más de dos retornos', () => {
+    const curve = equityCurve(1_000, 1_100, 990, 1_089)
+    const values = [1_100 / 1_000 - 1, 990 / 1_100 - 1, 1_089 / 990 - 1]
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+    const variance =
+      values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1)
+    const expected = (mean / Math.sqrt(variance)) * Math.sqrt(365) // Timeframe.DAY
+
+    expect(sharpe(curve, Timeframe.DAY)).toBeCloseTo(expected, 10)
   })
 })
 
@@ -145,6 +175,15 @@ describe('metrics — winRate, avgTrade y expectancy', () => {
     expect(expectancy(trades)).toBeCloseTo(avgTrade(trades) ?? Number.NaN, 10)
     expect(expectancy([])).toBeNull()
     expect(expectancy([trade(-5)])).toBeCloseTo(-5, 10)
+  })
+
+  it('con empates (pnl 0) los conjuntos de ganancias y pérdidas no se confunden', () => {
+    // El 0 no gana ni pierde: wr = 0/2 y avgLoss = 5 → 0 − 1·5 = −5 (≠ media −2,5).
+    expect(expectancy([trade(0), trade(-5)])).toBeCloseTo(-5, 10)
+  })
+
+  it('sin pérdidas el término de pérdida es cero (nunca NaN)', () => {
+    expect(expectancy([trade(10), trade(20)])).toBeCloseTo(15, 10)
   })
 })
 
@@ -187,5 +226,51 @@ describe('metrics — computeMetrics', () => {
     expect(() => computeMetrics(input({ timeframe: '1h' as unknown as Timeframe }))).toThrow(
       'timeframe debe ser un Timeframe',
     )
+  })
+})
+
+describe('metrics — sortByMetricDesc (orden único del ranking §13)', () => {
+  function ranked(sharpeValue: number | null, tag: string) {
+    return {
+      tag,
+      metrics: {
+        netProfit: 0,
+        roi: 0,
+        maxDrawdown: 0,
+        sharpe: sharpeValue,
+        profitFactor: null,
+        winRate: null,
+        avgTrade: null,
+        expectancy: null,
+      },
+    }
+  }
+
+  it('ordena descendente y los empates conservan el orden de entrada', () => {
+    const a = ranked(10, 'a')
+    const b = ranked(30, 'b')
+    const c = ranked(10, 'c')
+    const d = ranked(20, 'd')
+
+    expect(sortByMetricDesc([a, b, c, d], 'sharpe').map((item) => item.tag)).toEqual([
+      'b',
+      'd',
+      'a',
+      'c',
+    ])
+  })
+
+  it('los null van al final y conservan su orden de entrada', () => {
+    const n1 = ranked(null, 'n1')
+    const v1 = ranked(5, 'v1')
+    const n2 = ranked(null, 'n2')
+    const v2 = ranked(50, 'v2')
+
+    expect(sortByMetricDesc([n1, v1, n2, v2], 'sharpe').map((item) => item.tag)).toEqual([
+      'v2',
+      'v1',
+      'n1',
+      'n2',
+    ])
   })
 })

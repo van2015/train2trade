@@ -54,6 +54,53 @@ function neverStrategy(): Strategy {
   })
 }
 
+/** Entrada `close > SMA(3)` con precio limit sobre la propia SMA (sin veto): puede quedarse en vuelo. */
+function limitEntryStrategy(): Strategy {
+  return new Strategy({
+    name: 'limit-entry',
+    indicators: { s: new Sma(3) },
+    signals: [
+      new Signal(StrategyAction.RequestEntry, new Greater('close', 's'), { price: series('s') }),
+    ],
+  })
+}
+
+/** Entrada market + salida limit sobre la SMA con regla de estado (`close < s` sigue verdadera). */
+function exitLimitStrategy(): Strategy {
+  return new Strategy({
+    name: 'exit-limit',
+    indicators: { s: new Sma(3) },
+    signals: [
+      new Signal(StrategyAction.RequestEntry, new Greater('close', 's')),
+      new Signal(StrategyAction.RequestExit, new Lower('close', 's'), { price: series('s') }),
+    ],
+  })
+}
+
+/** Entrada + salida por regla de estado (market): ciclo completo y reentrada posterior. */
+function roundTripStrategy(): Strategy {
+  return new Strategy({
+    name: 'round-trip',
+    indicators: { s: new Sma(3) },
+    signals: [
+      new Signal(StrategyAction.RequestEntry, new Greater('close', 's')),
+      new Signal(StrategyAction.RequestExit, new Lower('close', 's')),
+    ],
+  })
+}
+
+/** Entrada + señal `add` (no es entry/exit): debe pasar sin confirmación. */
+function addSignalStrategy(): Strategy {
+  return new Strategy({
+    name: 'with-add',
+    indicators: { s: new Sma(3) },
+    signals: [
+      new Signal(StrategyAction.RequestEntry, new Greater('close', 's')),
+      new Signal(StrategyAction.RequestAdd, new Greater('close', 's'), { fraction: 0.5 }),
+    ],
+  })
+}
+
 /** Entrada por cruce + TP sobre la SMA lenta (§2.1.5: se ejecuta solo). */
 function tpStrategy(): Strategy {
   return new Strategy({
@@ -105,6 +152,24 @@ const VETO_CANDLES = flat([100, 110, 105, 100, 140, 119])
  * un jump con destino i7 debe pausar en la salida de i6.
  */
 const JUMP_CANDLES = flat([100, 110, 105, 100, 140, 120, 100, 130])
+
+/** Regla de entrada verdadera en i4..i7 con el límite (115) siempre por debajo del mercado. */
+const BLOCK_ENTRY_CANDLES = flat([100, 110, 105, 100, 140, 150, 160, 170])
+
+/** Salida limit (120) nunca tocada con `close < s` verdadero en i7 e i8. */
+const BLOCK_EXIT_CANDLES = flat([100, 110, 105, 100, 140, 130, 90, 85, 80])
+
+/** El veto retira la entrada en i5 y la regla vuelve a disparar en i6. */
+const VETO_REENTRY_CANDLES = flat([100, 110, 105, 100, 140, 119, 160, 170])
+
+/** Ciclo completo: entrada (i4), salida (i6), cierre (i7) y reentrada (i8). */
+const REENTRY_CANDLES = flat([100, 110, 105, 100, 140, 130, 90, 85, 150, 160, 170, 180])
+
+/** Puntos [4, 6]: con posición abierta, i6 no confirma y jump no debe comerse el resto. */
+const JUMP_STOP_CANDLES = flat([100, 110, 105, 100, 140, 120, 150, 100, 100])
+
+/** Entrada rellena sin gap (i5 abre = cierre de i4) y `add` disparando con posición abierta. */
+const ADD_CANDLES = flat([100, 110, 105, 100, 140, 140, 150])
 
 function jumpStrategy(): Strategy {
   return new Strategy({
@@ -190,6 +255,7 @@ describe('TestForwardSession — tomar (anti look-ahead §2.1)', () => {
     expect(tf.status).toBe('idle')
     expect(tf.session.instance.state).toBe(StrategyState.WaitingForEntryFill)
     expect(tf.session.broker.pendingOrders()).toHaveLength(1)
+    expect(tf.session.broker.orders[0]?.id).toBe('t1') // ids secuenciales t1, t2… (§12C)
     expect(tf.log.some((entry) => entry.kind === 'order')).toBe(true)
 
     tf.step() // procesa i5 → relleno en su apertura
@@ -281,6 +347,93 @@ describe('TestForwardSession — salida por regla con decisión (§2.1)', () => 
   })
 })
 
+describe('TestForwardSession — órdenes propias en vuelo (§2.1)', () => {
+  it('entrada limit pendiente con la regla todavía verdadera → sin nueva confirmación', () => {
+    const tf = new TestForwardSession(config(limitEntryStrategy(), BLOCK_ENTRY_CANDLES), () => 0)
+    tf.start() // pausa en i4 (primera confirmación)
+    expect(tf.status).toBe('awaiting')
+    tf.decide(true) // limit @ s(i4) = 115; el mercado abre por encima → no rellena
+
+    expect(tf.session.broker.pendingOrders()).toHaveLength(1)
+
+    for (const index of [5, 6, 7]) {
+      tf.step()
+      expect(tf.status).toBe(index === 7 ? 'finished' : 'idle') // nunca re-pausa
+      expect(tf.confirmation).toBeNull()
+      expect(tf.session.broker.pendingOrders()).toHaveLength(1) // sigue en vuelo
+      expect(tf.session.broker.orders).toHaveLength(1) // sin órdenes nuevas
+    }
+  })
+
+  it('salida limit pendiente con la regla todavía verdadera → sin nueva confirmación', () => {
+    const tf = new TestForwardSession(config(exitLimitStrategy(), BLOCK_EXIT_CANDLES), () => 0)
+    tf.start() // pausa en i4
+    tf.decide(true)
+    tf.step() // i5: relleno de la entrada
+    tf.step() // i6: la regla de salida dispara → pausa
+
+    expect(tf.status).toBe('awaiting')
+    expect(tf.confirmation?.kind).toBe('exit')
+    tf.decide(true) // salida limit @ s(i6) = 120; abre por debajo → no rellena
+
+    tf.step() // i7: `close < s` sigue verdadero pero la orden propia está en vuelo
+    expect(tf.status).toBe('idle')
+    expect(tf.confirmation).toBeNull()
+    expect(tf.session.broker.pendingOrders()).toHaveLength(1)
+
+    tf.step() // i8 (última)
+    expect(tf.status).toBe('finished')
+    expect(tf.confirmation).toBeNull()
+    expect(tf.session.broker.pendingOrders()).toHaveLength(1)
+    expect(tf.session.portfolio.position?.isOpen).toBe(true)
+  })
+
+  it('el veto retira la orden propia y la siguiente señal vuelve a confirmar', () => {
+    const tf = new TestForwardSession(config(vetoStrategy(), VETO_REENTRY_CANDLES), () => 0)
+    tf.start() // pausa en i4
+    tf.decide(true) // limit @ 115
+    tf.step() // i5: no rellena; el veto la retira y se libera el bloqueo
+
+    expect(tf.session.broker.orders[0]?.status).toBe(OrderStatus.Cancelled)
+    expect(tf.status).toBe('idle')
+
+    tf.step() // i6: la regla vuelve a disparar con la orden ya resuelta
+    expect(tf.status).toBe('awaiting')
+    expect(tf.confirmation?.kind).toBe('entry')
+    expect(tf.cursor).toBe(7)
+  })
+
+  it('tras cerrar la posición, la siguiente señal de entrada vuelve a confirmar', () => {
+    const tf = new TestForwardSession(config(roundTripStrategy(), REENTRY_CANDLES), () => 0)
+    tf.start() // pausa en i4
+    tf.decide(true)
+    tf.step() // i5: relleno de la entrada
+    tf.step() // i6: la regla de salida dispara → pausa
+
+    expect(tf.confirmation?.kind).toBe('exit')
+    tf.decide(true) // cerrar (market)
+    tf.step() // i7: relleno de la venta → posición cerrada y bloqueos liberados
+
+    expect(tf.session.portfolio.position?.isOpen ?? false).toBe(false)
+    expect(tf.status).toBe('idle')
+
+    tf.step() // i8: la regla de entrada vuelve a disparar
+    expect(tf.status).toBe('awaiting')
+    expect(tf.confirmation?.kind).toBe('entry')
+  })
+
+  it('una señal que no es entry/exit pasa sin confirmación (no se convierte en salida)', () => {
+    const tf = new TestForwardSession(config(addSignalStrategy(), ADD_CANDLES), () => 0)
+    tf.start() // pausa en i4
+    tf.decide(true)
+    tf.step() // i5: relleno de la entrada + la señal `add` dispara con posición abierta
+
+    expect(tf.session.portfolio.position?.isOpen).toBe(true) // la entrada sí rellenó
+    expect(tf.status).toBe('idle')
+    expect(tf.confirmation).toBeNull()
+  })
+})
+
 describe('TestForwardSession — TP/SL automáticos y overrides (§2.1.5)', () => {
   it('setTakeProfit/setStopLoss con precio no finito → TestForwardError', () => {
     const tf = new TestForwardSession(config(tpStrategy()), () => 0)
@@ -289,6 +442,9 @@ describe('TestForwardSession — TP/SL automáticos y overrides (§2.1.5)', () =
       'takeProfit: el precio debe ser un número finito',
     )
     expect(() => tf.setStopLoss(Number.POSITIVE_INFINITY, true)).toThrow(
+      'stopLoss: el precio debe ser un número finito',
+    )
+    expect(() => tf.setStopLoss('50' as never, true)).toThrow(
       'stopLoss: el precio debe ser un número finito',
     )
   })
@@ -399,6 +555,37 @@ describe('TestForwardSession — jump, finish y errores (§2.2)', () => {
 
     expect(tf.status).toBe('finished') // i7 procesado y sin más candidatos
     expect(tf.cursor).toBe(JUMP_CANDLES.length)
+  })
+
+  it('la confirmación en la última vela: pausa sin pisar el estado y decide() la sincroniza', () => {
+    const last = config(aboveStrategy(), flat([100, 100, 100, 100, 140])) // primer disparo en i4 (final)
+
+    const paused = new TestForwardSession(last, () => 0)
+    paused.start()
+    expect(paused.status).toBe('awaiting') // el sync de fin no pisa la pausa
+
+    const discarded = new TestForwardSession(last, () => 0)
+    discarded.start()
+    discarded.decide(false)
+    expect(discarded.status).toBe('finished') // syncFinished tras decidir en la última vela
+
+    const taken = new TestForwardSession(last, () => 0)
+    taken.start()
+    taken.decide(true)
+    expect(taken.status).toBe('finished')
+  })
+
+  it('jump se detiene en el destino aunque la señal no confirme (sin comerse el resto)', () => {
+    const tf = new TestForwardSession(config(aboveStrategy(), JUMP_STOP_CANDLES), () => 0)
+    tf.start() // pausa en i4
+    tf.decide(true)
+    tf.step() // i5: relleno → la señal de entrada ya no confirma (posición abierta)
+
+    expect(tf.points).toEqual([4, 6])
+    tf.jump() // destino i6: la regla dispara pero con posición abierta no confirma
+
+    expect(tf.status).toBe('idle') // no corre hasta el final
+    expect(tf.cursor).toBe(7) // procesó hasta el destino (i6) y se detuvo
   })
 
   it('transiciones inválidas → TestForwardError', () => {
