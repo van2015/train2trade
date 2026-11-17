@@ -1,39 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { MarketDataProvider, TimeRange } from '@/api/marketDataProvider'
-import { describeError } from '@/components/errorText'
-import { Candle } from '@/domain/candles/candle'
-import { Timeframe } from '@/domain/candles/timeframe'
-import { Experiment, ExperimentSnapshot } from '@/domain/backtest/experiment'
-import type { TestForwardSession } from '@/domain/testforward/session'
-import { Instrument } from '@/domain/instruments/instrument'
-import type { StrategySpec } from '@/domain/strategies/spec'
+import type { MarketDataProvider } from '@/api/marketDataProvider'
 import { CandleRepository } from '@/storage/candleRepository'
 import { ExperimentRepository } from '@/storage/experimentRepository'
-import { StrategyRepository, StrategySnapshot } from '@/storage/strategyRepository'
-import { loadOpenSection, saveOpenSection } from '@/storage/sidebarState'
-import { CandleChart } from './CandleChart'
-import { BacktestPanel } from './BacktestPanel'
-import { BacktestResults } from './BacktestResults'
-import { ReplayPanel } from './ReplayPanel'
-import { ExperimentHistoryPanel } from './ExperimentHistoryPanel'
-import { TestForwardPanel } from './TestForwardPanel'
-import { TestForwardSessionView } from './TestForwardSessionView'
-import { OptimizationPanel } from './OptimizationPanel'
-import { OptimizationResults, type OptimizationViewState } from './OptimizationResults'
-import { CsvImportPanel } from './CsvImportPanel'
-import { DataControls } from './DataControls'
-import { IndicatorPanel } from './IndicatorPanel'
-import { StrategySelect } from './StrategySelect'
-import { StrategyPanel } from './StrategyPanel'
-import { StrategyPreviewChart } from './StrategyPreviewChart'
-import { MainTabs, type MainViewId } from './MainTabs'
-import { isSidebarSectionId, SidebarSection, type SidebarSectionId } from './SidebarSection'
-import {
-  DEFAULT_INDICATOR_SETTINGS,
-  type ChartLine,
-  type IndicatorSettings,
-  buildLines,
-} from './chartData'
+import { StrategyRepository } from '@/storage/strategyRepository'
+import { AppSidebar } from './app/AppSidebar'
+import { MainArea } from './app/MainArea'
+import { useActiveSessions } from './hooks/useActiveSessions'
+import { useExperimentStore } from './hooks/useExperimentStore'
+import { useMainView } from './hooks/useMainView'
+import { useMarketData } from './hooks/useMarketData'
+import { useStrategyCatalog } from './hooks/useStrategyCatalog'
 
 export interface AppProps {
   repository: CandleRepository
@@ -46,228 +21,25 @@ export interface AppProps {
   uiStorage?: Storage | null
 }
 
-type Status = { kind: 'success' | 'error'; text: string } | null
-
-/** localStorage del navegador; inaccesible (sandbox/cuota) → null y la UI sigue en memoria. */
-function browserStorage(): Storage | null {
-  try {
-    return window.localStorage
-  } catch {
-    return null
-  }
-}
-
 /**
- * Pantalla principal (Fase 1): descargar o importar velas y visualizarlas con
- * indicadores. La lógica vive fuera de React; este componente solo coordina.
- * El sidebar es un acordeón de 2 secciones (Datos, Experimentos-formularios) y
- * el área principal conmuta entre 6 pestañas por estado (plan UI, sin router):
- * Gráfico · Backtest · Replay · Test-Forward · Optimización · Historial.
+ * Raíz de composición de la pantalla principal (Fase 1). Solo conoce los dos
+ * contenedores de alto nivel — `AppSidebar` y `MainArea` — y las rebanadas de
+ * estado que les entrega: la lógica vive en los hooks (`hooks/`) y los
+ * detalles de presentación en cada contenedor (`app/`). La coordinación entre
+ * regiones es la composición de callbacks: abrir el editor → pestaña Gráfico;
+ * iniciar test-forward → corta el replay y abre su pestaña.
+ *
+ * El sidebar es un acordeón de 3 secciones (Datos, Experimentos, Estrategias)
+ * y el área principal conmuta entre 6 pestañas por estado (plan UI, sin
+ * router): Gráfico · Backtest · Replay · Test-Forward · Optimización ·
+ * Historial.
  */
 export function App({ repository, provider, experiments, strategies, uiStorage }: AppProps) {
-  const storage = uiStorage === undefined ? browserStorage() : uiStorage
-  const [instrument, setInstrument] = useState<Instrument>(() => Instrument.of('BTC', 'USDT'))
-  const [timeframe, setTimeframe] = useState<Timeframe>(Timeframe.HOUR)
-  const [candles, setCandles] = useState<readonly Candle[]>([])
-  const [instruments, setInstruments] = useState<readonly Instrument[]>([])
-  const [settings, setSettings] = useState<IndicatorSettings>(DEFAULT_INDICATOR_SETTINGS)
-  const [status, setStatus] = useState<Status>(null)
-  const [busy, setBusy] = useState(false)
-  // Cursor del replay activo (null = sin sesión): el gráfico solo ve lo consumido.
-  const [replayCursor, setReplayCursor] = useState<number | null>(null)
-  // Sesión de test-forward y su cursor (§2.3): el gráfico se corta hasta ella.
-  const [tfSession, setTfSession] = useState<TestForwardSession | null>(null)
-  const [tfCursor, setTfCursor] = useState<number | null>(null)
-  const [snapshots, setSnapshots] = useState<readonly ExperimentSnapshot[]>(() =>
-    experiments.list(),
-  )
-  // Estrategias persistidas + selección única (§1.9): si la seleccionada se
-  // borra, se cae a la primera de la lista.
-  const [strategiesList, setStrategiesList] = useState<readonly StrategySnapshot[]>(() =>
-    strategies.list(),
-  )
-  const [selectedStrategyId, setSelectedStrategyId] = useState<string | null>(null)
-  const selectedStrategy =
-    strategiesList.find((strategy) => strategy.id === selectedStrategyId) ?? strategiesList[0]
-  // Sección abierta del acordeón (plan UI, T1); id desconocido en storage → default.
-  const [openSection, setOpenSection] = useState<SidebarSectionId | null>(() => {
-    const stored = loadOpenSection(storage)
-    return isSidebarSectionId(stored) ? stored : 'datos'
-  })
-  // Vista activa del área principal (plan UI, T4 + Fase 3).
-  const [mainView, setMainView] = useState<MainViewId>('chart')
-  // Resultados de cada experimento para su pestaña (Fase 3): auto-conmutación al ejecutar.
-  const [lastExperiment, setLastExperiment] = useState<Experiment | null>(null)
-  const [lastOptimization, setLastOptimization] = useState<OptimizationViewState | null>(null)
-  // Draft del editor de estrategias (plan strategy-preview, ampliación): mientras
-  // no sea null, la pestaña Gráfico muestra el preview en lugar del chart normal.
-  const [editingSpec, setEditingSpec] = useState<StrategySpec | null>(null)
-  // Entradas ilegibles en el storage (arranque tolerante, incidente 2026-11-15):
-  // list() las omite, aquí se avisa y se ofrecen para reparar sin devtools.
-  const [corruptedStrategies, setCorruptedStrategies] = useState<readonly string[]>(() =>
-    strategies.corruptedKeys(),
-  )
-
-  /** Elimina las claves corruptas, re-siembra la demo si no queda nada y refresca. */
-  const handleRepairStrategies = () => {
-    strategies.repair()
-    setCorruptedStrategies([])
-    setStrategiesList(strategies.list())
-  }
-
-  const handleToggleSection = (id: SidebarSectionId) => {
-    const next = openSection === id ? null : id
-    setOpenSection(next)
-    saveOpenSection(storage, next)
-  }
-
-  /**
-   * Ciclo de edición del editor (§1.8): al **abrir** (null → spec) auto-conmuta
-   * a la pestaña Gráfico para ver el preview; los cambios de draft y el cierre
-   * no tocan la pestaña (el usuario puede navegar mientras edita).
-   */
-  const handleEditingChange = (spec: StrategySpec | null) => {
-    const opening = spec !== null && editingSpec === null
-    setEditingSpec(spec)
-    if (opening) setMainView('chart')
-  }
-
-  /** Auto-conmutación: cada ejecución con éxito abre la pestaña de sus resultados. */
-  const handleBacktestResult = (next: Experiment) => {
-    setLastExperiment(next)
-    setMainView('backtest')
-  }
-
-  const handleOptimizationResult = (next: OptimizationViewState) => {
-    setLastOptimization(next)
-    setMainView('optimization')
-  }
-
-  /**
-   * Cursor del replay: una sesión nueva (cursor no nulo) descarta la de
-   * test-forward — el gráfico sigue a una sola sesión a la vez (§2.3); el
-   * descarte por cambio de velas (null) no toca el test-forward.
-   */
-  const handleReplayProgress = useCallback((cursor: number | null) => {
-    setReplayCursor(cursor)
-    if (cursor !== null) {
-      setTfSession(null)
-      setTfCursor(null)
-    }
-  }, [])
-
-  /** Nueva sesión (§2.3): corta el gráfico, olvida el cursor del replay y abre la pestaña. */
-  const handleTfStart = (session: TestForwardSession) => {
-    setTfSession(session)
-    setTfCursor(session.cursor)
-    setReplayCursor(null)
-    setMainView('testforward')
-  }
-
-  /** Cursor de la sesión de test-forward; null = descartada (velas nuevas). */
-  const handleTfProgress = (cursor: number | null) => {
-    if (cursor === null) {
-      setTfSession(null)
-      setTfCursor(null)
-      return
-    }
-    setTfCursor(cursor)
-  }
-
-  const reloadExperiments = useCallback(() => {
-    setSnapshots(experiments.list())
-  }, [experiments])
-
-  /** Tras el CRUD de estrategias (§1.8): la lista y la selección se recalculan. */
-  const reloadStrategies = useCallback(() => {
-    setStrategiesList(strategies.list())
-  }, [strategies])
-
-  /** Auto-guardo (§9/§12C): id determinístico → re-ejecutar sobrescribe, sin duplicados. */
-  const handleExperiment = (experiment: Experiment) => {
-    experiments.save(experiment.toSnapshot())
-    reloadExperiments()
-  }
-
-  const handleRemoveExperiments = (ids: readonly string[]) => {
-    for (const id of ids) experiments.remove(id)
-    reloadExperiments()
-  }
-
-  const handleClearExperiments = () => {
-    experiments.clear()
-    reloadExperiments()
-  }
-
-  const reload = useCallback(() => {
-    setInstruments(repository.listInstruments())
-    try {
-      setCandles(repository.find(instrument, timeframe))
-    } catch (error) {
-      setStatus({ kind: 'error', text: describeError(error) })
-      setCandles([])
-    }
-  }, [repository, instrument, timeframe])
-
-  // Cambiar de instrumento/timeframe recarga las velas locales.
-  useEffect(() => {
-    reload()
-  }, [reload])
-
-  // Con una sesión activa, el gráfico (velas e indicadores) solo ve lo
-  // consumido: ni la UI ni la estrategia miran al futuro (§7B/§2.3). Cada
-  // arranque descarta el cursor de la otra sesión → uno solo manda.
-  const activeCursor = replayCursor ?? tfCursor
-  const visible = activeCursor === null ? candles : candles.slice(0, activeCursor)
-
-  const lines: readonly ChartLine[] = useMemo(
-    () => buildLines(visible, settings),
-    [visible, settings],
-  )
-
-  const handleFetch = async (range: TimeRange | undefined) => {
-    setBusy(true)
-    setStatus(null)
-    try {
-      const fetched = await provider.getCandles(instrument, timeframe, range)
-      repository.save(instrument, timeframe, fetched)
-      reload()
-      setStatus({
-        kind: 'success',
-        text: `${fetched.length} velas descargadas de ${instrument} (${timeframe})`,
-      })
-    } catch (error) {
-      setStatus({ kind: 'error', text: describeError(error) })
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const handleImport = (imported: readonly Candle[]) => {
-    try {
-      repository.save(instrument, timeframe, imported)
-      reload()
-      setStatus({
-        kind: 'success',
-        text: `${imported.length} velas importadas en ${instrument} (${timeframe})`,
-      })
-    } catch (error) {
-      setStatus({ kind: 'error', text: describeError(error) })
-    }
-  }
-
-  const range =
-    candles.length === 0
-      ? 'sin datos'
-      : activeCursor === null
-        ? `${candles.length} velas`
-        : `${visible.length}/${candles.length} velas`
-
-  const results: Partial<Record<MainViewId, boolean>> = {
-    backtest: lastExperiment !== null,
-    testforward: tfSession !== null,
-    optimization: lastOptimization !== null,
-  }
+  const nav = useMainView()
+  const data = useMarketData({ repository, provider })
+  const catalog = useStrategyCatalog({ strategies, onEditingOpened: nav.openChart })
+  const store = useExperimentStore({ experiments })
+  const sessions = useActiveSessions({ onSessionStarted: nav.openTestForward })
 
   return (
     <div className="app">
@@ -277,219 +49,15 @@ export function App({ repository, provider, experiments, strategies, uiStorage }
       </header>
 
       <div className="app__body">
-        <aside className="app__sidebar">
-          {corruptedStrategies.length > 0 && (
-            <div className="storage-warning" role="alert" data-testid="storage-warning">
-              <span>
-                {corruptedStrategies.length === 1
-                  ? '1 estrategia ignorada'
-                  : `${corruptedStrategies.length} estrategias ignoradas`}{' '}
-                (datos corruptos en el almacenamiento)
-              </span>
-              <button type="button" className="button" onClick={handleRepairStrategies}>
-                Reparar
-              </button>
-            </div>
-          )}
-          <SidebarSection
-            id="datos"
-            title="Datos"
-            open={openSection === 'datos'}
-            onToggle={handleToggleSection}
-          >
-            <DataControls
-              instruments={instruments}
-              instrument={instrument}
-              timeframe={timeframe}
-              busy={busy}
-              onInstrumentChange={setInstrument}
-              onTimeframeChange={setTimeframe}
-              onFetch={handleFetch}
-            />
-
-            <CsvImportPanel
-              target={`${instrument} · ${timeframe}`}
-              disabled={busy}
-              onImport={handleImport}
-              onError={(message) => setStatus({ kind: 'error', text: message })}
-            />
-
-            <IndicatorPanel settings={settings} onChange={setSettings} />
-          </SidebarSection>
-
-          <SidebarSection
-            id="experimentos"
-            title="Experimentos"
-            open={openSection === 'experimentos'}
-            onToggle={handleToggleSection}
-          >
-            <StrategySelect
-              strategies={strategiesList}
-              selectedId={selectedStrategy?.id ?? null}
-              onChange={setSelectedStrategyId}
-            />
-
-            <BacktestPanel
-              candles={candles}
-              timeframe={timeframe}
-              instrument={instrument}
-              strategy={selectedStrategy ?? null}
-              onExperiment={handleExperiment}
-              onResult={handleBacktestResult}
-            />
-
-            <TestForwardPanel
-              candles={candles}
-              timeframe={timeframe}
-              strategy={selectedStrategy ?? null}
-              onStart={handleTfStart}
-            />
-
-            <OptimizationPanel
-              candles={candles}
-              timeframe={timeframe}
-              strategy={selectedStrategy ?? null}
-              onResult={handleOptimizationResult}
-            />
-          </SidebarSection>
-
-          <SidebarSection
-            id="estrategias"
-            title="Estrategias"
-            open={openSection === 'estrategias'}
-            onToggle={handleToggleSection}
-          >
-            <StrategyPanel
-              strategies={strategiesList}
-              repository={strategies}
-              candles={candles}
-              onChange={reloadStrategies}
-              onEditingChange={handleEditingChange}
-            />
-          </SidebarSection>
-
-          {status !== null && (
-            <p className={`status status--${status.kind}`} role="status" data-testid="status">
-              {status.text}
-            </p>
-          )}
-        </aside>
-
-        <main className="app__main">
-          <div className="app__chart-header">
-            <MainTabs active={mainView} onChange={setMainView} results={results} />
-            <div className="app__chart-meta">
-              <span className="app__chart-instrument" data-testid="chart-instrument">
-                {instrument.toString()} · {timeframe.toString()}
-              </span>
-              <span className="app__chart-range">{range}</span>
-            </div>
-          </div>
-
-          {/*
-            Pestaña Gráfico: con el editor de estrategias abierto muestra el
-            preview (plan strategy-preview, ampliación) en lugar del chart
-            normal — se sustituyen, nunca conviven dos instancias de
-            lightweight-charts. `visible` respeta el recorte de sesión activa.
-          */}
-          {mainView === 'chart' && (
-            <div
-              className="app__view"
-              id="main-view"
-              role="tabpanel"
-              aria-labelledby="main-tab-chart"
-            >
-              {editingSpec !== null ? (
-                <StrategyPreviewChart candles={visible} spec={editingSpec} />
-              ) : (
-                <CandleChart candles={visible} lines={lines} />
-              )}
-            </div>
-          )}
-
-          {mainView === 'backtest' && (
-            <div
-              className="app__view app__view--results"
-              id="main-view"
-              role="tabpanel"
-              aria-labelledby="main-tab-backtest"
-            >
-              <BacktestResults experiment={lastExperiment} />
-            </div>
-          )}
-
-          {/*
-            Replay: siempre montado (oculto fuera de su pestaña) para no perder
-            la sesión; el gráfico solo se monta mientras la pestaña está activa
-            (evita dos instancias de lightweight-charts). El preview del editor
-            sustituye al chart en la pestaña Gráfico mientras se edita: el
-            invariante de instancia única se mantiene (plan strategy-preview).
-          */}
-          <div
-            className="app__view app__view--replay"
-            id={mainView === 'replay' ? 'main-view' : 'replay-view'}
-            role="tabpanel"
-            aria-labelledby="main-tab-replay"
-            hidden={mainView !== 'replay'}
-          >
-            <ReplayPanel
-              candles={candles}
-              timeframe={timeframe}
-              strategy={selectedStrategy ?? null}
-              onProgress={handleReplayProgress}
-            />
-            {mainView === 'replay' && <CandleChart candles={visible} lines={lines} />}
-          </div>
-
-          {/*
-            Test-Forward: siempre montado (oculto fuera de su pestaña) para no
-            perder la sesión; el gráfico solo se monta mientras la pestaña está
-            activa (evita dos instancias de lightweight-charts), patrón Replay.
-          */}
-          <div
-            className="app__view app__view--replay"
-            id={mainView === 'testforward' ? 'main-view' : 'testforward-view'}
-            role="tabpanel"
-            aria-labelledby="main-tab-testforward"
-            hidden={mainView !== 'testforward'}
-          >
-            <TestForwardSessionView
-              session={tfSession}
-              candles={candles}
-              onProgress={handleTfProgress}
-            />
-            {mainView === 'testforward' && <CandleChart candles={visible} lines={lines} />}
-          </div>
-
-          {mainView === 'optimization' && (
-            <div
-              className="app__view app__view--results"
-              id="main-view"
-              role="tabpanel"
-              aria-labelledby="main-tab-optimization"
-            >
-              <OptimizationResults view={lastOptimization} />
-            </div>
-          )}
-
-          {/*
-            Historial: siempre montado (oculto fuera de su pestaña) para
-            conservar la selección de comparación entre visitas.
-          */}
-          <div
-            className="app__view app__view--results"
-            id={mainView === 'history' ? 'main-view' : 'history-view'}
-            role="tabpanel"
-            aria-labelledby="main-tab-history"
-            hidden={mainView !== 'history'}
-          >
-            <ExperimentHistoryPanel
-              snapshots={snapshots}
-              onRemove={handleRemoveExperiments}
-              onClear={handleClearExperiments}
-            />
-          </div>
-        </main>
+        <AppSidebar
+          uiStorage={uiStorage}
+          data={data}
+          catalog={catalog}
+          store={store}
+          nav={nav}
+          sessions={sessions}
+        />
+        <MainArea data={data} catalog={catalog} store={store} nav={nav} sessions={sessions} />
       </div>
     </div>
   )
