@@ -114,18 +114,38 @@ describe('runOptimization — validación y errores', () => {
     expect(() => runOptimization(config({ grid: { fast: [], slow: [4] } }))).toThrow(
       OptimizationError,
     )
+    expect(() => runOptimization(config({ grid: { fast: [], slow: [4] } }))).toThrow(
+      'grid["fast"] debe ser un array con al menos un valor',
+    )
     expect(() =>
       runOptimization(config({ grid: { fast: [2], slow: undefined as unknown as number[] } })),
     ).toThrow(OptimizationError)
+    expect(() =>
+      runOptimization(config({ grid: { fast: [2], slow: undefined as unknown as number[] } })),
+    ).toThrow('grid["slow"] debe ser un array con al menos un valor')
   })
 
   it('values duplicadas en una dimensión → OptimizationError (sin combinaciones repetidas)', () => {
     expect(() => runOptimization(config({ grid: { fast: [2, 2], slow: [3] } }))).toThrow(
       OptimizationError,
     )
+    expect(() => runOptimization(config({ grid: { fast: [2, 2], slow: [3] } }))).toThrow(
+      'grid["fast"] no puede repetir valores',
+    )
     expect(() => runOptimization(config({ grid: { fast: [2, 3], slow: [3, 3] } }))).toThrow(
       OptimizationError,
     )
+  })
+
+  it('el error tiene name OptimizationError y el dominio en el mensaje', () => {
+    try {
+      runOptimization(config({ grid: { fast: [], slow: [4] } }))
+      throw new Error('debía lanzar OptimizationError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(OptimizationError)
+      expect((error as OptimizationError).name).toBe('OptimizationError')
+      expect((error as OptimizationError).message).toContain('Optimización inválida')
+    }
   })
 
   it('la rejilla que supera MAX_OPTIMIZATION_RUNS se rechaza antes de ejecutar', () => {

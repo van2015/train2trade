@@ -237,6 +237,22 @@ describe('runBacktest — validación de la config', () => {
     expect(() => runBacktest({ ...base, initialCapital: Number.NaN })).toThrow(BacktestError)
   })
 
+  it('el error tiene name BacktestError y el dominio en el mensaje', () => {
+    try {
+      runBacktest({
+        strategy: crossStrategy(),
+        candles: CANDLES,
+        timeframe: Timeframe.HOUR,
+        initialCapital: 0,
+      })
+      throw new Error('debía lanzar BacktestError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(BacktestError)
+      expect((error as BacktestError).name).toBe('BacktestError')
+      expect((error as BacktestError).message).toContain('Backtest inválido')
+    }
+  })
+
   it('rechaza velas no ascendentes (el contexto del runner valida antes de mutar)', () => {
     const descending = [...CANDLES].reverse()
     expect(() =>

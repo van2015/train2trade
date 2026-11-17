@@ -53,6 +53,7 @@ describe('HistoricalBroker — envío y avance', () => {
     const filled = order('o1')
     filled.cancel()
     expect(() => broker.submitOrder(filled)).toThrow(InvalidOrderError)
+    expect(() => broker.submitOrder(filled)).toThrow('submitOrder solo admite órdenes pending')
     expect(broker.pendingOrders()).toEqual([])
   })
 
@@ -153,6 +154,9 @@ describe('HistoricalBroker — cancelación', () => {
   it('cancelOrder con id inexistente o ya resuelta lanza InvalidOrderError', () => {
     const broker = makeBroker()
     expect(() => broker.cancelOrder('no-existe')).toThrow(InvalidOrderError)
+    expect(() => broker.cancelOrder('no-existe')).toThrow(
+      'la orden no está pendiente (id desconocido o ya resuelta)',
+    )
 
     broker.submitOrder(order('o1'))
     broker.advance(candleAt(0, { open: 100 }))

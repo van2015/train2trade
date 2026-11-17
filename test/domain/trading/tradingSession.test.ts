@@ -29,15 +29,35 @@ describe('TradingSession — construcción y validación', () => {
     expect(() => new TradingSession(baseConfig(CANDLES, { candles: [] }))).toThrow(
       TradingSessionError,
     )
+    expect(() => new TradingSession(baseConfig(CANDLES, { candles: [] }))).toThrow(
+      'se necesita al menos una vela',
+    )
     expect(
       () => new TradingSession(baseConfig(CANDLES, { timeframe: '1h' as unknown as Timeframe })),
     ).toThrow(TradingSessionError)
+    expect(
+      () => new TradingSession(baseConfig(CANDLES, { timeframe: '1h' as unknown as Timeframe })),
+    ).toThrow('timeframe debe ser un Timeframe')
     expect(() => new TradingSession(baseConfig(CANDLES, { initialCapital: 0 }))).toThrow(
       TradingSessionError,
+    )
+    expect(() => new TradingSession(baseConfig(CANDLES, { initialCapital: 0 }))).toThrow(
+      'initialCapital debe ser un número finito > 0',
     )
     expect(() => new TradingSession(baseConfig(CANDLES, { initialCapital: Number.NaN }))).toThrow(
       TradingSessionError,
     )
+  })
+
+  it('el error tiene name TradingSessionError y el dominio en el mensaje', () => {
+    try {
+      new TradingSession(baseConfig(CANDLES, { candles: [] }))
+      throw new Error('debía lanzar TradingSessionError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(TradingSessionError)
+      expect((error as TradingSessionError).name).toBe('TradingSessionError')
+      expect((error as TradingSessionError).message).toContain('Sesión de trading inválida')
+    }
   })
 
   it('sin decorador, el broker es un broker histórico plano sin registro de trades', () => {
@@ -67,6 +87,9 @@ describe('TradingSession — avance vela a vela', () => {
       session.advance()
     }
     expect(() => session.advance()).toThrow(TradingSessionError)
+    expect(() => session.advance()).toThrow(
+      `la sesión ya procesó todas las velas (${CANDLES.length})`,
+    )
   })
 
   it('cada paso devuelve índice, vela, eventos propios y equity de ese cierre', () => {

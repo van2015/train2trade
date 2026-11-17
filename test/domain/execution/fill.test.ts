@@ -28,21 +28,21 @@ describe('Fill — construcción', () => {
   })
 
   it.each([
-    ['orderId vacío', { orderId: '' }],
-    ['orderId no string', { orderId: 3 }],
-    ['side desconocido', { side: 'long' }],
-    ['price cero', { price: 0 }],
-    ['price negativo', { price: -1 }],
-    ['price no finito', { price: Number.NaN }],
-    ['qty cero', { qty: 0 }],
-    ['qty negativa', { qty: -2 }],
-    ['qty no finita', { qty: Number.POSITIVE_INFINITY }],
-    ['fee no finita', { fee: Number.NaN }],
-    ['time no finito', { time: 'ayer' }],
-  ] as const)('rechaza %s con InvalidFillError', (_label, overrides) => {
-    expect(() => new Fill({ ...fillData, ...overrides } as unknown as FillData)).toThrow(
-      InvalidFillError,
-    )
+    ['orderId vacío', { orderId: '' }, 'el orderId no puede estar vacío'],
+    ['orderId no string', { orderId: 3 }, 'el orderId no puede estar vacío'],
+    ['side desconocido', { side: 'long' }, 'side debe ser "buy" o "sell"'],
+    ['price cero', { price: 0 }, 'price debe ser un número finito > 0'],
+    ['price negativo', { price: -1 }, 'price debe ser un número finito > 0'],
+    ['price no finito', { price: Number.NaN }, 'price debe ser un número finito > 0'],
+    ['qty cero', { qty: 0 }, 'qty debe ser un número finito > 0'],
+    ['qty negativa', { qty: -2 }, 'qty debe ser un número finito > 0'],
+    ['qty no finita', { qty: Number.POSITIVE_INFINITY }, 'qty debe ser un número finito > 0'],
+    ['fee no finita', { fee: Number.NaN }, 'fee debe ser un número finito >= 0'],
+    ['time no finito', { time: 'ayer' }, 'time debe ser un timestamp finito (ms)'],
+  ] as const)('rechaza %s con InvalidFillError y su mensaje', (_label, overrides, message) => {
+    const build = () => new Fill({ ...fillData, ...overrides } as unknown as FillData)
+    expect(build).toThrow(InvalidFillError)
+    expect(build).toThrow(message)
   })
 
   it('InvalidFillError fija this.name y formatea el valor recibido', () => {
@@ -52,6 +52,7 @@ describe('Fill — construcción', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidFillError)
       expect((error as InvalidFillError).name).toBe('InvalidFillError')
+      expect((error as InvalidFillError).message).toContain('Relleno inválido')
       expect((error as InvalidFillError).message).toContain('(recibido: -1)')
     }
   })

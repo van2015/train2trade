@@ -59,8 +59,24 @@ describe('metrics — netProfit y roi', () => {
 
   it('la curva vacía o un capital inválido son errores de dominio', () => {
     expect(() => netProfit([], 1_000)).toThrow(MetricsError)
-    expect(() => netProfit(equityCurve(1_000), 0)).toThrow(MetricsError)
-    expect(() => roi(equityCurve(1_000), Number.NaN)).toThrow(MetricsError)
+    expect(() => netProfit([], 1_000)).toThrow('el equityCurve no puede estar vacío')
+    expect(() => netProfit(equityCurve(1_000), 0)).toThrow(
+      'initialCapital debe ser un número finito > 0',
+    )
+    expect(() => roi(equityCurve(1_000), Number.NaN)).toThrow(
+      'initialCapital debe ser un número finito > 0',
+    )
+  })
+
+  it('el error tiene name MetricsError y el dominio en el mensaje', () => {
+    try {
+      netProfit([], 1_000)
+      throw new Error('debía lanzar MetricsError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(MetricsError)
+      expect((error as MetricsError).name).toBe('MetricsError')
+      expect((error as MetricsError).message).toContain('Métricas inválidas')
+    }
   })
 })
 
@@ -74,6 +90,7 @@ describe('metrics — maxDrawdown', () => {
 
   it('la curva vacía es un error de dominio', () => {
     expect(() => maxDrawdown([])).toThrow(MetricsError)
+    expect(() => maxDrawdown([])).toThrow('el equityCurve no puede estar vacío')
   })
 })
 
@@ -166,6 +183,9 @@ describe('metrics — computeMetrics', () => {
     expect(() => computeMetrics(input({ initialCapital: -1 }))).toThrow(MetricsError)
     expect(() => computeMetrics(input({ timeframe: '1h' as unknown as Timeframe }))).toThrow(
       MetricsError,
+    )
+    expect(() => computeMetrics(input({ timeframe: '1h' as unknown as Timeframe }))).toThrow(
+      'timeframe debe ser un Timeframe',
     )
   })
 })

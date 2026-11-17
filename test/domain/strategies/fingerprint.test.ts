@@ -43,10 +43,13 @@ describe('canonicalJson — serialización canónica (§12C)', () => {
     expect(canonicalJson(null)).toBe('null')
     expect(canonicalJson(undefined)).toBe('null')
     expect(canonicalJson(true)).toBe('true')
+    expect(canonicalJson(false)).toBe('false')
     expect(canonicalJson(42)).toBe('42')
     expect(canonicalJson('a"b')).toBe('"a\\"b"')
     expect(canonicalJson(Number.NaN)).toBe('null')
     expect(canonicalJson(Number.POSITIVE_INFINITY)).toBe('null')
+    // Tipos sin representación: función (bigint/symbol comparten el case)
+    expect(canonicalJson(() => {})).toBe('null')
   })
 
   it('los Map se serializan como registro con claves ordenadas', () => {
@@ -71,6 +74,11 @@ describe('canonicalJson — serialización canónica (§12C)', () => {
 })
 
 describe('strategyFingerprint — huella reproducible (§12C)', () => {
+  it('un hash corto se rellena a 8 dígitos con ceros a la izquierda', () => {
+    // probe-27: la FNV-1a canónica da "2a36720" (7 dígitos) → el padStart importa
+    expect(strategyFingerprint(build({ name: 'probe-27' }))).toBe('02a36720')
+  })
+
   it('misma definición reconstruida → misma huella (hex de 8 dígitos)', () => {
     const first = strategyFingerprint(build())
     expect(first).toMatch(/^[0-9a-f]{8}$/)

@@ -49,9 +49,11 @@ describe('PriceExpr', () => {
   })
 
   describe('assertPriceExpr', () => {
-    it('expresión válida → la devuelve sin lanzar', () => {
-      const expr = bin('+', series('fast'), series('slow'))
-      expect(assertPriceExpr(expr)).toBe(expr)
+    it('expresión válida con cualquier operador aritmético → la devuelve sin lanzar', () => {
+      for (const op of ['+', '-', '*', '/'] as const) {
+        const expr = bin(op, series('fast'), series('slow'))
+        expect(assertPriceExpr(expr)).toBe(expr)
+      }
     })
 
     it('número (precio constante) → InvalidPriceExprError con name', () => {
@@ -61,12 +63,19 @@ describe('PriceExpr', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(InvalidPriceExprError)
         expect((error as Error).name).toBe('InvalidPriceExprError')
+        expect((error as Error).message).toContain('Expresión de precio inválida')
+        expect((error as Error).message).toContain(
+          'se esperaba una hoja o una operación aritmética',
+        )
       }
     })
 
     it('hoja con id no string o vacío → error', () => {
       expect(() => assertPriceExpr({ kind: 'series', id: 7 })).toThrow(InvalidPriceExprError)
       expect(() => assertPriceExpr({ kind: 'series', id: '' })).toThrow(InvalidPriceExprError)
+      expect(() => assertPriceExpr({ kind: 'series', id: '' })).toThrow(
+        'la serie requiere un alias no vacío',
+      )
       expect(() => assertPriceExpr({ kind: 'series' })).toThrow(InvalidPriceExprError)
     })
 
@@ -74,6 +83,12 @@ describe('PriceExpr', () => {
       expect(() =>
         assertPriceExpr({ kind: 'binary', op: '%', left: series('a'), right: series('b') }),
       ).toThrow(InvalidPriceExprError)
+      expect(() =>
+        assertPriceExpr({ kind: 'binary', op: '%', left: series('a'), right: series('b') }),
+      ).toThrow('operador desconocido: se admite +, -, * o / entre series')
+      expect(() =>
+        assertPriceExpr({ kind: 'binary', op: '%', left: series('a'), right: series('b') }),
+      ).toThrow('(recibido: "binary %")')
     })
 
     it('assertPriceExpr rechaza un hijo inválido en cualquier profundidad', () => {

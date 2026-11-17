@@ -30,6 +30,9 @@ describe('MarketClock — advanceTo', () => {
     const clock = new MarketClock()
     clock.advanceTo(t0)
     expect(() => clock.advanceTo(t0)).toThrow(MarketClockError)
+    expect(() => clock.advanceTo(t0)).toThrow(
+      `time debe ser estrictamente mayor que el actual (${t0})`,
+    )
     expect(clock.now).toBe(t0)
   })
 
@@ -47,6 +50,9 @@ describe('MarketClock — advanceTo', () => {
     ['no number', 'ayer'],
   ] as const)('rechaza un tiempo %s con MarketClockError', (_label, time) => {
     expect(() => new MarketClock().advanceTo(time as unknown as number)).toThrow(MarketClockError)
+    expect(() => new MarketClock().advanceTo(time as unknown as number)).toThrow(
+      'time debe ser un timestamp finito >= 0 (ms)',
+    )
   })
 
   it('el primer avance inválido deja el reloj sin tiempo', () => {
@@ -62,6 +68,7 @@ describe('MarketClock — advanceTo', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(MarketClockError)
       expect((error as MarketClockError).name).toBe('MarketClockError')
+      expect((error as MarketClockError).message).toContain('Reloj de mercado inválido')
       expect((error as MarketClockError).message).toContain('(recibido: -1)')
     }
   })

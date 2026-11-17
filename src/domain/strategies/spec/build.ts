@@ -21,7 +21,6 @@ import {
   InvalidStrategyDefinitionError,
   PriceLevel,
   Signal,
-  SignalAction,
   Strategy,
   StrategyAction,
   Trigger,

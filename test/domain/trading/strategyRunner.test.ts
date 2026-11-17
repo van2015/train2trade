@@ -32,6 +32,8 @@ interface RunnerOptions {
   entryLimitPrice?: number
   /** Si se indica, la señal de add declara este limitPrice (si no, es market). */
   addLimitPrice?: number
+  /** Si se indica, la señal de salida declara este limitPrice (si no, es market). */
+  exitLimitPrice?: number
 }
 
 function candle(index: number, overrides: { open?: number; high?: number; low?: number } = {}) {
@@ -64,6 +66,9 @@ function makeStrategy(flags: Flags, options: RunnerOptions = {}): Strategy {
   if (options.addLimitPrice !== undefined) {
     indicators.addPx = new Constant(options.addLimitPrice)
   }
+  if (options.exitLimitPrice !== undefined) {
+    indicators.exitPx = new Constant(options.exitLimitPrice)
+  }
 
   return new Strategy({
     name: 'runner-test',
@@ -89,6 +94,7 @@ function makeStrategy(flags: Flags, options: RunnerOptions = {}): Strategy {
       new Signal(
         StrategyAction.RequestExit,
         rule('exit?', () => flags.exit),
+        options.exitLimitPrice !== undefined ? { price: series('exitPx') } : {},
       ),
     ],
     invalidationRule: rule('veto?', () => flags.veto),
@@ -257,6 +263,25 @@ describe('StrategyRunner — ciclo completo', () => {
     expect(portfolio.position).toBeNull()
     expect(portfolio.cash).toBe(1_100)
     expect(portfolio.realizedPnl).toBeCloseTo(100, 10)
+  })
+
+  it('la decisión de salida repetida refresca el ciclo sin duplicar la orden limit', () => {
+    // exit limit lejano (1000): nunca se toca, así que la orden queda en vuelo
+    const { flags, runner, broker } = setup(undefined, undefined, { exitLimitPrice: 1000 })
+    flags.entry = true
+    runner.onCandle([C0])
+    flags.entry = false
+    runner.onCandle([C0, C1]) // posición abierta: 10 @ 100
+
+    flags.exit = true
+    expect(runner.onCandle([C0, C1, C2])).toEqual(['ExitRequested', 'OrderSubmitted'])
+    expect(broker.pendingOrders()).toHaveLength(1)
+    expect(broker.pendingOrders()[0]?.type).toBe(OrderType.Limit)
+
+    // Siguiente vela: la señal sigue viva → refresh (apply) y sin segundo envío.
+    expect(runner.onCandle([C0, C1, C2, candle(3, { open: 105 })])).toEqual([])
+    expect(broker.pendingOrders()).toHaveLength(1)
+    expect(runner.instance.state).toBe(StrategyState.WaitingForExitFill)
   })
 })
 

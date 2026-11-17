@@ -11,7 +11,7 @@ import {
 } from 'lightweight-charts'
 import { Candle } from '@/domain/candles/candle'
 import { StrategySpec } from '@/domain/strategies/spec'
-import { CHART_COLORS, priceFormatFor, toChartTime, toCandlestickData } from './chartData'
+import { CHART_COLORS, priceFormatFor, toCandlestickData } from './chartData'
 import { syncLineSeries } from './lineSeries'
 import { buildStrategyPreview, PreviewLevel } from './strategyPreview'
 

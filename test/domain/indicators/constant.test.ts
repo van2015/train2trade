@@ -35,6 +35,8 @@ describe('Constant', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidConstantError)
       expect((error as Error).name).toBe('InvalidConstantError')
+      expect((error as Error).message).toContain('Constante inválida')
+      expect((error as Error).message).toContain('se esperaba un número finito')
     }
     expect(() => new Constant(Number.POSITIVE_INFINITY)).toThrow(InvalidConstantError)
     expect(() => new Constant('30' as unknown as number)).toThrow(InvalidConstantError)

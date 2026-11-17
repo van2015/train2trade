@@ -32,30 +32,64 @@ describe('Instrument', () => {
       )
     })
 
-    const INVALID: Array<[string, () => unknown]> = [
-      ['string sin separador', () => Instrument.from('BTCUSDT')],
-      ['más de dos partes', () => Instrument.from('BTC/USDT/ETH')],
-      ['partes vacías', () => Instrument.from('/USDT')],
-      ['quote vacía en el objeto', () => Instrument.from({ base: 'BTC', quote: '  ' })],
-      ['caracteres no alfanuméricos (string)', () => Instrument.from('BT-C/USDT')],
-      ['caracteres no alfanuméricos (partes)', () => Instrument.of('BT$C', 'USDT')],
-      ['null', () => Instrument.from(null)],
-      ['undefined', () => Instrument.from(undefined)],
-      ['número', () => Instrument.from(42)],
-      ['objeto sin quote', () => Instrument.from({ base: 'BTC' })],
+    const INVALID: Array<[string, () => unknown, string]> = [
+      [
+        'string sin separador',
+        () => Instrument.from('BTCUSDT'),
+        'se esperaba el formato "BASE/QUOTE"',
+      ],
+      [
+        'más de dos partes',
+        () => Instrument.from('BTC/USDT/ETH'),
+        'se esperaba el formato "BASE/QUOTE"',
+      ],
+      [
+        'partes vacías',
+        () => Instrument.from('/USDT'),
+        'la base debe ser alfanumérica (letras o dígitos)',
+      ],
+      [
+        'quote vacía en el objeto',
+        () => Instrument.from({ base: 'BTC', quote: '  ' }),
+        'la quote debe ser alfanumérica (letras o dígitos)',
+      ],
+      [
+        'caracteres no alfanuméricos (string)',
+        () => Instrument.from('BT-C/USDT'),
+        'la base debe ser alfanumérica (letras o dígitos)',
+      ],
+      [
+        'caracteres no alfanuméricos (partes)',
+        () => Instrument.of('BT$C', 'USDT'),
+        'la base debe ser alfanumérica (letras o dígitos)',
+      ],
+      ['null', () => Instrument.from(null), 'se esperaba un string "BASE/QUOTE" o { base, quote }'],
+      [
+        'undefined',
+        () => Instrument.from(undefined),
+        'se esperaba un string "BASE/QUOTE" o { base, quote }',
+      ],
+      ['número', () => Instrument.from(42), 'se esperaba un string "BASE/QUOTE" o { base, quote }'],
+      [
+        'objeto sin quote',
+        () => Instrument.from({ base: 'BTC' }),
+        'la quote debe ser alfanumérica (letras o dígitos)',
+      ],
     ]
 
-    it.each(INVALID)('lanza InvalidInstrumentError con %s', (_label, build) => {
+    it.each(INVALID)('lanza InvalidInstrumentError con %s', (_label, build, message) => {
       expect(build).toThrow(InvalidInstrumentError)
+      expect(build).toThrow(message)
     })
 
-    it('el error tiene name InvalidInstrumentError', () => {
+    it('el error tiene name InvalidInstrumentError y el dominio en el mensaje', () => {
       try {
         Instrument.from('BTCUSDT')
         throw new Error('debía lanzar InvalidInstrumentError')
       } catch (error) {
         expect(error).toBeInstanceOf(InvalidInstrumentError)
         expect((error as Error).name).toBe('InvalidInstrumentError')
+        expect((error as Error).message).toContain('Instrumento inválido')
       }
     })
   })
@@ -111,6 +145,10 @@ describe('Instrument', () => {
 
     it('false para valores distintos', () => {
       expect(Instrument.of('BTC', 'USDT').equals(Instrument.of('ETH', 'USDT'))).toBe(false)
+    })
+
+    it('false con la misma base y otra quote (evalúa la quote)', () => {
+      expect(Instrument.of('BTC', 'USDT').equals(Instrument.of('BTC', 'EUR'))).toBe(false)
     })
   })
 

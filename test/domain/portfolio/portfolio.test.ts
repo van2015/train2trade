@@ -25,6 +25,9 @@ describe('Portfolio — construcción', () => {
     ['no number', '1000'],
   ] as const)('rechaza un capital inicial %s', (_label, capital) => {
     expect(() => new Portfolio(capital as unknown as number)).toThrow(InvalidPortfolioError)
+    expect(() => new Portfolio(capital as unknown as number)).toThrow(
+      'initialCapital debe ser un número finito > 0',
+    )
   })
 })
 
@@ -42,6 +45,7 @@ describe('Portfolio — compras', () => {
   it('rechaza una compra sin efectivo suficiente y no cambia el estado', () => {
     const portfolio = new Portfolio(100)
     expect(() => portfolio.applyFill(buy(2, 100, t0, 0.5))).toThrow(InvalidPortfolioError)
+    expect(() => portfolio.applyFill(buy(2, 100, t0, 0.5))).toThrow(/efectivo insuficiente/)
     expect(portfolio.cash).toBe(100)
     expect(portfolio.position).toBeNull()
     expect(portfolio.feesPaid).toBe(0)
@@ -69,7 +73,21 @@ describe('Portfolio — ventas', () => {
   it('rechaza una venta sin posición (long-only)', () => {
     const portfolio = new Portfolio(1_000)
     expect(() => portfolio.applyFill(sell(1, 100, t1))).toThrow(InvalidPortfolioError)
+    expect(() => portfolio.applyFill(sell(1, 100, t1))).toThrow(
+      'no hay posición abierta que reducir',
+    )
     expect(portfolio.cash).toBe(1_000)
+  })
+
+  it('el error tiene name InvalidPortfolioError y el dominio en el mensaje', () => {
+    try {
+      new Portfolio(1_000).applyFill(sell(1, 100, t1))
+      throw new Error('debía lanzar InvalidPortfolioError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidPortfolioError)
+      expect((error as InvalidPortfolioError).name).toBe('InvalidPortfolioError')
+      expect((error as InvalidPortfolioError).message).toContain('Portfolio inválido')
+    }
   })
 
   it('al cerrar la posición retira la posición y acumula su realizado', () => {

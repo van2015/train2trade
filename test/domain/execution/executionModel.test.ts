@@ -47,8 +47,14 @@ describe('NextOpenExecutionModel — configuración', () => {
     expect(() => new NextOpenExecutionModel({ slippageBps: -1 })).toThrow(
       InvalidExecutionModelError,
     )
+    expect(() => new NextOpenExecutionModel({ slippageBps: -1 })).toThrow(
+      'slippageBps debe ser un número finito >= 0',
+    )
     expect(() => new NextOpenExecutionModel({ feeBps: Number.NaN })).toThrow(
       InvalidExecutionModelError,
+    )
+    expect(() => new NextOpenExecutionModel({ feeBps: Number.NaN })).toThrow(
+      'feeBps debe ser un número finito >= 0',
     )
     expect(() => new NextOpenExecutionModel({ slippageBps: '5' as unknown as number })).toThrow(
       InvalidExecutionModelError,
@@ -56,6 +62,19 @@ describe('NextOpenExecutionModel — configuración', () => {
     expect(() => new NextOpenExecutionModel({ slippageBps: Number.POSITIVE_INFINITY })).toThrow(
       InvalidExecutionModelError,
     )
+  })
+
+  it('el error tiene name InvalidExecutionModelError y el dominio en el mensaje', () => {
+    try {
+      new NextOpenExecutionModel({ feeBps: Number.NaN })
+      throw new Error('debía lanzar InvalidExecutionModelError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidExecutionModelError)
+      expect((error as InvalidExecutionModelError).name).toBe('InvalidExecutionModelError')
+      expect((error as InvalidExecutionModelError).message).toContain(
+        'Modelo de ejecución inválido',
+      )
+    }
   })
 
   it('NextOpenExecutionModel expone la config efectiva con los defaults ya resueltos', () => {
@@ -178,6 +197,9 @@ describe('NextOpenExecutionModel — contrato', () => {
     const pending = order()
     pending.cancel()
     expect(() => model.evaluate(pending, candle())).toThrow(InvalidOrderError)
+    expect(() => model.evaluate(pending, candle())).toThrow(
+      'evaluate solo admite órdenes pendientes',
+    )
   })
 
   it('es sustituible por cualquier ExecutionModel (contrato estructural)', () => {

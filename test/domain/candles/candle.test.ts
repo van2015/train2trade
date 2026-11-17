@@ -39,13 +39,26 @@ describe('Candle.from', () => {
 
   it('lanza ante high < low', () => {
     expect(() => Candle.from(fields({ high: 5, low: 6 }))).toThrow(InvalidCandlesError)
+    expect(() => Candle.from(fields({ high: 5, low: 6 }))).toThrow(/es menor que "low"/)
   })
 
   it('lanza ante valores que no son un objeto de velas', () => {
     expect(() => Candle.from(null)).toThrow(InvalidCandlesError)
+    expect(() => Candle.from(null)).toThrow('se esperaba un objeto de velas')
     expect(() => Candle.from(undefined)).toThrow(InvalidCandlesError)
     expect(() => Candle.from(42)).toThrow(InvalidCandlesError)
     expect(() => Candle.from('time=1')).toThrow(InvalidCandlesError)
+  })
+
+  it('el error tiene name InvalidCandlesError y el dominio en el mensaje', () => {
+    try {
+      Candle.from(null)
+      throw new Error('debía lanzar InvalidCandlesError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidCandlesError)
+      expect((error as InvalidCandlesError).name).toBe('InvalidCandlesError')
+      expect((error as InvalidCandlesError).message).toContain('Velas inválidas')
+    }
   })
 
   it('el error explica el campo culpable', () => {
@@ -163,6 +176,7 @@ describe('Candle.positionOf', () => {
 
   it('rechaza precios no finitos', () => {
     expect(() => candle.positionOf(NaN)).toThrow(InvalidPriceError)
+    expect(() => candle.positionOf(NaN)).toThrow('se esperaba un número finito')
     expect(() => candle.positionOf(Infinity)).toThrow(InvalidPriceError)
     expect(() => candle.positionOf(-Infinity)).toThrow(InvalidPriceError)
     expect(() => candle.positionOf('10' as unknown as number)).toThrow(InvalidPriceError)
@@ -172,6 +186,17 @@ describe('Candle.positionOf', () => {
     expect(() => candle.positionOf(NaN)).toThrow(/NaN/)
     expect(() => candle.positionOf('10' as unknown as number)).toThrow(/"10"/)
     expect(() => candle.positionOf(null as unknown as number)).toThrow(/null/)
+  })
+
+  it('el error tiene name InvalidPriceError y el dominio en el mensaje', () => {
+    try {
+      candle.positionOf(NaN)
+      throw new Error('debía lanzar InvalidPriceError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidPriceError)
+      expect((error as InvalidPriceError).name).toBe('InvalidPriceError')
+      expect((error as InvalidPriceError).message).toContain('Precio inválido')
+    }
   })
 })
 

@@ -19,7 +19,7 @@ import {
 } from '@/domain/strategies/rules'
 import { StrategyAction } from '@/domain/strategies/strategy'
 import { buildRule } from '@/domain/strategies/spec/build'
-import { assertRuleSpec } from '@/domain/strategies/spec/validate'
+import { assertRuleSpec, assertStrategySpec } from '@/domain/strategies/spec/validate'
 import {
   buildIndicator,
   buildStrategy,
@@ -91,14 +91,24 @@ describe('RuleSpec', () => {
       expect(() => assertRuleSpec({ kind: 'xor', rules: [] })).toThrow(
         InvalidStrategyDefinitionError,
       )
+      expect(() => assertRuleSpec({ kind: 'xor', rules: [] })).toThrow('nodo de regla desconocido')
       expect(() => assertRuleSpec({ kind: 'condition', op: '!=', a: 'close', b: 'ema12' })).toThrow(
         InvalidStrategyDefinitionError,
+      )
+      expect(() => assertRuleSpec({ kind: 'condition', op: '!=', a: 'close', b: 'ema12' })).toThrow(
+        'operador de condición desconocido',
       )
       expect(() => assertRuleSpec({ kind: 'condition', op: '>', a: 42, b: 'ema12' })).toThrow(
         InvalidStrategyDefinitionError,
       )
+      expect(() => assertRuleSpec({ kind: 'condition', op: '>', a: 42, b: 'ema12' })).toThrow(
+        'el operando "a" debe ser un alias no vacío',
+      )
       expect(() => assertRuleSpec({ kind: 'condition', op: '>', a: '', b: 'ema12' })).toThrow(
         InvalidStrategyDefinitionError,
+      )
+      expect(() => assertRuleSpec({ kind: 'condition', op: '>', a: 'close', b: 42 })).toThrow(
+        'el operando "b" debe ser un alias no vacío',
       )
     })
 
@@ -106,11 +116,15 @@ describe('RuleSpec', () => {
       expect(() => assertRuleSpec({ kind: 'and', rules: [] })).toThrow(
         InvalidStrategyDefinitionError,
       )
+      expect(() => assertRuleSpec({ kind: 'and', rules: [] })).toThrow(
+        '"and" requiere al menos una regla',
+      )
       expect(() => assertRuleSpec({ kind: 'or', rules: [] })).toThrow(
         InvalidStrategyDefinitionError,
       )
       expect(() => assertRuleSpec({ kind: 'not' })).toThrow(InvalidStrategyDefinitionError)
       expect(() => assertRuleSpec('close > ema12')).toThrow(InvalidStrategyDefinitionError)
+      expect(() => assertRuleSpec('close > ema12')).toThrow('se esperaba un nodo de regla')
       expect(() => assertRuleSpec(null)).toThrow(InvalidStrategyDefinitionError)
     })
 
@@ -145,6 +159,9 @@ describe('RuleSpec', () => {
 
     it('first_since sin ramas o con una rama inválida → error', () => {
       expect(() => assertRuleSpec({ kind: 'first_since' })).toThrow(InvalidStrategyDefinitionError)
+      expect(() => assertRuleSpec({ kind: 'first_since' })).toThrow(
+        '"first_since" requiere las ramas "since" y "then"',
+      )
       expect(() =>
         assertRuleSpec({
           kind: 'first_since',
@@ -272,6 +289,9 @@ describe('RuleSpec', () => {
         buildRule({ kind: 'condition', op: '>', a: 'close', b: 'rsi14' }, CLASSES),
       ).toThrow(InvalidStrategyDefinitionError)
       expect(() =>
+        buildRule({ kind: 'condition', op: '>', a: 'close', b: 'rsi14' }, CLASSES),
+      ).toThrow(/clase "price" con "oscillator".*\(recibido: "close > rsi14"\)/)
+      expect(() =>
         buildRule({ kind: 'condition', op: '<', a: 'ema12', b: 'rsi14' }, CLASSES),
       ).toThrow(InvalidStrategyDefinitionError)
     })
@@ -297,7 +317,7 @@ describe('RuleSpec', () => {
     it('alias desconocido → error', () => {
       expect(() =>
         buildRule({ kind: 'condition', op: '>', a: 'missing', b: 'ema12' }, CLASSES),
-      ).toThrow(InvalidStrategyDefinitionError)
+      ).toThrow('el alias no está registrado en la estrategia')
       expect(() =>
         buildRule({ kind: 'condition', op: '>', a: 'close', b: 'missing' }, CLASSES),
       ).toThrow(InvalidStrategyDefinitionError)
@@ -350,6 +370,33 @@ function validSpec(): StrategySpec {
   }
 }
 
+describe('assertStrategySpec (forma completa de la spec)', () => {
+  const BAD_SPECS: Array<[string, unknown, string]> = [
+    ['spec no-objeto', null, 'la spec debe ser un objeto'],
+    ['entry no-objeto', { ...validSpec(), entry: 'x' }, 'entry debe ser un objeto'],
+    [
+      'indicador no-objeto',
+      { ...validSpec(), indicators: ['x'] },
+      'el indicador debe ser un objeto',
+    ],
+    ['takeProfit no-objeto', { ...validSpec(), takeProfit: 'x' }, 'takeProfit debe ser un objeto'],
+    ['triggers no-array', { ...validSpec(), triggers: {} }, 'triggers debe ser un array'],
+    ['trigger no-objeto', { ...validSpec(), triggers: ['x'] }, 'el trigger debe ser un objeto'],
+    [
+      'trigger sin price',
+      { ...validSpec(), triggers: [{ action: 'request_entry', execution: 'market' }] },
+      'trigger.price es obligatoria',
+    ],
+  ]
+
+  it.each(BAD_SPECS)(
+    '%s → InvalidStrategyDefinitionError con su mensaje',
+    (_label, bad, message) => {
+      expect(() => assertStrategySpec(bad)).toThrow(message)
+    },
+  )
+})
+
 describe('parseStrategySpec (validación para persistencia)', () => {
   it('spec válida → la devuelve intacta', () => {
     expect(parseStrategySpec(validSpec())).toEqual(validSpec())
@@ -360,61 +407,61 @@ describe('parseStrategySpec (validación para persistencia)', () => {
       InvalidStrategyDefinitionError,
     )
     expect(() => parseStrategySpec({ ...validSpec(), version: 0 })).toThrow(
-      InvalidStrategyDefinitionError,
+      'la version debe ser un entero >= 1',
     )
     expect(() => parseStrategySpec({ ...validSpec(), version: 1.5 })).toThrow(
       InvalidStrategyDefinitionError,
     )
     expect(() => parseStrategySpec({ ...validSpec(), indicators: 'x' })).toThrow(
-      InvalidStrategyDefinitionError,
+      'indicators debe ser un array',
     )
     expect(() =>
       parseStrategySpec({ ...validSpec(), indicators: [{ alias: '', kind: 'sma', period: 5 }] }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('el alias del indicador no puede estar vacío')
     expect(() =>
       parseStrategySpec({ ...validSpec(), indicators: [{ alias: 'x', kind: 'macd', period: 5 }] }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('kind de indicador desconocido (sma/ema/rsi/lowestLow/const)')
     expect(() =>
       parseStrategySpec({ ...validSpec(), indicators: [{ alias: 'x', kind: 'sma', period: 0 }] }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('el periodo del indicador debe ser un entero >= 1')
     expect(() =>
       parseStrategySpec({
         ...validSpec(),
         indicators: [{ alias: 'x', kind: 'const', value: Number.NaN }],
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('un indicador constante requiere un value numérico finito')
   })
 
   it('entry: limit exige price y market lo prohíbe', () => {
     const base = validSpec()
     expect(() =>
       parseStrategySpec({ ...base, entry: { rule: base.entry.rule, execution: 'limit' } }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('entry.price es obligatoria con execution "limit"')
     expect(() =>
       parseStrategySpec({
         ...base,
         entry: { rule: base.entry.rule, price: series('fast'), execution: 'market' },
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('execution "market" no admite entry.price')
     expect(() =>
       parseStrategySpec({
         ...base,
         entry: { rule: base.entry.rule, price: series('fast'), execution: 'stop' },
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('entry.execution debe ser "limit" o "market"')
   })
 
   it('tp/sl: price y execution obligatorios', () => {
     const base = validSpec()
     expect(() => parseStrategySpec({ ...base, takeProfit: { execution: 'limit' } })).toThrow(
-      InvalidStrategyDefinitionError,
+      'takeProfit.price es obligatoria',
     )
     expect(() => parseStrategySpec({ ...base, stopLoss: { price: series('slow') } })).toThrow(
-      InvalidStrategyDefinitionError,
+      'stopLoss.execution debe ser "limit" o "market"',
     )
     expect(() =>
       parseStrategySpec({ ...base, takeProfit: { price: series('slow'), execution: 'fill' } }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('takeProfit.execution debe ser "limit" o "market"')
   })
 
   it('triggers: action válida y reglas de fraction', () => {
@@ -424,14 +471,26 @@ describe('parseStrategySpec (validación para persistencia)', () => {
         ...base,
         triggers: [{ price: series('fast'), action: 'sell', execution: 'market' }],
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('trigger.action debe ser request_entry/request_add/request_reduce/request_exit')
+    expect(() =>
+      parseStrategySpec({
+        ...base,
+        triggers: [{ price: series('fast'), action: 'request_entry', execution: 'stop' }],
+      }),
+    ).toThrow('trigger.execution debe ser "limit" o "market"')
     // add/reduce exigen fraction en (0, 1]
     expect(() =>
       parseStrategySpec({
         ...base,
         triggers: [{ price: series('fast'), action: 'request_add', execution: 'market' }],
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('el trigger "request_add" requiere una fraction en (0, 1]')
+    expect(() =>
+      parseStrategySpec({
+        ...base,
+        triggers: [{ price: series('fast'), action: 'request_reduce', execution: 'market' }],
+      }),
+    ).toThrow('el trigger "request_reduce" requiere una fraction en (0, 1]')
     expect(() =>
       parseStrategySpec({
         ...base,
@@ -456,7 +515,7 @@ describe('parseStrategySpec (validación para persistencia)', () => {
           { price: series('fast'), action: 'request_entry', execution: 'market', fraction: 0.5 },
         ],
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('el trigger "request_entry" no admite fraction')
   })
 
   it('price con literal numérico → InvalidPriceExprError (sin precios absolutos, decisión 9)', () => {
@@ -518,7 +577,7 @@ describe('buildStrategy', () => {
         ...validSpec(),
         indicators: [{ alias: 'close', kind: 'sma', period: 5 }],
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('el alias "close" está reservado (series builtin y alias de operación)')
 
     expect(() =>
       buildStrategy({
@@ -528,7 +587,21 @@ describe('buildStrategy', () => {
           { alias: 'fast', kind: 'ema', period: 9 },
         ],
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('alias de indicador duplicado: "fast"')
+  })
+
+  it('reglas: el nodo `not` hereda las restricciones de alias de operación en entry.rule', () => {
+    const base = validSpec()
+
+    expect(() =>
+      buildStrategy({
+        ...base,
+        entry: {
+          rule: { kind: 'not', rule: { kind: 'condition', op: '>', a: 'entry', b: 'fast' } },
+          execution: 'market',
+        },
+      }),
+    ).toThrow('el alias de operación "entry" no está disponible en entry.rule')
   })
 
   it('precios: oscilador o alias no registrado → error', () => {
@@ -539,14 +612,14 @@ describe('buildStrategy', () => {
         ...base,
         entry: { rule: base.entry.rule, price: series('r'), execution: 'limit' },
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('los osciladores no forman precios (r) en entry.price')
     // alias inexistente
     expect(() =>
       buildStrategy({
         ...base,
         entry: { rule: base.entry.rule, price: series('ghost'), execution: 'limit' },
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('el alias "ghost" no está registrado en la estrategia')
   })
 
   it('alias de operación: disponibles según el contexto (§1.1)', () => {
@@ -558,21 +631,30 @@ describe('buildStrategy', () => {
         ...base,
         entry: { rule: base.entry.rule, price: series('entry'), execution: 'limit' },
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('el alias de operación "entry" no está disponible en entry.price')
     // tp/sl: entry sí, sl/tp no
     expect(() =>
       buildStrategy({ ...base, takeProfit: { price: series('entry'), execution: 'limit' } }),
     ).not.toThrow()
     expect(() =>
+      buildStrategy({ ...base, takeProfit: { price: series('sl'), execution: 'limit' } }),
+    ).toThrow('el alias de operación "sl" no está disponible en takeProfit.price')
+    expect(() =>
       buildStrategy({ ...base, stopLoss: { price: series('sl'), execution: 'market' } }),
-    ).toThrow(InvalidStrategyDefinitionError)
-    // triggers: entry/sl/tp todos
+    ).toThrow('el alias de operación "sl" no está disponible en stopLoss.price')
+    // triggers: entry/sl/tp todos, pero los osciladores no forman precios
     expect(() =>
       buildStrategy({
         ...base,
         triggers: [{ price: series('tp'), action: 'request_exit', execution: 'limit' }],
       }),
     ).not.toThrow()
+    expect(() =>
+      buildStrategy({
+        ...base,
+        triggers: [{ price: series('r'), action: 'request_exit', execution: 'limit' }],
+      }),
+    ).toThrow('los osciladores no forman precios (r) en trigger.price')
     // reglas: entry.rule e invalidation no; exitRule sí
     expect(() =>
       buildStrategy({
@@ -589,7 +671,7 @@ describe('buildStrategy', () => {
         ...base,
         invalidation: { kind: 'condition', op: '>', a: 'close', b: 'entry' },
       }),
-    ).toThrow(InvalidStrategyDefinitionError)
+    ).toThrow('el alias de operación "entry" no está disponible en invalidation')
     expect(() =>
       buildStrategy({
         ...base,
@@ -776,6 +858,10 @@ describe('API para el editor (enmienda 16)', () => {
 
     const all = priceOperandAliases(classes, ['entry', 'sl', 'tp'])
     expect(all).toContain('tp')
+
+    // La guardia `alias === ''` descarta la clave vacía del catálogo.
+    const withEmpty = priceOperandAliases({ ...classes, '': 'price' }, [])
+    expect(withEmpty).not.toContain('')
   })
 
   it('ruleOperandAliases: todas las clases, menos las operaciones fuera de contexto', () => {
@@ -791,6 +877,10 @@ describe('API para el editor (enmienda 16)', () => {
     const all = ruleOperandAliases(classes, ['entry', 'sl', 'tp'])
     expect(all).toContain('entry')
     expect(all).toContain('tp')
+
+    // La guardia `alias === ''` descarta la clave vacía del catálogo.
+    const withEmpty = ruleOperandAliases({ ...classes, '': 'price' }, [])
+    expect(withEmpty).not.toContain('')
   })
 
   it('compatibleClasses: misma clase a ambos lados o constante (decisión 12)', () => {

@@ -86,6 +86,17 @@ describe('CsvCandlesImporter', () => {
       expect(importer.parse(`${HEADER}\n1,10,12,9,11,100`)).toEqual([candle({ time: 1000 })])
     })
 
+    it('timestampFormat unixSeconds con tiempo no numérico → InvalidCsvError (strict)', () => {
+      const importer = new CsvCandlesImporter({
+        timestampFormat: 'unixSeconds',
+        onInvalidRow: 'throw',
+      })
+
+      expect(() => importer.parse(`${HEADER}\nayer,10,12,9,11,100`)).toThrow(
+        'no es un número válido',
+      )
+    })
+
     it('con timestampFormat iso8601 parsea la fecha a milisegundos UTC', () => {
       const importer = new CsvCandlesImporter({ timestampFormat: 'iso8601' })
       const text = `${HEADER}\n2024-01-01T00:00:00.000Z,10,12,9,11,100`
@@ -107,6 +118,43 @@ describe('CsvCandlesImporter', () => {
       })
 
       expect(importer.parse(text)).toEqual([candle()])
+    })
+
+    it('columna mapeada ausente de la cabecera → InvalidCsvError con la columna', () => {
+      const importer = new CsvCandlesImporter({ columns: { close: { column: 'Cierre' } } })
+
+      expect(() => importer.parse('Date,Open\n1000,10')).toThrow(
+        /^CSV inválido: no se encontró la columna "Cierre" en la cabecera$/,
+      )
+    })
+
+    it('columns por nombre sin cabecera → InvalidCsvError: hace falta cabecera', () => {
+      const importer = new CsvCandlesImporter({
+        hasHeader: false,
+        columns: { close: { column: 'Cierre' } },
+      })
+
+      expect(() => importer.parse('1000,10')).toThrow(
+        /^CSV inválido: la columna "Cierre" necesita una cabecera con nombres$/,
+      )
+    })
+
+    it('timestampFormat iso8601 con fecha inválida → InvalidCsvError (strict)', () => {
+      const importer = new CsvCandlesImporter({
+        timestampFormat: 'iso8601',
+        onInvalidRow: 'throw',
+      })
+
+      expect(() => importer.parse(`${HEADER}\nnot-a-date,10,12,9,11,100`)).toThrow(
+        'no es una fecha ISO 8601 válida',
+      )
+    })
+
+    it('con onInvalidRow throw las líneas en blanco se omiten (no son filas)', () => {
+      const importer = new CsvCandlesImporter({ onInvalidRow: 'throw' })
+      const text = [HEADER, '1000,10,12,9,11,100', '', '2000,10,12,9,11,100'].join('\n')
+
+      expect(importer.parse(text)).toEqual([candle(), candle({ time: 2000 })])
     })
 
     it('omite las filas inválidas con onInvalidRow skip (por defecto)', () => {
@@ -158,6 +206,10 @@ describe('CsvCandlesImporter', () => {
       const importer = new CsvCandlesImporter()
 
       expect(() => importer.parseRow('1000,10,12')).toThrow(InvalidCsvError)
+      expect(() => importer.parseRow('1000,10,12')).toThrow(
+        'falta el valor de "low" (recibido: "1000,10,12")',
+      )
+      expect(() => importer.parseRow('1000,,12,9,11,100')).toThrow(/falta el valor de "open"/)
       expect(() => importer.parseRow('')).toThrow(InvalidCsvError)
     })
   })

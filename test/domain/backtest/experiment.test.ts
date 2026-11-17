@@ -208,12 +208,14 @@ describe('Experiment — validación', () => {
     expect(() => Experiment.run(config({ initialCapital: Number.NaN }))).toThrow(ExperimentError)
   })
 
-  it('el error fija this.name', () => {
+  it('el error fija this.name y el dominio en el mensaje', () => {
     try {
       Experiment.run(config({ candles: [] }))
       expect.unreachable('debería lanzar ExperimentError')
     } catch (error) {
       expect((error as ExperimentError).name).toBe('ExperimentError')
+      expect((error as ExperimentError).message).toContain('Experimento inválido')
+      expect((error as ExperimentError).message).toContain('se necesita al menos una vela')
     }
   })
 })

@@ -77,6 +77,7 @@ describe('normalizeCandles', () => {
 
   it.each(NOT_ARRAY)('lanza ante %s (la entrada no es un array)', (_label, input) => {
     expect(() => normalizeCandles(input)).toThrow()
+    expect(() => normalizeCandles(input)).toThrow('se esperaba un array de velas')
   })
 
   it('devuelve [] para array vacío', () => {

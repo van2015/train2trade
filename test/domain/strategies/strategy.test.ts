@@ -52,12 +52,18 @@ describe('Signal', () => {
         InvalidStrategyDefinitionError,
       )
     }
+    expect(() => new Signal(StrategyAction.RequestAdd, rule('a', true))).toThrow(
+      'la señal "request_add" requiere una fraction en (0, 1]',
+    )
   })
 
   it('RequestEntry/RequestExit no aceptan fraction', () => {
     expect(
       () => new Signal(StrategyAction.RequestEntry, rule('a', true), { fraction: 0.5 }),
     ).toThrow(InvalidStrategyDefinitionError)
+    expect(
+      () => new Signal(StrategyAction.RequestEntry, rule('a', true), { fraction: 0.5 }),
+    ).toThrow('la señal "request_entry" no admite fraction')
     expect(() => new Signal(StrategyAction.RequestExit, rule('a', true), { fraction: 1 })).toThrow(
       InvalidStrategyDefinitionError,
     )
@@ -107,6 +113,13 @@ describe('Strategy (construcción)', () => {
           signals: [new Signal(StrategyAction.RequestEntry, rule('a', true))],
         }),
     ).toThrow(InvalidStrategyDefinitionError)
+    expect(
+      () =>
+        new Strategy({
+          name: '',
+          signals: [new Signal(StrategyAction.RequestEntry, rule('a', true))],
+        }),
+    ).toThrow('el name no puede estar vacío')
   })
 
   it('version inválida (0, 2.5) → InvalidStrategyDefinitionError', () => {
@@ -120,11 +133,35 @@ describe('Strategy (construcción)', () => {
           }),
       ).toThrow(InvalidStrategyDefinitionError)
     }
+    expect(
+      () =>
+        new Strategy({
+          name: 'test',
+          version: 0,
+          signals: [new Signal(StrategyAction.RequestEntry, rule('a', true))],
+        }),
+    ).toThrow('la version debe ser un entero >= 1')
   })
 
   it('signals vacíos → InvalidStrategyDefinitionError', () => {
     expect(() => new Strategy({ name: 'test', signals: [] })).toThrow(
       InvalidStrategyDefinitionError,
+    )
+    expect(() => new Strategy({ name: 'test', signals: [] })).toThrow(
+      'se requiere al menos una señal',
+    )
+  })
+
+  it('takeProfit/stopLoss exigen execution "limit" o "market"', () => {
+    const signal = [new Signal(StrategyAction.RequestEntry, rule('a', true))]
+    const bad = { price: series('x'), execution: 'stop' } as never
+
+    expect(() => strategyWith(signal, { takeProfit: bad })).toThrow(InvalidStrategyDefinitionError)
+    expect(() => strategyWith(signal, { takeProfit: bad })).toThrow(
+      'takeProfit.execution debe ser "limit" o "market"',
+    )
+    expect(() => strategyWith(signal, { stopLoss: bad })).toThrow(
+      'stopLoss.execution debe ser "limit" o "market"',
     )
   })
 
@@ -135,6 +172,7 @@ describe('Strategy (construcción)', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidStrategyDefinitionError)
       expect((error as Error).name).toBe('InvalidStrategyDefinitionError')
+      expect((error as Error).message).toContain('Definición de estrategia inválida')
     }
   })
 
@@ -573,6 +611,14 @@ describe('Trigger', () => {
           execution: 'market',
         }),
     ).toThrow(InvalidStrategyDefinitionError)
+    expect(
+      () =>
+        new Trigger({
+          price: series('x'),
+          action: StrategyAction.None as never,
+          execution: 'market',
+        }),
+    ).toThrow('trigger.action debe ser una acción de señal (entry/add/reduce/exit)')
   })
 
   it('execution desconocida → InvalidStrategyDefinitionError', () => {
@@ -584,6 +630,14 @@ describe('Trigger', () => {
           execution: 'stop' as never,
         }),
     ).toThrow(InvalidStrategyDefinitionError)
+    expect(
+      () =>
+        new Trigger({
+          price: series('x'),
+          action: StrategyAction.RequestEntry,
+          execution: 'stop' as never,
+        }),
+    ).toThrow('execution debe ser "limit" o "market"')
   })
 
   it('fraction igual que las señales: obligatoria en add/reduce, prohibida en entry/exit', () => {

@@ -190,6 +190,9 @@ describe('StrategyInstance.onFill', () => {
       expect(() => new StrategyInstance(strategy, state).onFill()).toThrow(
         InvalidStrategyTransitionError,
       )
+      expect(() => new StrategyInstance(strategy, state).onFill()).toThrow(
+        `onFill no es aplicable en "${state}": no hay orden pendiente`,
+      )
     }
   })
 })
@@ -206,15 +209,19 @@ describe('StrategyInstance (decisiones imposibles)', () => {
     const instance = new StrategyInstance(strategy, state)
 
     expect(() => instance.apply(decision(action, 0.5))).toThrow(InvalidStrategyTransitionError)
+    expect(() => instance.apply(decision(action, 0.5))).toThrow(
+      `${action} no es aplicable desde "${state}"`,
+    )
   })
 
-  it('el error tiene name InvalidStrategyTransitionError', () => {
+  it('el error tiene name InvalidStrategyTransitionError y el dominio en el mensaje', () => {
     try {
       new StrategyInstance(strategy).apply(decision(StrategyAction.RequestExit))
       throw new Error('debía lanzar InvalidStrategyTransitionError')
     } catch (error) {
       expect(error).toBeInstanceOf(InvalidStrategyTransitionError)
       expect((error as Error).name).toBe('InvalidStrategyTransitionError')
+      expect((error as Error).message).toContain('Transición de estrategia inválida')
     }
   })
 })

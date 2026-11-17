@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
+import { Constant } from '@/domain/indicators/constant'
 import { Sma } from '@/domain/indicators/sma'
 import { OrderStatus } from '@/domain/execution/order'
 import { series } from '@/domain/strategies/priceExpr'
-import { CrossesAbove, CrossesBelow, Greater } from '@/domain/strategies/rules'
+import { CrossesAbove, CrossesBelow, Greater, Lower } from '@/domain/strategies/rules'
 import { Signal, Strategy, StrategyAction } from '@/domain/strategies/strategy'
 import { StrategyState } from '@/domain/strategies/strategyInstance'
 import { TradingSessionConfig } from '@/domain/trading/tradingSession'
@@ -113,6 +114,25 @@ function jumpStrategy(): Strategy {
       new Signal(StrategyAction.RequestEntry, new Greater('close', 's')),
       new Signal(StrategyAction.RequestExit, new CrossesBelow('close', 's')),
     ],
+  })
+}
+
+/**
+ * Entrada `close > SMA(2)`, TP limit (105) y salida limit (110): el TP se
+ * resuelve **antes** que la salida en el mismo bucle de rellenos, así que la
+ * orden de salida llega al broker sin posición y debe rechazarse.
+ */
+function tpAndExitStrategy(): Strategy {
+  return new Strategy({
+    name: 'tp-exit',
+    indicators: { fast: new Sma(2), tpPx: new Constant(105), exitPx: new Constant(110) },
+    signals: [
+      new Signal(StrategyAction.RequestEntry, new Greater('close', 'fast')),
+      new Signal(StrategyAction.RequestExit, new Lower('close', 'tpPx'), {
+        price: series('exitPx'),
+      }),
+    ],
+    takeProfit: { price: series('tpPx'), execution: 'limit' },
   })
 }
 
@@ -235,9 +255,44 @@ describe('TestForwardSession — salida por regla con decisión (§2.1)', () => 
     expect(tf.session.broker.trades).toHaveLength(0)
     expect(tf.log.some((entry) => entry.text.includes('mantenida'))).toBe(true)
   })
+
+  it('salida limit rechazada (el TP cerró antes) → "Orden no ejecutada" en el log', () => {
+    const tf = new TestForwardSession(
+      config(tpAndExitStrategy(), flat([100, 100, 100, 90, 130, 130, 100, 110])),
+      () => 0,
+    )
+    tf.start() // pausa en i4 (entrada)
+    tf.decide(true)
+    tf.step() // i5: entrada rellena y el TP limit (105) se envía
+
+    expect(tf.session.portfolio.position?.isOpen).toBe(true)
+
+    tf.step() // i6: el TP no toca (100 < 105) y la señal de salida pausa
+
+    expect(tf.status).toBe('awaiting')
+    expect(tf.confirmation?.kind).toBe('exit')
+    tf.decide(true) // salida limit (110) en vuelo
+
+    tf.step() // i7 (110): el TP rellena → cierra; la salida se rechaza sin posición
+
+    expect(tf.session.portfolio.position).toBeNull()
+    expect(tf.log.some((entry) => entry.text.includes('Orden no ejecutada'))).toBe(true)
+    expect(tf.log.some((entry) => entry.text.includes('sin posición abierta'))).toBe(true)
+  })
 })
 
 describe('TestForwardSession — TP/SL automáticos y overrides (§2.1.5)', () => {
+  it('setTakeProfit/setStopLoss con precio no finito → TestForwardError', () => {
+    const tf = new TestForwardSession(config(tpStrategy()), () => 0)
+
+    expect(() => tf.setTakeProfit(Number.NaN, true)).toThrow(
+      'takeProfit: el precio debe ser un número finito',
+    )
+    expect(() => tf.setStopLoss(Number.POSITIVE_INFINITY, true)).toThrow(
+      'stopLoss: el precio debe ser un número finito',
+    )
+  })
+
   it('TP automático: se ejecuta solo, sin pausa', () => {
     const tf = new TestForwardSession(config(tpStrategy()), () => 0)
     tf.start()
@@ -350,9 +405,13 @@ describe('TestForwardSession — jump, finish y errores (§2.2)', () => {
     const tf = new TestForwardSession(config(crossStrategy(CROSS)), () => 0)
 
     expect(() => tf.decide(true)).toThrow(TestForwardError) // sin confirmación
+    expect(() => tf.decide(true)).toThrow('no hay confirmación pendiente que decidir')
 
     tf.start() // awaiting
     expect(() => tf.step()).toThrow(TestForwardError)
+    expect(() => tf.step()).toThrow(
+      'hay una confirmación pendiente: usa decide() antes de continuar (recibido: "awaiting")',
+    )
     expect(() => tf.jump()).toThrow(TestForwardError)
     expect(() => tf.start()).toThrow(TestForwardError)
     tf.decide(false)
@@ -362,9 +421,23 @@ describe('TestForwardSession — jump, finish y errores (§2.2)', () => {
     end.start()
     expect(end.status).toBe('finished')
     expect(() => end.step()).toThrow(TestForwardError)
+    expect(() => end.step()).toThrow(
+      'la sesión ya terminó; reinicia para volver a empezar (recibido: "finished")',
+    )
     expect(() => end.jump()).toThrow(TestForwardError)
     expect(() => end.start()).toThrow(TestForwardError)
     expect(() => end.decide(true)).toThrow(TestForwardError)
+  })
+
+  it('el error tiene name TestForwardError y el dominio en el mensaje', () => {
+    try {
+      new TestForwardSession(config(crossStrategy(CROSS)), () => 0).decide(true)
+      throw new Error('debía lanzar TestForwardError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(TestForwardError)
+      expect((error as TestForwardError).name).toBe('TestForwardError')
+      expect((error as TestForwardError).message).toContain('Sesión de test-forward inválida')
+    }
   })
 })
 

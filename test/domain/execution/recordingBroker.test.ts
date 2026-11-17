@@ -177,6 +177,9 @@ describe('RecordingBroker — relleno fuera del ciclo de velas', () => {
     })
 
     expect(() => broker.submitExternalFill(entry, alien)).toThrow(InvalidOrderError)
+    expect(() => broker.submitExternalFill(entry, alien)).toThrow(
+      'el fill no corresponde a la orden',
+    )
     expect(entry.isPending).toBe(true) // nada aplicado
 
     broker.cancelOrder('e1')
@@ -189,6 +192,26 @@ describe('RecordingBroker — relleno fuera del ciclo de velas', () => {
       time: candleAt(0).time,
     })
     expect(() => broker.submitExternalFill(entry, own)).toThrow(InvalidOrderError)
+    expect(() => broker.submitExternalFill(entry, own)).toThrow(
+      'solo se admite una orden pendiente',
+    )
+  })
+
+  it('submitExternalFill rechaza una orden nunca enviada con submitOrder', () => {
+    const { broker } = setup()
+    const orphan = order('huerfana')
+    const fill = new Fill({
+      orderId: 'huerfana',
+      side: OrderSide.Buy,
+      price: 100,
+      qty: 1,
+      fee: 0,
+      time: candleAt(0).time,
+    })
+
+    expect(() => broker.submitExternalFill(orphan, fill)).toThrow(
+      'la orden debe enviarse con submitOrder antes de resolverla',
+    )
   })
 })
 

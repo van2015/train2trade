@@ -3,7 +3,6 @@ import { Candle } from '@/domain/candles/candle'
 import {
   buildLines,
   CHART_COLORS,
-  DEFAULT_INDICATOR_SETTINGS,
   priceFormatFor,
   toCandlestickData,
   toChartTime,

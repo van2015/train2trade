@@ -23,6 +23,7 @@ describe('MarketContext', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(MarketContextError)
         expect((error as Error).name).toBe('MarketContextError')
+        expect((error as Error).message).toContain('se necesita al menos una vela')
       }
     })
 
@@ -30,11 +31,23 @@ describe('MarketContext', () => {
       expect(() => MarketContext.from({ candles: [candle(3000, 1), candle(1000, 2)] })).toThrow(
         MarketContextError,
       )
+      expect(() => MarketContext.from({ candles: [candle(3000, 1), candle(1000, 2)] })).toThrow(
+        'las velas están fuera de orden (deben ser ascendentes por time)',
+      )
     })
 
     it('velas con time duplicado → error de contexto', () => {
       expect(() => MarketContext.from({ candles: [candle(1000, 1), candle(1000, 2)] })).toThrow(
         MarketContextError,
+      )
+      expect(() => MarketContext.from({ candles: [candle(1000, 1), candle(1000, 2)] })).toThrow(
+        'las velas tienen time duplicado',
+      )
+    })
+
+    it('levels que no es un objeto → MarketContextError con el mensaje', () => {
+      expect(() => MarketContext.from({ candles: CANDLES, levels: 'entry' as never })).toThrow(
+        'levels debe ser un objeto',
       )
     })
 
@@ -42,6 +55,9 @@ describe('MarketContext', () => {
       expect(() =>
         MarketContext.from({ candles: CANDLES.slice(0, 2), indicators: { fast: FAST } }),
       ).toThrow(MarketContextError)
+      expect(() =>
+        MarketContext.from({ candles: CANDLES.slice(0, 2), indicators: { fast: FAST } }),
+      ).toThrow('la serie "fast" tiene 4 valores y hay 2 velas')
     })
 
     it('serie con time desalineado respecto de las velas → error de contexto', () => {
@@ -52,6 +68,9 @@ describe('MarketContext', () => {
       expect(() =>
         MarketContext.from({ candles: CANDLES, indicators: { fast: misaligned } }),
       ).toThrow(MarketContextError)
+      expect(() =>
+        MarketContext.from({ candles: CANDLES, indicators: { fast: misaligned } }),
+      ).toThrow('la serie "fast" no está alineada con las velas en el índice 1')
     })
 
     it('lo que expone el contexto es inmutable: intentar mutarlo lanza', () => {
@@ -169,6 +188,9 @@ describe('MarketContext', () => {
       expect(() =>
         MarketContext.from({ candles: CANDLES, levels: { entry: '100' as unknown as number } }),
       ).toThrow(MarketContextError)
+      expect(() =>
+        MarketContext.from({ candles: CANDLES, levels: { entry: '100' as unknown as number } }),
+      ).toThrow('levels.entry debe ser null o un número finito')
       expect(() => MarketContext.from({ candles: CANDLES, levels: { sl: Number.NaN } })).toThrow(
         MarketContextError,
       )
@@ -234,6 +256,7 @@ describe('MarketContext', () => {
 
     it('back negativo o no entero → RangeError', () => {
       expect(() => context.value('fast', -1)).toThrow(RangeError)
+      expect(() => context.value('fast', -1)).toThrow('back debe ser un entero >= 0 (recibido: -1)')
       expect(() => context.value('fast', 1.5)).toThrow(RangeError)
     })
   })
@@ -265,6 +288,7 @@ describe('MarketContext', () => {
       expect(first.previous).toBeUndefined()
       expect(first.length).toBe(1)
       expect(() => first.at(1)).toThrow(MarketContextError)
+      expect(() => first.at(1)).toThrow('at() no puede retroceder más allá de la primera vela')
     })
 
     it('candles devuelve el prefijo congelado hasta la vela actual (sin look-ahead)', () => {
@@ -311,6 +335,7 @@ describe('MarketContext', () => {
 
     it('back no entero o negativo → RangeError; más allá del inicio → error de contexto', () => {
       expect(() => context.at(-1)).toThrow(RangeError)
+      expect(() => context.at(-1)).toThrow('back debe ser un entero >= 0 (recibido: -1)')
       expect(() => context.at(1.5)).toThrow(RangeError)
       expect(() => MarketContext.from({ candles: CANDLES }).at(4)).toThrow(MarketContextError)
     })

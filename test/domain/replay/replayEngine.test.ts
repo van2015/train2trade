@@ -84,10 +84,27 @@ describe('MarketReplayEngine — construcción y máquina de estados', () => {
   it('transiciones inválidas → ReplayError (pause en ready, play repetido)', () => {
     const engine = openEngine()
     expect(() => engine.pause()).toThrow(ReplayError)
+    expect(() => engine.pause()).toThrow(
+      'Replay inválido: la reproducción no está en marcha (recibido: "ready")',
+    )
     engine.play()
     expect(() => engine.play()).toThrow(ReplayError)
+    expect(() => engine.play()).toThrow(
+      'Replay inválido: la reproducción ya está en marcha (recibido: "playing")',
+    )
     engine.pause()
     expect(() => engine.pause()).toThrow(ReplayError)
+  })
+
+  it('el error tiene name ReplayError y el dominio en el mensaje', () => {
+    try {
+      openEngine().pause()
+      throw new Error('debía lanzar ReplayError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ReplayError)
+      expect((error as ReplayError).name).toBe('ReplayError')
+      expect((error as ReplayError).message).toContain('Replay inválido')
+    }
   })
 
   it('step hasta terminar → finished; step/play/pause en finished → ReplayError', () => {
@@ -97,7 +114,13 @@ describe('MarketReplayEngine — construcción y máquina de estados', () => {
     expect(engine.status).toBe('finished')
     expect(engine.cursor).toBe(CANDLES.length)
     expect(() => engine.step()).toThrow(ReplayError)
+    expect(() => engine.step()).toThrow(
+      'Replay inválido: la reproducción ya terminó; reinicia para volver a empezar (recibido: "finished")',
+    )
     expect(() => engine.play()).toThrow(ReplayError)
+    expect(() => engine.play()).toThrow(
+      'Replay inválido: la reproducción ya terminó; reinicia para volver a empezar (recibido: "finished")',
+    )
     expect(() => engine.pause()).toThrow(ReplayError)
   })
 
@@ -263,7 +286,7 @@ describe('MarketReplayEngine — operaciones manuales', () => {
     const engine = openEngine()
     for (const fraction of [0, -0.5, 1.5, Number.NaN]) {
       expect(() => engine.manualBuy(fraction)).toThrow(ReplayError)
-      expect(() => engine.manualSell(fraction)).toThrow(ReplayError)
+      expect(() => engine.manualSell(fraction)).toThrow('fraction debe ser un número en (0, 1]')
     }
   })
 
@@ -275,7 +298,9 @@ describe('MarketReplayEngine — operaciones manuales', () => {
 
     engine.step() // o1 (estrategia) pendiente
     expect(engine.session.broker.pendingOrders()).toHaveLength(1)
-    expect(() => engine.manualBuy(0.5)).toThrow(ReplayError)
+    expect(() => engine.manualBuy(0.5)).toThrow(
+      'ya hay una orden en vuelo (manual o de la estrategia): espera a que se resuelva (recibido: "pending")',
+    )
     expect(() => engine.manualSell(0.5)).toThrow(ReplayError)
 
     engine.step() // o1 rellena en i1 → sin pendientes
@@ -291,6 +316,9 @@ describe('MarketReplayEngine — operaciones manuales', () => {
     const engine = openEngine()
     runToEnd(engine)
     expect(() => engine.manualBuy(0.5)).toThrow(ReplayError)
+    expect(() => engine.manualBuy(0.5)).toThrow(
+      'Replay inválido: la reproducción ya terminó; reinicia para volver a empezar (recibido: "finished")',
+    )
     expect(() => engine.manualSell(0.5)).toThrow(ReplayError)
   })
 

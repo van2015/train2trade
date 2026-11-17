@@ -55,6 +55,10 @@ describe('analyzeRobustness — estadísticas sobre runs válidos (§13)', () =>
     } catch (error) {
       expect(error).toBeInstanceOf(RobustnessError)
       expect((error as RobustnessError).name).toBe('RobustnessError')
+      expect((error as RobustnessError).message).toContain('Análisis de robustez inválido')
+      expect((error as RobustnessError).message).toContain(
+        'la métrica sharpe es null en todas las ejecuciones',
+      )
     }
   })
 
@@ -141,6 +145,9 @@ describe('analyzeRobustness — umbral y sensibilidad (§13)', () => {
     expect(() =>
       analyzeRobustness(result([run({ a: 1 }, 1)], { a: [1] }), { threshold: Number.NaN }),
     ).toThrow(RobustnessError)
+    expect(() =>
+      analyzeRobustness(result([run({ a: 1 }, 1)], { a: [1] }), { threshold: Number.NaN }),
+    ).toThrow('threshold debe ser un número finito')
   })
 
   it('sensitivity: media por valor fijando la dimensión, spread descendente', () => {

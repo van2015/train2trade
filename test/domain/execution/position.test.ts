@@ -26,6 +26,20 @@ describe('Position — apertura', () => {
 
   it('vender sobre posición vacía es un error', () => {
     expect(() => Position.from(sell(1, 100))).toThrow(InvalidPositionError)
+    expect(() => Position.from(sell(1, 100))).toThrow(
+      'una posición se abre con un relleno de compra',
+    )
+  })
+
+  it('el error tiene name InvalidPositionError y el dominio en el mensaje', () => {
+    try {
+      Position.from(sell(1, 100))
+      throw new Error('debía lanzar InvalidPositionError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidPositionError)
+      expect((error as InvalidPositionError).name).toBe('InvalidPositionError')
+      expect((error as InvalidPositionError).message).toContain('Posición inválida')
+    }
   })
 })
 
@@ -83,6 +97,7 @@ describe('Position — ventas (Reduce / Exit)', () => {
   it('vender más de la posición abierta es un error', () => {
     const position = Position.from(buy(1, 100))
     expect(() => position.applyFill(sell(1.5, 100))).toThrow(InvalidPositionError)
+    expect(() => position.applyFill(sell(1.5, 100))).toThrow(/supera la posición abierta/)
     expect(position.qty).toBe(1) // sin cambios
   })
 
@@ -90,6 +105,9 @@ describe('Position — ventas (Reduce / Exit)', () => {
     const position = Position.from(buy(1, 100))
     position.applyFill(sell(1, 100, t1))
     expect(() => position.applyFill(buy(1, 100, t2))).toThrow(InvalidPositionError)
+    expect(() => position.applyFill(buy(1, 100, t2))).toThrow(
+      'la posición está cerrada; abre una nueva',
+    )
     expect(() => position.applyFill(sell(1, 100, t2))).toThrow(InvalidPositionError)
   })
 })
@@ -118,6 +136,9 @@ describe('Position — realizedPnlFor (fórmula única del P&L de venta)', () =>
   it('rechaza un relleno de compra', () => {
     const position = Position.from(buy(2, 100))
     expect(() => position.realizedPnlFor(buy(1, 110))).toThrow(InvalidPositionError)
+    expect(() => position.realizedPnlFor(buy(1, 110))).toThrow(
+      'realizedPnlFor solo admite rellenos de venta',
+    )
   })
 
   it('sigue siendo válida tras cerrar la posición (la usa RecordingBroker)', () => {

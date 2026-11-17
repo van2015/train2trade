@@ -157,6 +157,7 @@ describe('rules', () => {
 
     it('All sin reglas → RangeError', () => {
       expect(() => new All()).toThrow(RangeError)
+      expect(() => new All()).toThrow('AND requiere al menos una regla')
     })
 
     it('Any es true con alguna verdadera, con cortocircuito', () => {

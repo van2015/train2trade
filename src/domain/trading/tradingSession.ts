@@ -9,7 +9,7 @@ import { createOrder, Order, OrderSide } from '@/domain/execution/order'
 import { Position } from '@/domain/execution/position'
 import { Portfolio } from '@/domain/portfolio/portfolio'
 import { RiskConfig, RiskManager } from '@/domain/portfolio/riskManager'
-import { Strategy, StrategyDecision } from '@/domain/strategies/strategy'
+import { Strategy } from '@/domain/strategies/strategy'
 import { StrategyInstance } from '@/domain/strategies/strategyInstance'
 import { MarketClock } from '@/domain/time/marketClock'
 import {

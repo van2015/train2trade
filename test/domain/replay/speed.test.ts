@@ -38,6 +38,9 @@ describe('replayIntervalMs — velocidad en tiempo real (§7B)', () => {
   it('speed no finita o ≤ 0 → ReplayError (sin NaN)', () => {
     for (const speed of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => replayIntervalMs(Timeframe.HOUR, speed)).toThrow(ReplayError)
+      expect(() => replayIntervalMs(Timeframe.HOUR, speed)).toThrow(
+        'speed debe ser un número finito > 0',
+      )
     }
   })
 })

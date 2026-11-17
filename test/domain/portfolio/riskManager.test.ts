@@ -16,18 +16,58 @@ describe('RiskManager — configuración', () => {
   })
 
   it.each([
-    ['maxPositionFraction 0', { maxPositionFraction: 0 }],
-    ['maxPositionFraction > 1', { maxPositionFraction: 1.5 }],
-    ['maxPositionFraction no finito', { maxPositionFraction: Number.NaN }],
-    ['maxPositionFraction no number', { maxPositionFraction: '0.5' }],
-    ['minCashReserve negativo', { minCashReserve: -0.1 }],
-    ['minCashReserve >= 1', { minCashReserve: 1 }],
-    ['feeBps negativo', { feeBps: -1 }],
-    ['feeBps no finito', { feeBps: Number.POSITIVE_INFINITY }],
-    ['slippageBps negativo', { slippageBps: -1 }],
-    ['slippageBps no finito', { slippageBps: Number.NaN }],
-  ] as const)('rechaza %s', (_label, config) => {
+    [
+      'maxPositionFraction 0',
+      { maxPositionFraction: 0 },
+      'maxPositionFraction debe ser un número en (0, 1]',
+    ],
+    [
+      'maxPositionFraction > 1',
+      { maxPositionFraction: 1.5 },
+      'maxPositionFraction debe ser un número en (0, 1]',
+    ],
+    [
+      'maxPositionFraction no finito',
+      { maxPositionFraction: Number.NaN },
+      'maxPositionFraction debe ser un número en (0, 1]',
+    ],
+    [
+      'maxPositionFraction no number',
+      { maxPositionFraction: '0.5' },
+      'maxPositionFraction debe ser un número en (0, 1]',
+    ],
+    [
+      'minCashReserve negativo',
+      { minCashReserve: -0.1 },
+      'minCashReserve debe ser un número en [0, 1)',
+    ],
+    ['minCashReserve >= 1', { minCashReserve: 1 }, 'minCashReserve debe ser un número en [0, 1)'],
+    ['feeBps negativo', { feeBps: -1 }, 'feeBps debe ser un número finito >= 0'],
+    [
+      'feeBps no finito',
+      { feeBps: Number.POSITIVE_INFINITY },
+      'feeBps debe ser un número finito >= 0',
+    ],
+    ['slippageBps negativo', { slippageBps: -1 }, 'slippageBps debe ser un número finito >= 0'],
+    [
+      'slippageBps no finito',
+      { slippageBps: Number.NaN },
+      'slippageBps debe ser un número finito >= 0',
+    ],
+  ] as const)('rechaza %s con InvalidRiskError y su mensaje', (_label, config, message) => {
     expect(() => new RiskManager(config as unknown as RiskConfig)).toThrow(InvalidRiskError)
+    expect(() => new RiskManager(config as unknown as RiskConfig)).toThrow(message)
+  })
+
+  it('el error tiene name InvalidRiskError y el dominio en el mensaje', () => {
+    try {
+      new RiskManager({ maxPositionFraction: 0 })
+      throw new Error('debía lanzar InvalidRiskError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidRiskError)
+      expect((error as InvalidRiskError).name).toBe('InvalidRiskError')
+      expect((error as InvalidRiskError).message).toContain('Gestión de riesgo inválida')
+    }
   })
 
   it('RiskManager expone la config efectiva con los defaults ya resueltos', () => {
@@ -93,6 +133,7 @@ describe('RiskManager — entryQty (tamaño de la entrada)', () => {
     const risk = new RiskManager()
     const portfolio = new Portfolio(1_000)
     expect(() => risk.entryQty(portfolio, price)).toThrow(InvalidRiskError)
+    expect(() => risk.entryQty(portfolio, price)).toThrow('price debe ser un número finito > 0')
   })
 })
 
@@ -122,14 +163,18 @@ describe('RiskManager — canAdd (aprobación de aumentos)', () => {
   })
 
   it.each([
-    ['price cero', 0, 1],
-    ['qty negativa', 100, -1],
-    ['qty NaN', 100, Number.NaN],
-  ] as const)('canAdd rechaza %s → InvalidRiskError', (_label, price, qty) => {
-    const risk = new RiskManager()
-    const portfolio = new Portfolio(1_000)
-    expect(() => risk.canAdd(portfolio, price, qty)).toThrow(InvalidRiskError)
-  })
+    ['price cero', 0, 1, 'price debe ser un número finito > 0'],
+    ['qty negativa', 100, -1, 'qty debe ser un número finito > 0'],
+    ['qty NaN', 100, Number.NaN, 'qty debe ser un número finito > 0'],
+  ] as const)(
+    'canAdd rechaza %s → InvalidRiskError y su mensaje',
+    (_label, price, qty, message) => {
+      const risk = new RiskManager()
+      const portfolio = new Portfolio(1_000)
+      expect(() => risk.canAdd(portfolio, price, qty)).toThrow(InvalidRiskError)
+      expect(() => risk.canAdd(portfolio, price, qty)).toThrow(message)
+    },
+  )
 })
 
 describe('RiskManager — addQty (tamaño de los aumentos)', () => {
@@ -167,13 +212,17 @@ describe('RiskManager — addQty (tamaño de los aumentos)', () => {
   })
 
   it.each([
-    ['fraction cero', 100, 0],
-    ['fraction > 1', 100, 1.5],
-    ['fraction NaN', 100, Number.NaN],
-    ['price negativo', -1, 0.5],
-  ] as const)('addQty rechaza %s → InvalidRiskError', (_label, price, fraction) => {
-    const risk = new RiskManager()
-    const portfolio = new Portfolio(1_000)
-    expect(() => risk.addQty(portfolio, price, fraction)).toThrow(InvalidRiskError)
-  })
+    ['fraction cero', 100, 0, 'fraction debe ser un número en (0, 1]'],
+    ['fraction > 1', 100, 1.5, 'fraction debe ser un número en (0, 1]'],
+    ['fraction NaN', 100, Number.NaN, 'fraction debe ser un número en (0, 1]'],
+    ['price negativo', -1, 0.5, 'price debe ser un número finito > 0'],
+  ] as const)(
+    'addQty rechaza %s → InvalidRiskError y su mensaje',
+    (_label, price, fraction, message) => {
+      const risk = new RiskManager()
+      const portfolio = new Portfolio(1_000)
+      expect(() => risk.addQty(portfolio, price, fraction)).toThrow(InvalidRiskError)
+      expect(() => risk.addQty(portfolio, price, fraction)).toThrow(message)
+    },
+  )
 })
