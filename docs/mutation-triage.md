@@ -170,6 +170,21 @@ resto <12 c/u.
         candle (L55×4 trim, L164 shortcut de `equals`), replay (L85 ids disjuntos
         `m*`/`o*`, L355 `qty` de manualSell inalcanzable), validate (L138 typeof) y
         strategy (L337 `{entry,sl,tp}` → `{}` con solo lecturas doblemente guardadas).
+  - [x] **B5** — `priceExpr`6, `guards`6, `fingerprint`5, `optimization`5 y
+        `executionModel`5: run previo **86,24 %** con27 vivos → run final **93,58 % y11
+        vivos** (16 muertos con8 tests →1214 en total): **test nuevo
+        `test/domain/guards.test.ts`** (tablas de `isRecord`/`isFiniteNumber`/
+        `isPositiveNumber`), kind desconocido con op válido e hijo izquierdo inválido en
+        priceExpr + resultados no finitos (1e600 → Infinity y NaN → null), `undefined` en
+        arrays de `canonicalJson`, causa del `OptimizationError` (envuelta en ejecución,
+        ausente en validación) + rejilla de exactamente1000 combinaciones (el tope es
+        estricto) y fila `feeBps: -1`. **Los11 restantes son equivalentes documentados**:
+        typeof vs `Number.isFinite` sin coerción (executionModel L48/L54, guards L8),
+        `open === limit` resuelto por la rama de toque con el mismo precio (L97/L100),
+        `undefined` → switch `typeof` → `'null'` (L41), spread de `Map` idéntico
+        (L82), claves únicas en el sort (L106/L107), división por cero absorbida por
+        `isFinite` aguas abajo (L119) y null-check redundante con `Number.isFinite`
+        (L100).
 - [x] **Lote C — mensajes de error de dominio: COMPLETADO** (subconjunto de los 213
       `StringLiteral`, C1–C7 — política aplicada: texto de contrato de errores `*Error` de
       dominio; logs/observabilidad no se persiguen; ver equivalentes en la sección 4).

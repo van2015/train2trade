@@ -176,7 +176,29 @@ describe('runOptimization — validación y errores', () => {
       expect(error).toBeInstanceOf(OptimizationError)
       expect((error as OptimizationError).message).toContain('"fast":3')
       expect((error as OptimizationError).message).toContain('boom')
+      // el error original viaja como `cause` (ES2022)
+      expect((error as Error).cause).toBeInstanceOf(Error)
+      expect(((error as Error).cause as Error).message).toBe('boom')
     }
+  })
+
+  it('los errores de validación no llevan `cause`', () => {
+    try {
+      runOptimization(config({ grid: { fast: [] } }))
+      expect.unreachable('debería lanzar OptimizationError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(OptimizationError)
+      expect('cause' in (error as Error)).toBe(false)
+    }
+  })
+
+  it('la rejilla de exactamente MAX combinaciones se ejecuta (el tope es estricto)', () => {
+    const fast = Array.from({ length: 10 }, (_, index) => index + 2)
+    const slow = Array.from({ length: 100 }, (_, index) => index + 2)
+
+    const result = runOptimization(config({ grid: { fast, slow } }))
+
+    expect(result.runs).toHaveLength(MAX_OPTIMIZATION_RUNS)
   })
 
   it('error de la ejecución (config inválida) → OptimizationError', () => {

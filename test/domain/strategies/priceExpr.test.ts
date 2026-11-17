@@ -91,6 +91,21 @@ describe('PriceExpr', () => {
       ).toThrow('(recibido: "binary %")')
     })
 
+    it('kind desconocido con op válido → sigue rechazando (no entra por binary)', () => {
+      expect(() =>
+        assertPriceExpr({ kind: 'weird', op: '+', left: series('a'), right: series('b') }),
+      ).toThrow('operador desconocido: se admite +, -, * o / entre series')
+    })
+
+    it('binary con un hijo inválido → el hijo también se valida', () => {
+      expect(() =>
+        assertPriceExpr({ kind: 'binary', op: '+', left: 5, right: series('b') }),
+      ).toThrow(InvalidPriceExprError)
+      expect(() =>
+        assertPriceExpr({ kind: 'binary', op: '+', left: series('a'), right: 5 }),
+      ).toThrow(InvalidPriceExprError)
+    })
+
     it('assertPriceExpr rechaza un hijo inválido en cualquier profundidad', () => {
       const malformed = {
         kind: 'binary',
@@ -117,6 +132,8 @@ describe('PriceExpr', () => {
       two: [2, 2, 2, 2],
       warmup: [1, 2, null, null],
       zero: [0, 0, 0, 0],
+      huge: [1e300, 1e300, 1e300, 1e300],
+      nan: [Number.NaN, Number.NaN, Number.NaN, Number.NaN],
     })
 
     it('hoja → valor del indicador en la vela actual', () => {
@@ -153,6 +170,12 @@ describe('PriceExpr', () => {
     it('división por cero (0 o -0) → null: nunca devuelve no finito', () => {
       expect(evaluatePriceExpr(bin('/', 'fast', 'zero'), context)).toBeNull()
       expect(evaluatePriceExpr(bin('/', 'fast', times('zero', 'two')), context)).toBeNull()
+    })
+
+    it('resultados no finitos (Infinity por desbordamiento o NaN) → null', () => {
+      expect(evaluatePriceExpr(bin('*', 'huge', 'huge'), context)).toBeNull() // 1e600
+      expect(evaluatePriceExpr(bin('+', 'nan', 'fast'), context)).toBeNull()
+      expect(evaluatePriceExpr(bin('-', 'nan', 'nan'), context)).toBeNull()
     })
 
     it('0/0 → null (NaN cubierto)', () => {

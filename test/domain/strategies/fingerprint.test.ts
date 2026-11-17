@@ -36,6 +36,7 @@ describe('canonicalJson — serialización canónica (§12C)', () => {
   it('omite funciones y undefined (callbacks y campos ausentes)', () => {
     expect(canonicalJson({ b: undefined, a: 1, fn: () => 1 })).toBe('{"a":1}')
     expect(canonicalJson([1, () => 2, 3])).toBe('[1,3]')
+    expect(canonicalJson([1, undefined, 2])).toBe('[1,2]')
     expect(canonicalJson({ name: 'always', evaluate: () => true })).toBe('{"name":"always"}')
   })
 

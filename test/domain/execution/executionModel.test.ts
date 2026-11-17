@@ -56,6 +56,9 @@ describe('NextOpenExecutionModel — configuración', () => {
     expect(() => new NextOpenExecutionModel({ feeBps: Number.NaN })).toThrow(
       'feeBps debe ser un número finito >= 0',
     )
+    expect(() => new NextOpenExecutionModel({ feeBps: -1 })).toThrow(
+      'feeBps debe ser un número finito >= 0',
+    )
     expect(() => new NextOpenExecutionModel({ slippageBps: '5' as unknown as number })).toThrow(
       InvalidExecutionModelError,
     )
