@@ -1,11 +1,11 @@
 # Plan de la Fase 3 — Ejecución simulada
 
-> Desglose de tareas para la Fase 3 de [`AGENTS.md`](../AGENTS.md) (§6 Execution, §8 Portfolio & Risk):
+> Desglose de tareas para la Fase 3 de [`architecture.md`](./architecture.md) (§6 Execution, §8 Portfolio & Risk):
 > "una estrategia puede generar operaciones y gestionar posiciones".
 >
 > **Estado: completado (2026-11-11)** — T1…T8 implementados con TDD (ver `git log`: un commit por
 > tarea), `pnpm test && pnpm typecheck && pnpm format:check` en verde (**481 tests**) y
-> `proyectstate.md` actualizado. Requisitos: AGENTS.md §6/§8.
+> `proyectstate.md` actualizado. Requisitos: architecture.md §6/§8.
 
 ## Decisiones cerradas
 

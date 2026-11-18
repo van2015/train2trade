@@ -1,10 +1,10 @@
 # Estado del proyecto
 
-> Resumen de implementado y lo pendiente. Fuente de verdad de requisitos: [`AGENTS.md`](../AGENTS.md)
+> Resumen de implementado y lo pendiente. Fuente de verdad de requisitos: [`architecture.md`](./architecture.md)
 > (arquitectura y fases) y [`refactors-no-realizados.md`](./refactors-no-realizados.md) (refactors aplazados).
 >
-> Última actualización: 2026-11-15 — `pnpm test && pnpm typecheck && pnpm format:check` en verde
-> (**1109 tests**, 79 archivos). `pnpm build` compila sin errores.
+> Última actualización: 2026-11-18 — `pnpm test && pnpm typecheck && pnpm format:check &&
+pnpm imports:check` en verde (**1229 tests**, 84 archivos). `pnpm build` compila sin errores.
 
 ## Qué hay
 
@@ -30,6 +30,30 @@ Finalmente, el **arranque es tolerante a storage de estrategias corrupto** (2026
 omite entradas ilegibles, un aviso en el sidebar permite **repararlas sin devtools** y, si no
 queda nada válido, se re-siembra la demo.
 
+## Estructura de componentes (Atomic Design, 2026-11-18)
+
+`src/components/**` está organizado por capas de Atomic Design. Regla de importación: una capa
+solo puede usar las inferiores; `hooks/` jamás importa componentes y `utils/` jamás importa
+componentes (solo dominio).
+
+```
+src/components/
+├── pages/        App (raíz de composición: hooks + los dos contenedores)
+├── templates/    AppSidebar · MainArea · ChartView · ReplayView · TestForwardView
+├── organisms/    paneles, resultados y gráficos (BacktestPanel, CandleChart, StrategyEditor…)
+├── molecules/    DataControls · CsvImportPanel · StrategySelect · IndicatorPanel · RuleEditor · PriceExprEditor
+├── atoms/        SidebarSection · MainTabs · Field · Button · Hint
+├── hooks/        estado y coordinación (rebanadas de estado para los templates)
+└── utils/        chartData · lineSeries · strategyPreview · backtestForm · errorText
+```
+
+- **Clasificación por rol** (no por profundidad de imports): `organisms` contienen lógica de
+  dominio (experimentos, motores, charts); `templates` solo estructura/visibilidad y reciben
+  datos por props; `pages/App` no conoce ningún componente de detalle.
+- **Átomos de UI compartidos** (2026-11-18): `Field` (37 usos en 3 formas de marcado:
+  envolvente, `htmlFor` y check), `Button` (46 usos, `type="button"` por defecto, variante
+  `ghost`) y `Hint` (14 usos, clase `panel-hint`).
+
 ## Implementado
 
 ### Fase 1 — Datos y gráficos (completa)
@@ -43,19 +67,19 @@ queda nada válido, se re-siembra la demo.
 | Modelo de instrumentos (`BTC/USDT`, internado, `exchangeSymbol`)     | `src/domain/instruments/instrument.ts`         | 21                    |
 | Almacenamiento y consultas (`CandleRepository`, `Storage` inyectado) | `src/storage/candleRepository.ts`              | 17                    |
 | **Capa de API** (`MarketDataProvider`, `BinanceProvider`)            | `src/api/**`                                   | 15                    |
-| **Gráficos de velas + volumen + indicadores**                        | `src/components/CandleChart.tsx`               | 14                    |
+| **Gráficos de velas + volumen + indicadores**                        | `src/components/organisms/CandleChart.tsx`     | 14                    |
 | **UI de la Fase 1** (App, controles, importación, panel indicadores) | `src/components/*.tsx`                         | 64                    |
 
 ### Fase 1 — detalle de la UI
 
-| Componente           | Responsabilidad                                                                   |
-| -------------------- | --------------------------------------------------------------------------------- |
-| `App.tsx`            | Orquesta estado, repositorio y proveedor; no contiene lógica de dominio           |
-| `CandleChart.tsx`    | `lightweight-charts`: velas, volumen overlay, líneas de indicador, leyenda OHLCV  |
-| `DataControls.tsx`   | Instrumento (con sugerencias), timeframe, rango de fechas, botón de descarga      |
-| `CsvImportPanel.tsx` | Lectura de `File` → `CsvCandlesImporter` → entrega de velas validadas             |
-| `IndicatorPanel.tsx` | Activación y periodo de SMA/EMA/RSI/Mínimo (valida enteros ≥ 1)                   |
-| `chartData.ts`       | Mappers puros a datos de lightweight-charts + `buildLines` + ajustes de indicador |
+| Componente                                    | Responsabilidad                                                                   |
+| --------------------------------------------- | --------------------------------------------------------------------------------- |
+| `src/components/pages/App.tsx`                | Orquesta estado, repositorio y proveedor; no contiene lógica de dominio           |
+| `src/components/organisms/CandleChart.tsx`    | `lightweight-charts`: velas, volumen overlay, líneas de indicador, leyenda OHLCV  |
+| `src/components/molecules/DataControls.tsx`   | Instrumento (con sugerencias), timeframe, rango de fechas, botón de descarga      |
+| `src/components/molecules/CsvImportPanel.tsx` | Lectura de `File` → `CsvCandlesImporter` → entrega de velas validadas             |
+| `src/components/molecules/IndicatorPanel.tsx` | Activación y periodo de SMA/EMA/RSI/Mínimo (valida enteros ≥ 1)                   |
+| `src/components/utils/chartData.ts`           | Mappers puros a datos de lightweight-charts + `buildLines` + ajustes de indicador |
 
 El arranque es `src/main.tsx` (fija `CandleRepository(localStorage)` y `BinanceProvider`), servido
 por `index.html` + `vite.config.ts`. Comandos: `pnpm dev`, `pnpm build`, `pnpm preview`.
@@ -79,8 +103,8 @@ alineada con las velas. 43 tests.
 
 Se pueden **definir y evaluar estrategias sin ejecutar operaciones**: reglas puras, decisiones
 (`request_entry`/`request_add`/`request_reduce`/`request_exit`/`none`/`invalidate`) con fracción y
-precio objetivo, y ciclo de vida de la instancia con eventos. El estado `Profit`/`Loss` de AGENTS.md
-se queda para Fase 3 (requiere P&L de posiciones reales/simuladas).
+precio objetivo, y ciclo de vida de la instancia con eventos. El estado `Profit`/`Loss` de
+`architecture.md` (§5) se queda para Fase 3 (requiere P&L de posiciones reales/simuladas).
 
 ### Fase 3 — Ejecución simulada (completa)
 
@@ -117,16 +141,16 @@ Plan detallado: [`fase4-plan.md`](./fase4-plan.md). Decisiones de alcance: UI m�
 estrategia demo de cruce SMA, sin trades sobre el gráfico), 8 métricas (§9 mínimo), experimentos en
 memoria (persistencia → Fase 6) y ≤ 1000 velas (sin paginación).
 
-| Módulo                                                                                                          | Archivos                                                                         | Tests |
-| --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----- |
-| `MarketClock` (§12A) — tiempo de simulación estrictamente creciente, sin `Date.now`                             | `src/domain/time/marketClock.ts`                                                 | 12    |
-| `Trade` — un registro por cierre (parcial/total), pnl neto; `Σ pnl = realizedPnl`                               | `src/domain/execution/trade.ts`                                                  | 16    |
-| `RecordingBroker` — decorador de `Broker`: registra órdenes y construye trades con el snapshot **previo**       | `src/domain/execution/recordingBroker.ts`                                        | 9     |
-| Métricas §9 (mínimo): Net Profit, ROI, Max DD, Sharpe, Profit Factor, Win Rate, Avg Trade, Expectancy           | `src/domain/backtest/metrics.ts`                                                 | 16    |
-| `runBacktest` — ejecución automática (Portfolio + Risk + Broker + Runner + Clock), determinista                 | `src/domain/backtest/backtest.ts`                                                | 7     |
-| `Experiment` (§9/§12C) — registro completo: `name@version`, periodo, capital, ejecución y riesgo                | `src/domain/backtest/experiment.ts`                                              | 6     |
-| E2E: 8 métricas a mano, invariantes y determinismo de extremo a extremo                                         | `test/domain/backtest/experimentE2E.test.ts`                                     | 3     |
-| UI mínima: `BacktestPanel` (parámetros, métricas, trades) + `EquityChart` + mapper de equity + E2E desde la app | `src/components/BacktestPanel.tsx`, `EquityChart.tsx`, `chartData.ts`, `App.tsx` | 15    |
+| Módulo                                                                                                          | Archivos                                                                                                                                                      | Tests |
+| --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `MarketClock` (§12A) — tiempo de simulación estrictamente creciente, sin `Date.now`                             | `src/domain/time/marketClock.ts`                                                                                                                              | 12    |
+| `Trade` — un registro por cierre (parcial/total), pnl neto; `Σ pnl = realizedPnl`                               | `src/domain/execution/trade.ts`                                                                                                                               | 16    |
+| `RecordingBroker` — decorador de `Broker`: registra órdenes y construye trades con el snapshot **previo**       | `src/domain/execution/recordingBroker.ts`                                                                                                                     | 9     |
+| Métricas §9 (mínimo): Net Profit, ROI, Max DD, Sharpe, Profit Factor, Win Rate, Avg Trade, Expectancy           | `src/domain/backtest/metrics.ts`                                                                                                                              | 16    |
+| `runBacktest` — ejecución automática (Portfolio + Risk + Broker + Runner + Clock), determinista                 | `src/domain/backtest/backtest.ts`                                                                                                                             | 7     |
+| `Experiment` (§9/§12C) — registro completo: `name@version`, periodo, capital, ejecución y riesgo                | `src/domain/backtest/experiment.ts`                                                                                                                           | 6     |
+| E2E: 8 métricas a mano, invariantes y determinismo de extremo a extremo                                         | `test/domain/backtest/experimentE2E.test.ts`                                                                                                                  | 3     |
+| UI mínima: `BacktestPanel` (parámetros, métricas, trades) + `EquityChart` + mapper de equity + E2E desde la app | `src/components/organisms/BacktestPanel.tsx`, `src/components/organisms/EquityChart.tsx`, `src/components/utils/chartData.ts`, `src/components/pages/App.tsx` | 15    |
 
 **Invariantes de fase:** anti look-ahead heredado del runner (orden de la vela N rellena en N+1);
 `Σ trades.pnl = finalEquity − inicial` con posición cerrada; misma config → mismo resultado (§12C).
@@ -142,15 +166,15 @@ entradas) + `CandleChart` **recortado** a las velas consumidas (velas e indicado
 ni equity en vivo (sigue siendo trabajo del backtest) y con la demo `sma-cross` (sin editor de
 estrategias).
 
-| Módulo                                                                                                                                               | Archivos                                    | Tests |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ----- |
-| `TradingSession` — motor de reproducción compartido (§7): stack de Fase 3 vela a vela; `findConfigProblem` se muda aquí (re-export en `backtest.ts`) | `src/domain/trading/tradingSession.ts`      | 11    |
-| `MarketReplayEngine` — estados `ready/playing/finished`, `step`/`reset`, manuales por fracción, log por paso (§7B/§12D)                              | `src/domain/replay/replayEngine.ts`         | 21    |
-| Velocidad `replayIntervalMs` — multiplicador en tiempo real, acotada (§7B)                                                                           | `src/domain/replay/speed.ts`                | 5     |
-| `RecordingBroker.fills` — payload de rellenos para el log (§12D)                                                                                     | `src/domain/execution/recordingBroker.ts`   | +3    |
-| `runBacktest` — refactor a bucle sobre `TradingSession` (mismo comportamiento, sin tocar sus tests)                                                  | `src/domain/backtest/backtest.ts`           | —     |
-| UI: `ReplayPanel` (transporte, velocidad, manuales, log) + `App` con `replayCursor` y gráfico recortado                                              | `src/components/ReplayPanel.tsx`, `App.tsx` | 16    |
-| E2E: replay paso a paso ≡ backtest, manuales con invariantes, reset §12C, cierre manual                                                              | `test/domain/replay/replayE2E.test.ts`      | 4     |
+| Módulo                                                                                                                                               | Archivos                                                                   | Tests |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----- |
+| `TradingSession` — motor de reproducción compartido (§7): stack de Fase 3 vela a vela; `findConfigProblem` se muda aquí (re-export en `backtest.ts`) | `src/domain/trading/tradingSession.ts`                                     | 11    |
+| `MarketReplayEngine` — estados `ready/playing/finished`, `step`/`reset`, manuales por fracción, log por paso (§7B/§12D)                              | `src/domain/replay/replayEngine.ts`                                        | 21    |
+| Velocidad `replayIntervalMs` — multiplicador en tiempo real, acotada (§7B)                                                                           | `src/domain/replay/speed.ts`                                               | 5     |
+| `RecordingBroker.fills` — payload de rellenos para el log (§12D)                                                                                     | `src/domain/execution/recordingBroker.ts`                                  | +3    |
+| `runBacktest` — refactor a bucle sobre `TradingSession` (mismo comportamiento, sin tocar sus tests)                                                  | `src/domain/backtest/backtest.ts`                                          | —     |
+| UI: `ReplayPanel` (transporte, velocidad, manuales, log) + `App` con `replayCursor` y gráfico recortado                                              | `src/components/organisms/ReplayPanel.tsx`, `src/components/pages/App.tsx` | 16    |
+| E2E: replay paso a paso ≡ backtest, manuales con invariantes, reset §12C, cierre manual                                                              | `test/domain/replay/replayE2E.test.ts`                                     | 4     |
 
 **Invariantes de fase:** anti look-ahead heredado del runner (también para manuales: orden de la
 vela N rellena en N+1); **motor único** — una sesión paso a paso produce los mismos
@@ -160,23 +184,23 @@ vela N rellena en N+1); **motor único** — una sesión paso a paso produce los
 ### Fase 6 — Experimentación avanzada (completa)
 
 Plan detallado: [`fase6-plan.md`](./fase6-plan.md). Decisiones de alcance: **T0** corrige
-`AGENTS.md` (el modelo real es _un experimento = una estrategia + su propio capital_, sin capital
+`architecture.md` (el modelo real es _un experimento = una estrategia + su propio capital_, sin capital
 compartido), UI mínima (3 paneles), **grid search determinista** (sin walk-forward), persistencia
 en localStorage con **id determinístico** (re-ejecutar = overwrite) y optimización **sin** guardar
 runs individuales.
 
-| Módulo                                                                                                                                                         | Archivos                                           | Tests |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ----- |
-| `canonicalJson`/`strategyFingerprint`/`canonicalHash` — huella reproducible de definición y de contenido (§12C)                                                | `src/domain/strategies/fingerprint.ts`             | 11    |
-| Cierre opcional `closePositionAtEnd` + `instrument` en la config del backtest (pendiente de Fase 4)                                                            | `src/domain/backtest/backtest.ts`, `experiment.ts` | +6    |
-| `Trade.toJSON/from` — roundtrip de persistencia validado                                                                                                       | `src/domain/execution/trade.ts`                    | +3    |
-| `ExperimentSnapshot` + `toSnapshot()` — id = hash del contenido **sin** id, sin orders/events                                                                  | `src/domain/backtest/experiment.ts`                | +4    |
-| `ExperimentRepository` — `Storage` inyectado, clave `experiments:<id>`, orden determinista; `CorruptedStorageError` compartido                                 | `src/storage/experimentRepository.ts`, `errors.ts` | 9     |
-| `compareExperiments`/`rankBy` + `sortByMetricDesc` como semántica única de ordenación (§9)                                                                     | `src/domain/backtest/compare.ts`, `metrics.ts`     | 10    |
-| `runOptimization` — producto cartesiano lexicográfico, cap 1000, `best`/`worst` (§13)                                                                          | `src/domain/backtest/optimization.ts`              | 11    |
-| `analyzeRobustness` — estadísticas, `plateau`, umbral y `sensitivity` (§13)                                                                                    | `src/domain/backtest/robustness.ts`                | 11    |
-| UI: `backtestForm` compartido + `ExperimentHistoryPanel` + `TestForwardPanel` + `OptimizationPanel` + auto-guardo en `App`                                     | `src/components/*.tsx`, `backtestForm.ts`          | 36    |
-| E2E de laboratorio: backtest → snapshot → optimización → robustez → comparación (el test-forward automático se eliminó en el plan de test-forward interactivo) | `test/domain/backtest/laboratorioE2E.test.ts`      | 4     |
+| Módulo                                                                                                                                                         | Archivos                                                       | Tests |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----- |
+| `canonicalJson`/`strategyFingerprint`/`canonicalHash` — huella reproducible de definición y de contenido (§12C)                                                | `src/domain/strategies/fingerprint.ts`                         | 11    |
+| Cierre opcional `closePositionAtEnd` + `instrument` en la config del backtest (pendiente de Fase 4)                                                            | `src/domain/backtest/backtest.ts`, `experiment.ts`             | +6    |
+| `Trade.toJSON/from` — roundtrip de persistencia validado                                                                                                       | `src/domain/execution/trade.ts`                                | +3    |
+| `ExperimentSnapshot` + `toSnapshot()` — id = hash del contenido **sin** id, sin orders/events                                                                  | `src/domain/backtest/experiment.ts`                            | +4    |
+| `ExperimentRepository` — `Storage` inyectado, clave `experiments:<id>`, orden determinista; `CorruptedStorageError` compartido                                 | `src/storage/experimentRepository.ts`, `errors.ts`             | 9     |
+| `compareExperiments`/`rankBy` + `sortByMetricDesc` como semántica única de ordenación (§9)                                                                     | `src/domain/backtest/compare.ts`, `metrics.ts`                 | 10    |
+| `runOptimization` — producto cartesiano lexicográfico, cap 1000, `best`/`worst` (§13)                                                                          | `src/domain/backtest/optimization.ts`                          | 11    |
+| `analyzeRobustness` — estadísticas, `plateau`, umbral y `sensitivity` (§13)                                                                                    | `src/domain/backtest/robustness.ts`                            | 11    |
+| UI: `backtestForm` compartido + `ExperimentHistoryPanel` + `TestForwardPanel` + `OptimizationPanel` + auto-guardo en `App`                                     | `src/components/*.tsx`, `src/components/utils/backtestForm.ts` | 36    |
+| E2E de laboratorio: backtest → snapshot → optimización → robustez → comparación (el test-forward automático se eliminó en el plan de test-forward interactivo) | `test/domain/backtest/laboratorioE2E.test.ts`                  | 4     |
 
 **Invariantes de fase:** determinismo **extremo a extremo** (el pipeline completo del E2E se repite
 idéntico, §12C); `id` estable → mismo experimento = una sola entrada; cap de rejilla avisado
@@ -202,15 +226,15 @@ Test-Forward son pestañas **con el gráfico integrado** (controles + `CandleCha
 montadas en `hidden` para conservar la sesión) e Historial vive entero en su pestaña (montado en
 `hidden` para conservar la selección de comparación).
 
-| Módulo                                                                                                                   | Archivos                                                            | Tests  |
-| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- | ------ |
-| `SidebarSection` — acordeón con `aria-expanded`/`aria-controls`; contenido con `hidden` (montado)                        | `src/components/SidebarSection.tsx`                                 | 6      |
-| `sidebarState` — sección abierta persistida con `Storage` inyectado, fallo → no-op                                       | `src/storage/sidebarState.ts`                                       | 5      |
-| `MainTabs` — 6 pestañas (`tablist`/`tab`), indicador por pestaña con resultados                                          | `src/components/MainTabs.tsx`                                       | 4      |
-| `BacktestResults` — métricas + equity (rejilla 2 col) + trades con scroll                                                | `src/components/BacktestResults.tsx`                                | 4      |
-| Test-forward: formulario en sidebar (`onStart`) + sesión en su pestaña (patrón Replay)                                   | `src/components/TestForwardPanel.tsx`, `TestForwardSessionView.tsx` | 5 + 11 |
-| Split optimización: rangos + cap + `onResult` / runs ordenados + robustez                                                | `src/components/OptimizationPanel.tsx`, `OptimizationResults.tsx`   | 6 + 3  |
-| `App` — acordeón, 6 pestañas, auto-conmutación de los 3 experimentos, Replay/Test-Forward/Historial montados en `hidden` | `src/components/App.tsx`, `src/styles.css`                          | 24     |
+| Módulo                                                                                                                   | Archivos                                                                                               | Tests  |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------ |
+| `SidebarSection` — acordeón con `aria-expanded`/`aria-controls`; contenido con `hidden` (montado)                        | `src/components/atoms/SidebarSection.tsx`                                                              | 6      |
+| `sidebarState` — sección abierta persistida con `Storage` inyectado, fallo → no-op                                       | `src/storage/sidebarState.ts`                                                                          | 5      |
+| `MainTabs` — 6 pestañas (`tablist`/`tab`), indicador por pestaña con resultados                                          | `src/components/atoms/MainTabs.tsx`                                                                    | 4      |
+| `BacktestResults` — métricas + equity (rejilla 2 col) + trades con scroll                                                | `src/components/organisms/BacktestResults.tsx`                                                         | 4      |
+| Test-forward: formulario en sidebar (`onStart`) + sesión en su pestaña (patrón Replay)                                   | `src/components/organisms/TestForwardPanel.tsx`, `src/components/organisms/TestForwardSessionView.tsx` | 5 + 11 |
+| Split optimización: rangos + cap + `onResult` / runs ordenados + robustez                                                | `src/components/organisms/OptimizationPanel.tsx`, `src/components/organisms/OptimizationResults.tsx`   | 6 + 3  |
+| `App` — acordeón, 6 pestañas, auto-conmutación de los 3 experimentos, Replay/Test-Forward/Historial montados en `hidden` | `src/components/pages/App.tsx`, `src/styles.css`                                                       | 24     |
 
 **Fases anteriores de este plan:** Fase 2 = split del backtest (`BacktestResults`) y pestañas
 iniciales; Fase 1 = acordeón y persistencia. Queda fuera: mover también los formularios a sus
@@ -235,12 +259,12 @@ cuatro paneles (§1.9), editor de **plantilla** (no editor libre de reglas por e
 | `StrategySpec` serializable + `buildStrategy`/`parseStrategySpec` + `Strategy.evaluate` ampliada (prioridad veto→SL→TP→reglas→triggers, niveles efectivos materializados) + `MarketContext.levels`/`withLevels`               | `src/domain/strategies/spec.ts`, `strategy.ts`, `marketContext.ts` | 58 (`strategy.test`) |
 | `StrategyRepository` — `Storage` inyectado, id = hash de contenido, semilla demo, **invariante `name@version` → contenido único**, `nextVersion`                                                                              | `src/storage/strategyRepository.ts`                                | 19                   |
 | API del editor: `seriesClasses`, `operationAliases`, `priceOperandAliases`, `ruleOperandAliases`, `compatibleClasses`                                                                                                         | `src/domain/strategies/spec.ts`                                    | (en `spec.test`)     |
-| `StrategySelect` — selector único de la estrategia activa para los 4 paneles (§1.9)                                                                                                                                           | `src/components/StrategySelect.tsx`                                | 4                    |
-| `StrategyPanel` — tercera sección del sidebar: lista `name@version` + huella, Nueva/Editar/Borrar, versión `max+1` conservando la anterior (enmienda 13) y validación `parse`+`buildStrategy` al guardar                      | `src/components/StrategyPanel.tsx`                                 | 12                   |
-| `StrategyEditor` — formulario por bloques (indicadores agrupados por clase, entrada limit/market + precio, TP/SL, triggers con `fraction`, salida y veto) + deshacer + aviso de niveles invertidos                            | `src/components/StrategyEditor.tsx`                                | 18                   |
-| `RuleEditor` — árbol visual AND/OR/NOT/**first_since** (dos ranuras "desde que" y "se cumple", alta desde condición o grupo), segundo operando filtrado por clase, operador `==`, alias de operación por contexto, atajo "+c" | `src/components/RuleEditor.tsx`                                    | 23                   |
-| `PriceExprEditor` — expresiones en **suma de productos** (forma plana) con aviso "no editable" para árboles fuera de forma (enmienda 15)                                                                                      | `src/components/PriceExprEditor.tsx`                               | 8                    |
-| Formulario compartido sin periodos (los parámetros viven en la `StrategySpec`)                                                                                                                                                | `src/components/backtestForm.ts`                                   | 7                    |
+| `StrategySelect` — selector único de la estrategia activa para los 4 paneles (§1.9)                                                                                                                                           | `src/components/molecules/StrategySelect.tsx`                      | 4                    |
+| `StrategyPanel` — tercera sección del sidebar: lista `name@version` + huella, Nueva/Editar/Borrar, versión `max+1` conservando la anterior (enmienda 13) y validación `parse`+`buildStrategy` al guardar                      | `src/components/organisms/StrategyPanel.tsx`                       | 12                   |
+| `StrategyEditor` — formulario por bloques (indicadores agrupados por clase, entrada limit/market + precio, TP/SL, triggers con `fraction`, salida y veto) + deshacer + aviso de niveles invertidos                            | `src/components/organisms/StrategyEditor.tsx`                      | 18                   |
+| `RuleEditor` — árbol visual AND/OR/NOT/**first_since** (dos ranuras "desde que" y "se cumple", alta desde condición o grupo), segundo operando filtrado por clase, operador `==`, alias de operación por contexto, atajo "+c" | `src/components/molecules/RuleEditor.tsx`                          | 23                   |
+| `PriceExprEditor` — expresiones en **suma de productos** (forma plana) con aviso "no editable" para árboles fuera de forma (enmienda 15)                                                                                      | `src/components/molecules/PriceExprEditor.tsx`                     | 8                    |
+| Formulario compartido sin periodos (los parámetros viven en la `StrategySpec`)                                                                                                                                                | `src/components/utils/backtestForm.ts`                             | 7                    |
 
 ### Regla `first_since` — secuencia con ancla (2026-11-15)
 
@@ -266,15 +290,15 @@ mínimo de 100 velas"_:
 
 ### Cambio 2 — Test-forward interactivo (sustituye al split dev/eval)
 
-| Módulo                                                                                                                                                                                                                                                                        | Archivos                                       | Tests |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ----- |
-| `confirmationPoints` — barrido estadoless con contexto por prefijo (entry.rule + veto + precio limitado) para los destinos de `jump`                                                                                                                                          | `src/domain/testforward/confirmationPoints.ts` | 6     |
-| `TestForwardSession` — envuelve `TradingSession` + `RecordingBroker`: `start`/`decide(take)`/`step`/`jump`/`reset`, RNG inyectado, confirmaciones de entrada **y** salida, overrides de TP/SL (manual/auto/desactivado), veto que retira la orden aceptada, log de decisiones | `src/domain/testforward/session.ts`            | 15    |
-| `TestForwardStrategy` (suprime señales → `confirmation` e inyecta overrides) + `TestForwardBroker` (rellenos notificados antes de evaluar)                                                                                                                                    | (internos de `session.ts`)                     | —     |
-| `TestForwardPanel` — formulario en la sidebar: estrategia + capital/fee/slippage + **Iniciar sesión** (salto inicial aleatorio)                                                                                                                                               | `src/components/TestForwardPanel.tsx`          | 5     |
-| `TestForwardSessionView` — pestaña Test-Forward (montada en `hidden`, patrón Replay): Tomar/Descartar · Cerrar/Mantener, Paso, Saltar, Reiniciar, controles TP/SL, progreso, cuenta y log                                                                                     | `src/components/TestForwardSessionView.tsx`    | 11    |
-| `App` — `tfSession`/`tfCursor`, gráfico cortado a la sesión activa (mutua exclusión con el replay), pestaña siempre montada                                                                                                                                                   | `src/components/App.tsx`                       | (24)  |
-| **Eliminado:** `backtest/split.ts`, `backtest/testForward.ts`, `TestForwardResults.tsx` + sus tests (−15); `laboratorioE2E` adaptado                                                                                                                                          | —                                              | −16   |
+| Módulo                                                                                                                                                                                                                                                                        | Archivos                                              | Tests |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- | ----- |
+| `confirmationPoints` — barrido estadoless con contexto por prefijo (entry.rule + veto + precio limitado) para los destinos de `jump`                                                                                                                                          | `src/domain/testforward/confirmationPoints.ts`        | 6     |
+| `TestForwardSession` — envuelve `TradingSession` + `RecordingBroker`: `start`/`decide(take)`/`step`/`jump`/`reset`, RNG inyectado, confirmaciones de entrada **y** salida, overrides de TP/SL (manual/auto/desactivado), veto que retira la orden aceptada, log de decisiones | `src/domain/testforward/session.ts`                   | 15    |
+| `TestForwardStrategy` (suprime señales → `confirmation` e inyecta overrides) + `TestForwardBroker` (rellenos notificados antes de evaluar)                                                                                                                                    | (internos de `session.ts`)                            | —     |
+| `TestForwardPanel` — formulario en la sidebar: estrategia + capital/fee/slippage + **Iniciar sesión** (salto inicial aleatorio)                                                                                                                                               | `src/components/organisms/TestForwardPanel.tsx`       | 5     |
+| `TestForwardSessionView` — pestaña Test-Forward (montada en `hidden`, patrón Replay): Tomar/Descartar · Cerrar/Mantener, Paso, Saltar, Reiniciar, controles TP/SL, progreso, cuenta y log                                                                                     | `src/components/organisms/TestForwardSessionView.tsx` | 11    |
+| `App` — `tfSession`/`tfCursor`, gráfico cortado a la sesión activa (mutua exclusión con el replay), pestaña siempre montada                                                                                                                                                   | `src/components/pages/App.tsx`                        | (24)  |
+| **Eliminado:** `backtest/split.ts`, `backtest/testForward.ts`, `TestForwardResults.tsx` + sus tests (−15); `laboratorioE2E` adaptado                                                                                                                                          | —                                                     | −16   |
 
 **Invariantes:** anti look-ahead para la decisión del usuario (tomar/cerrar en la vela N rellena en
 N+1); la instancia de las órdenes aceptadas transiciona **antes** de evaluar la vela del relleno
@@ -288,17 +312,17 @@ Plan detallado: [`strategy-preview-plan.md`](./strategy-preview-plan.md) — T1�
 Decisiones cerradas con el usuario: **dentro del editor** (sidebar, bajo el `<h3>`), alcance
 **C — estructura configurada** (velas + indicadores + niveles; sin backtest ni decisiones: §14
 mantiene el editor dentro de Strategy Design), render con **lightweight-charts** (2ª instancia
-deliberada, anotada en `App.tsx`). El alcance inicial "órdenes = backtest preview" se descartó
+deliberada, anotada en `src/components/pages/App.tsx`). El alcance inicial "órdenes = backtest preview" se descartó
 tras cuestionarlo el usuario: las órdenes dependen de capital/comisiones ajenos al editor.
 
-| Módulo                                                                                                                                                 | Archivos                                               | Tests               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ------------------- |
-| `buildIndicator` exportado (constructor de indicadores, existente pero privado)                                                                        | `src/domain/strategies/spec.ts`                        | +2                  |
-| `strategyPreview` — puro: líneas (pane/color por kind, id por índice) + niveles (entrada hipotética, TP/SL con `entry`, triggers) + `note` deduplicado | `src/components/strategyPreview.ts`                    | 22                  |
-| `lineSeries` — extracción de `lineOptions` + `syncLineSeries` desde `CandleChart` (una sola fuente de sincronía)                                       | `src/components/lineSeries.ts`, refactor `CandleChart` | 7 (+14 sin cambios) |
-| `StrategyPreviewChart` — chart compacto (sin leyenda/volumen/scroll), niveles como `IPriceLine` sincronizados                                          | `src/components/StrategyPreviewChart.tsx`              | 10                  |
-| Integración: render bajo el `<h3>`, estilos `.strategy-preview*`, anotación de la excepción de 2ª instancia                                            | `StrategyEditor.tsx`, `styles.css`, `App.tsx`          | +4                  |
-| `CHART_COLORS.constant` — color para constantes                                                                                                        | `src/components/chartData.ts`                          | —                   |
+| Módulo                                                                                                                                                 | Archivos                                                                                    | Tests               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------- |
+| `buildIndicator` exportado (constructor de indicadores, existente pero privado)                                                                        | `src/domain/strategies/spec.ts`                                                             | +2                  |
+| `strategyPreview` — puro: líneas (pane/color por kind, id por índice) + niveles (entrada hipotética, TP/SL con `entry`, triggers) + `note` deduplicado | `src/components/utils/strategyPreview.ts`                                                   | 22                  |
+| `lineSeries` — extracción de `lineOptions` + `syncLineSeries` desde `CandleChart` (una sola fuente de sincronía)                                       | `src/components/utils/lineSeries.ts`, refactor `CandleChart`                                | 7 (+14 sin cambios) |
+| `StrategyPreviewChart` — chart compacto (sin leyenda/volumen/scroll), niveles como `IPriceLine` sincronizados                                          | `src/components/organisms/StrategyPreviewChart.tsx`                                         | 10                  |
+| Integración: render bajo el `<h3>`, estilos `.strategy-preview*`, anotación de la excepción de 2ª instancia                                            | `src/components/organisms/StrategyEditor.tsx`, `styles.css`, `src/components/pages/App.tsx` | +4                  |
+| `CHART_COLORS.constant` — color para constantes                                                                                                        | `src/components/utils/chartData.ts`                                                         | —                   |
 
 **Invariantes/decisiones técnicas:** sin `buildStrategy` en el preview (un draft con reglas o
 nombre rotos sigue previsualizable — testeado con contraste: `buildStrategy` → lanza); cada
@@ -319,7 +343,7 @@ existente en el repo) y **quitar el minichart de la sidebar** (preview único).
 
 **Invariante recuperado**: como el preview _sustituye_ al chart normal (nunca conviven), el
 invariante "una sola instancia de lightweight-charts" vuelve a sostenerse **sin excepciones** —
-se retiró la anotación de excepción que añadió T4 en `App.tsx`.
+se retiró la anotación de excepción que añadió T4 en `src/components/pages/App.tsx`.
 
 **Nuevo flujo de datos** (el draft vive en el editor, así que sube por la cadena):
 
@@ -417,8 +441,8 @@ arranque sin ruta de recuperación.
 ### Transversales pendientes
 
 - **Eventos y observabilidad (§12D)**: los eventos se devuelven en las transiciones pero no hay
-  despacho/suscripción; el log del replay y del test-forward los consumen por diff del
-  `RecordingBroker` (Fases 5 y 7).
+  despacho/suscripción; el log del replay (Fase 5) y del test-forward interactivo (plan
+  `estrategias-testforward-plan.md`) los consumen por diff del `RecordingBroker`.
 - **Indicadores restantes**: MACD, ATR, Bollinger, VWAP (el contrato `Indicator` ya los admite).
 - **Versionado**: el editor asigna `version = max + 1` al guardar (enmienda 13) y el repositorio
   garantiza `name@version` → contenido único; para construcciones programáticas de

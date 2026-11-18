@@ -1,34 +1,27 @@
 import { useCallback, useState } from 'react'
 import type { TestForwardSession } from '@/domain/testforward/session'
 
-/**
- * Sesiones en curso (replay y test-forward): el gráfico solo ve lo consumido
- * (§7B/§2.3) y solo manda una a la vez.
- */
+/** Sesiones en curso (replay y test-forward): el gráfico solo ve lo consumido
+ * (§7B/§2.3) y solo manda una a la vez. En cualquier callback, `null` =
+ * sesión descartada (cambio de velas u otra sesión en marcha). */
 export interface ActiveSessionsSlice {
-  /** Cursor de la sesión activa (`replay ?? test-forward`); null = sin recorte. */
   activeCursor: number | null
-  /** true → hay sesión de test-forward en curso (punto en su pestaña). */
   hasTestForward: boolean
   tfSession: TestForwardSession | null
-  /** Cursor del replay; null = descartada (cambio de velas) o sin sesión. */
   onReplayProgress: (cursor: number | null) => void
-  /** Nueva sesión (§2.3): corta el gráfico, olvida el cursor del replay y notifica. */
   onTfStart: (session: TestForwardSession) => void
-  /** Cursor de la sesión de test-forward; null = descartada (velas nuevas). */
   onTfProgress: (cursor: number | null) => void
 }
 
 export interface UseActiveSessionsOptions {
-  /** Sesión de test-forward iniciada: corta el replay y abre su pestaña. */
+  /** Sesión de test-forward iniciada (App la enlaza con `nav.openTestForward`). */
   onSessionStarted: () => void
 }
 
 /**
- * Exclusión mutua de sesiones: una sesión de replay nueva (cursor no nulo)
- * descarta la de test-forward y viceversa — el gráfico sigue a una sola.
- * `onReplayProgress` conserva identidad estable: `ReplayPanel` lo usa en las
- * deps de sus `useEffect` (temporizador de reproducción).
+ * Exclusión mutua: una sesión de replay nueva (cursor no nulo) descarta la de
+ * test-forward y viceversa. `onReplayProgress` conserva identidad estable:
+ * `ReplayPanel` la usa en las deps de sus `useEffect` (temporizador).
  */
 export function useActiveSessions({
   onSessionStarted,

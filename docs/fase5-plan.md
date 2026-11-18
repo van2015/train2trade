@@ -1,6 +1,6 @@
 # Plan de la Fase 5 — Simulación interactiva (replay)
 
-> Desglose de tareas para la Fase 5 de [`AGENTS.md`](../AGENTS.md) (§7B Historical Replay, §12A,
+> Desglose de tareas para la Fase 5 de [`architecture.md`](./architecture.md) (§7B Historical Replay, §12A,
 > §13 Fase 5): _"investigar el comportamiento de una estrategia observando cómo evoluciona el
 > mercado"_.
 >
@@ -8,7 +8,7 @@
 && pnpm format:check` en verde (**647 tests**, `pnpm build` OK) y `proyectstate.md` actualizado.
 > Pendiente: aplicar los mensajes de commit sugeridos por tarea (AGENTS.md §Git: el agente no hace
 > commits). Rama `phase5` creada desde `main` (`c35cb45`); baseline de la fase: 587 tests. Requisitos:
-> AGENTS.md §7/§12/§13. La fase **reutilizó el stack de la Fase 4** y lo convirtió en un motor
+> architecture.md §7/§12/§13. La fase **reutilizó el stack de la Fase 4** y lo convirtió en un motor
 > compartido con el backtest, tal como pide §7: _"Backtesting y Historical Replay deberían compartir
 > el mismo mecanismo fundamental de reproducción de datos. La diferencia estaría en cómo se controla
 > el tiempo y cómo se presenta la ejecución"_.

@@ -1,12 +1,12 @@
 # Plan de la Fase 4 — Backtesting
 
-> Desglose de tareas para la Fase 4 de [`AGENTS.md`](../AGENTS.md) (§7A Backtesting, §9 Results &
+> Desglose de tareas para la Fase 4 de [`architecture.md`](./architecture.md) (§7A Backtesting, §9 Results &
 > Analytics, §12A/§12C, §13 Fase 4): _"ejecutar un experimento completo sobre datos históricos"_.
 >
 > **Estado: completado (2026-11-11)** — T1…T8 implementados con TDD; `pnpm test && pnpm typecheck &&
 pnpm format:check` en verde (**565 tests**, `pnpm build` OK) y `proyectstate.md` actualizado.
 > Pendiente: aplicar los mensajes de commit sugeridos por tarea (AGENTS.md §Git: el agente no hace
-> commits). Requisitos: AGENTS.md §7/§9/§12/§13.
+> commits). Requisitos: architecture.md §7/§9/§12/§13.
 
 ## Decisiones cerradas
 

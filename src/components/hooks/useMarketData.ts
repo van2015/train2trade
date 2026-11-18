@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { MarketDataProvider, TimeRange } from '@/api/marketDataProvider'
-import { DEFAULT_INDICATOR_SETTINGS, type IndicatorSettings } from '@/components/chartData'
-import { describeError } from '@/components/errorText'
+import { DEFAULT_INDICATOR_SETTINGS, type IndicatorSettings } from '@/components/utils/chartData'
+import { describeError } from '@/components/utils/errorText'
 import { Candle } from '@/domain/candles/candle'
 import { Timeframe } from '@/domain/candles/timeframe'
 import { Instrument } from '@/domain/instruments/instrument'
 import type { CandleRepository } from '@/storage/candleRepository'
 
-/** Mensaje de la última operación de datos (éxito o error), mostrado en el sidebar. */
+/** Mensaje de la última operación de datos (éxito o error). */
 export type Status = { kind: 'success' | 'error'; text: string } | null
 
 /** Rebanada de datos de mercado que comparten el sidebar y el área principal. */
 export interface MarketDataSlice {
   instrument: Instrument
   timeframe: Timeframe
-  /** Velas locales del instrumento/timeframe activos (descarga o CSV). */
+  /** Velas locales del instrumento/timeframe activos (no la serie completa). */
   candles: readonly Candle[]
   instruments: readonly Instrument[]
-  /** Indicadores visibles del gráfico (lo ajusta el sidebar, lo usa el chart). */
+  /** Indicadores del gráfico: los ajusta el sidebar, los dibuja el chart. */
   settings: IndicatorSettings
   busy: boolean
   status: Status
@@ -26,7 +26,7 @@ export interface MarketDataSlice {
   onSettingsChange: (settings: IndicatorSettings) => void
   onFetch: (range: TimeRange | undefined) => Promise<void>
   onImport: (candles: readonly Candle[]) => void
-  /** Notifica el error de un panel (p. ej. el importador CSV). */
+  /** Error de un panel (p. ej. el importador CSV) → mensaje en el sidebar. */
   onError: (message: string) => void
 }
 
@@ -35,11 +35,6 @@ export interface UseMarketDataOptions {
   provider: MarketDataProvider
 }
 
-/**
- * Datos de mercado: instrumento/timeframe activos, velas locales, indicadores
- * del gráfico y descarga/importación con su estado (`busy`/`status`). La
- * recarga es automática al cambiar de instrumento o timeframe.
- */
 export function useMarketData({ repository, provider }: UseMarketDataOptions): MarketDataSlice {
   const [instrument, setInstrument] = useState<Instrument>(() => Instrument.of('BTC', 'USDT'))
   const [timeframe, setTimeframe] = useState<Timeframe>(Timeframe.HOUR)
@@ -59,7 +54,6 @@ export function useMarketData({ repository, provider }: UseMarketDataOptions): M
     }
   }, [repository, instrument, timeframe])
 
-  // Cambiar de instrumento/timeframe recarga las velas locales.
   useEffect(() => {
     reload()
   }, [reload])

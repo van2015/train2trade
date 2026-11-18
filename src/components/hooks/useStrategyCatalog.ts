@@ -2,39 +2,33 @@ import { useState } from 'react'
 import type { StrategySpec } from '@/domain/strategies/spec'
 import type { StrategyRepository, StrategySnapshot } from '@/storage/strategyRepository'
 
-/** Catálogo de estrategias: selección única (§1.9), editor y arranque tolerante. */
 export interface StrategyCatalogSlice {
-  /** Estrategias persistidas (snapshot con `id`), en el orden del repositorio. */
   strategies: readonly StrategySnapshot[]
-  /** Estrategia activa (selector único); null si la lista está vacía. */
+  /** Estrategia activa (§1.9); null si la lista está vacía. */
   selected: StrategySpec | null
-  /** `id` de la estrategia activa (resuelta; null si no hay ninguna). */
+  /** `id` ya resuelto de la activa: el estado crudo puede apuntar a una borrada. */
   selectedId: string | null
-  /** Draft del editor abierto; null = editor cerrado (muestra el chart normal). */
+  /** Draft del editor; null = cerrado (la pestaña Gráfico muestra el chart normal). */
   editingSpec: StrategySpec | null
   /** Claves ilegibles detectadas al arrancar (incidente 2026-11-15). */
   corrupted: readonly string[]
-  /** Repositorio inyectado (lo usa el panel de CRUD de estrategias). */
   repository: StrategyRepository
   onSelectedChange: (id: string) => void
   onEditingChange: (spec: StrategySpec | null) => void
-  /** Elimina las claves corruptas, re-siembra la demo si no queda nada y refresca. */
   onRepair: () => void
-  /** Tras el CRUD (§1.8): la lista y la selección se recalculan. */
   reload: () => void
 }
 
 export interface UseStrategyCatalogOptions {
   strategies: StrategyRepository
-  /** Al abrir el editor (null → spec): la pestaña Gráfico muestra el preview. */
   onEditingOpened: () => void
 }
 
 /**
- * Catálogo de estrategias persistidas. Si la seleccionada se borra, la
- * selección cae en la primera de la lista. El ciclo de edición (§1.8) notifica
- * `onEditingOpened` solo al **abrir**: cambios de draft y cierre no tocan la
- * pestaña (el usuario puede navegar mientras edita).
+ * Si la seleccionada se borra, la selección cae en la primera de la lista.
+ * El ciclo de edición (§1.8) notifica `onEditingOpened` solo al **abrir**:
+ * cambios de draft y cierre no tocan la pestaña (el usuario puede navegar
+ * mientras edita).
  */
 export function useStrategyCatalog({
   strategies,

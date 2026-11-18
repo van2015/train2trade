@@ -1,6 +1,6 @@
 # Plan de la Fase 6 — Experimentación avanzada
 
-> Desglose de tareas para la Fase 6 de [`AGENTS.md`](../AGENTS.md) (§7B Historical Replay como base
+> Desglose de tareas para la Fase 6 de [`architecture.md`](./architecture.md) (§7B Historical Replay como base
 > de datos divididos, §7C Test-forward, §9 Results & Analytics, §12C Reproducibilidad, §13 Fase 6):
 > _"un laboratorio para desarrollar y validar sistemas de trading"_.
 >
@@ -8,12 +8,13 @@
 && pnpm format:check` en verde (**767 tests**, `pnpm build` OK) y `proyectstate.md` actualizado.
 > Rama `phase6` creada desde `main` (`dd1ce77`); baseline de la fase: 647 tests. Pendiente: aplicar
 > los mensajes de commit sugeridos por tarea (AGENTS.md §Git: el agente no hace commits).
-> Requisitos: AGENTS.md §7/§9/§12/§13. La **Fase 5 (replay interactivo) sigue pendiente y no
-> bloquea esta fase**: solo comparten `MarketClock`, que ya existe desde la Fase 4.
+> Requisitos: architecture.md §7/§9/§12/§13. La **Fase 5 (replay interactivo) estaba pendiente
+> cuando se planificó esta fase y no la bloqueaba**: solo comparten `MarketClock`, que ya existe
+> desde la Fase 4 (la Fase 5 se completó después, el 2026-11-12).
 
 ## Contexto y corrección de alcance (T0)
 
-AGENTS.md §8/§13 describen "asignación de capital entre estrategias" y "gestión de múltiples
+architecture.md §8/§13 describen "asignación de capital entre estrategias" y "gestión de múltiples
 estrategias y capital". **Eso no aplica al producto**: el modelo real es **un experimento = una
 estrategia + su propio capital**; nunca un mismo capital operado por varias estrategias. Varias
 estrategias conviven como **experimentos separados** que se comparan entre sí. La T0 corrige esa
@@ -26,7 +27,7 @@ Tampoco hay dependencia con la Fase 5: esta fase solo usa datos históricos ya c
 
 | Decisión           | Elección                                                                                                                                                                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Modelo de capital  | **Sin capital compartido**: cada experimento, una estrategia y su capital. Corrige AGENTS.md §8/§13 (T0).                                                                                                                             |
+| Modelo de capital  | **Sin capital compartido**: cada experimento, una estrategia y su capital. Corrige architecture.md §8/§13 (T0).                                                                                                                       |
 | UI                 | **UI mínima por módulo** (patrón Fase 4): panel de historial + comparación, modo test-forward y panel de optimización. Sin heatmap ni equity superpuestos.                                                                            |
 | Optimización       | **Grid search determinista** (rejilla de combinaciones, orden estable) + **análisis de sensibilidad/vecindario** sobre la rejilla. Sin walk-forward ni muestreo aleatorio.                                                            |
 | Persistencia       | **localStorage de `ExperimentSnapshot`** (metadata + métricas + equity + trades; **sin** `orders`/`events`, que son pesados y no hacen falta para comparar). Id determinístico → re-ejecutar = overwrite, sin duplicados.             |
@@ -198,10 +199,10 @@ export function analyzeRobustness(
 
 ### T0 — Corrección de alcance en la documentación
 
-- **Archivos:** `AGENTS.md`, `docs/proyectstate.md` (sin tests).
-- `AGENTS.md` §13 Fase 6: "Gestión de múltiples estrategias y capital." → modelo real
+- **Archivos:** `docs/architecture.md`, `docs/proyectstate.md` (sin tests).
+- `architecture.md` §13 Fase 6: "Gestión de múltiples estrategias y capital." → modelo real
   ("un experimento = una estrategia + su propio capital; la comparación es entre experimentos").
-- `AGENTS.md` §8: eliminar "Asignación de capital entre estrategias" y sustituir el ejemplo de las
+- `architecture.md` §8: eliminar "Asignación de capital entre estrategias" y sustituir el ejemplo de las
   dos señales conjuntas de BTC por evaluación de riesgo **dentro** de un experimento; revisar §5
   (`TradingEngine: coordinación de múltiples estrategias`) y menciones similares.
 - `proyectstate.md` pendiente Fase 6: misma corrección.

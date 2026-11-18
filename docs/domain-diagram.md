@@ -5,7 +5,7 @@
 > 5 (Simulación interactiva) y 6 (Experimentación avanzada)**, el **plan de editor de
 > estrategias + test-forward interactivo** (2026-11-14) y la **tanda de refactors del dominio**
 > (2026-11-16: split de `spec/`, `Trade`/`RecordingBroker` → `execution/`, primitiva de envío
-> compartida). Requisitos: [`AGENTS.md`](../AGENTS.md).
+> compartida). Requisitos: [`architecture.md`](./architecture.md).
 >
 > ⚠️ **Este documento debe actualizarse siempre que cambie el código que representa**: añadir o
 > mover paquetes/clases, crear o eliminar errores, o cambiar dependencias entre paquetes. Ver

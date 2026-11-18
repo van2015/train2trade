@@ -1,6 +1,6 @@
 # Plan: editor de estrategias + experimentos por estrategia + test-forward interactivo
 
-> Fuentes: `AGENTS.md` (§4, §7C), `docs/proyectstate.md`, exploración del código.
+> Fuentes: `docs/architecture.md` (§4, §7C), `docs/proyectstate.md`, exploración del código.
 >
 > **Estado: completado (2026-11-14)** — rondas A–I en verde
 > (`pnpm test && pnpm typecheck && pnpm format:check`); el inventario final vive en

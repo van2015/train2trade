@@ -4,7 +4,7 @@ import { BinanceProvider } from '@/api/binanceProvider'
 import { CandleRepository } from '@/storage/candleRepository'
 import { ExperimentRepository } from '@/storage/experimentRepository'
 import { StrategyRepository } from '@/storage/strategyRepository'
-import { App } from '@/components/App'
+import { App } from '@/components/pages/App'
 import '@/styles.css'
 
 const container = document.getElementById('root')
